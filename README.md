@@ -53,3 +53,22 @@ Download the latest release for your platform from the [Releases](../../releases
 | Windows (x64) | `Aether-windows-amd64-installer.exe` |
 | macOS (Apple Silicon) | `Aether-macos-arm64.zip` |
 | Linux (x64) | `Aether-linux-amd64` |
+
+## Building from Source
+
+If you'd like to build Aether from source, ensure you have the following installed:
+- [Go 1.22+](https://go.dev/doc/install)
+- [Node.js 20+](https://nodejs.org/)
+- [Wails CLI v2](https://wails.io/docs/gettingstarted/installation)
+
+```bash
+# Clone the repository
+git clone https://github.com/wayback09/Aether.git
+cd Aether
+
+# Run in development mode (live reload)
+wails dev
+
+# Or build a production binary
+wails build
+```

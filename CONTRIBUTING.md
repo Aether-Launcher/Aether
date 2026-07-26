@@ -27,6 +27,23 @@ Have an idea for a core feature or improvement? Open an issue and describe your 
 5. Push to the branch (`git push origin feature/my-feature`).
 6. Open a Pull Request.
 
+### 5. Building from Source
+To test your changes locally, you'll need to build the launcher from source.
+
+**Prerequisites:**
+- [Go 1.22+](https://go.dev/doc/install)
+- [Node.js 20+](https://nodejs.org/)
+- [Wails CLI v2](https://wails.io/docs/gettingstarted/installation)
+
+**Development Commands:**
+```bash
+# Run the application in development mode with live reload
+wails dev
+
+# Build a production executable
+wails build
+```
+
 ## Code of Conduct
 
 Please note that this project is released with a Contributor Code of Conduct. By participating in this project you agree to abide by its terms.
