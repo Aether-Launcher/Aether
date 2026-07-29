@@ -6,6 +6,9 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "postBuildHooks": {
+    "darwin/*": "../../build/darwin/compile-icon.sh \"${bin}\""
+  },
   "author": {
     "name": "CyberDroid456",
     "email": "158224073+CyberDroid456@users.noreply.github.com"

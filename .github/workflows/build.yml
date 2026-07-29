@@ -76,12 +76,6 @@ jobs:
         if: runner.os != 'Windows'
         run: wails build -platform ${{ matrix.platform }}
 
-      # macOS 26: compile the Icon Composer icon (aether.icon) into the
-      # bundle's Assets.car and re-sign — must run after wails build
-      - name: Compile macOS app icon
-        if: runner.os == 'macOS'
-        run: ./build/darwin/compile-icon.sh "build/bin/${{ matrix.binary }}"
-
       # Windows: rename installer
       - name: Rename Windows installer
         if: runner.os == 'Windows'
