@@ -28,14 +28,30 @@
   }
 
   onMount(async () => {
-    await loadInstances();
-    await loadVersions();
+    try {
+      await loadInstances();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load instances: " + err);
+    }
+
+    try {
+      await loadVersions();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load Minecraft versions from Mojang. Check your network: " + err);
+    }
     
-    const loaders = await GetModLoaders();
-    availableLoaders = [
-      { label: 'Vanilla', value: 'Vanilla' },
-      ...(loaders || []).map(l => ({ label: l.name, value: l.id }))
-    ];
+    try {
+      const loaders = await GetModLoaders();
+      availableLoaders = [
+        { label: 'Vanilla', value: 'Vanilla' },
+        ...(loaders || []).map(l => ({ label: l.name, value: l.id }))
+      ];
+    } catch (err) {
+      console.error(err);
+      availableLoaders = [{ label: 'Vanilla', value: 'Vanilla' }];
+    }
   });
 
   async function handleCreate() {
