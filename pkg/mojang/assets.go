@@ -80,7 +80,7 @@ func (e *DownloadEngine) DownloadAssets(ctx context.Context, assetIndex AssetInd
 			defer func() { <-sem }()
 
 			url := fmt.Sprintf("https://resources.download.minecraft.net/%s/%s", h[:2], h)
-			if err := netutil.DownloadFile(ctx, url, dest, nil); err != nil {
+			if err := netutil.DownloadFile(ctx, url, dest, nil, h); err != nil {
 				errors <- fmt.Errorf("asset %s: %w", h, err)
 				return
 			}

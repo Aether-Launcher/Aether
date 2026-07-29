@@ -2,6 +2,8 @@ package netutil
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,15 +25,25 @@ var defaultClient = &http.Client{
 type ProgressCallback func(downloaded, total int64)
 
 // DownloadFile downloads a file from url to dest, with support for resuming (Range requests)
-// and exponential backoff retries.
-func DownloadFile(ctx context.Context, url string, dest string, onProgress ProgressCallback) error {
+// and exponential backoff retries. If expectedSha1 is non-empty, the downloaded file's
+// SHA1 is verified and the file is deleted and an error returned on mismatch.
+func DownloadFile(ctx context.Context, url string, dest string, onProgress ProgressCallback, expectedSha1 ...string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return err
 	}
 
-	// Skip if final file already exists
+	// If the file already exists, verify its checksum before skipping.
 	if _, err := os.Stat(dest); err == nil {
-		return nil
+		if len(expectedSha1) > 0 && expectedSha1[0] != "" {
+			if ok, _ := verifySha1(dest, expectedSha1[0]); !ok {
+				// Stale or corrupt — remove and re-download
+				_ = os.Remove(dest)
+			} else {
+				return nil
+			}
+		} else {
+			return nil
+		}
 	}
 
 	tempDest := dest + ".tmp"
@@ -120,6 +132,15 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 			if err := os.Rename(tempDest, dest); err != nil {
 				return fmt.Errorf("failed to rename temp file: %w", err)
 			}
+
+			// Verify checksum after successful download
+			if len(expectedSha1) > 0 && expectedSha1[0] != "" {
+				if ok, gotHash := verifySha1(dest, expectedSha1[0]); !ok {
+					_ = os.Remove(dest)
+					return fmt.Errorf("checksum mismatch for %s: expected %s got %s", filepath.Base(dest), expectedSha1[0], gotHash)
+				}
+			}
+
 			return nil
 		}
 
@@ -135,4 +156,21 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 	}
 
 	return fmt.Errorf("failed to download after %d retries, last error: %w", maxRetries, lastErr)
+}
+
+// verifySha1 computes the SHA1 of the file at path and compares it to expected.
+// Returns (true, actualHash) on match, (false, actualHash) on mismatch or error.
+func verifySha1(path string, expected string) (bool, string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, ""
+	}
+	defer f.Close()
+
+	h := sha1.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return false, ""
+	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	return actual == expected, actual
 }

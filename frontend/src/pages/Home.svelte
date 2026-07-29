@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions } from '../../wailsjs/go/main/App.js';
   import { EventsOn } from '../../wailsjs/runtime/runtime.js';
+  import { gameStore } from '../stores/gameStore.js';
   import EmptyState from '../components/EmptyState.svelte';
 
   const dispatch = createEventDispatcher();
@@ -12,31 +13,26 @@
   let currentInstance: any = null;
   let recentInstances: any[] = [];
   let extensions: any[] = [];
-  let launchState = "Idle";
-  let logs: string[] = [];
   let installProgress = 0;
+  let installStatusText = '';
   let javaStatus: { phase: string; message: string; progress?: number } | null = null;
+
+  // Derive from global store — survives navigation
+  $: launchState = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.state : 'Idle';
+  $: logs = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.logs.slice(-10) : [];
 
   onMount(async () => {
     await loadHome();
 
-    EventsOn("instance:state", (data: any) => {
-      if (currentInstance && data.id === currentInstance.id) {
-        launchState = data.state;
-      }
-    });
-
-    EventsOn("instance:log", (line: string) => {
-      logs = [...logs, line].slice(-10);
-    });
-
+    // instance:state and instance:log are handled globally in gameStore.
+    // Install progress is page-local — only relevant while Home is mounted.
     EventsOn("instance:progress", (data: any) => {
       if (currentInstance && data.id === currentInstance.id) {
         installProgress = data.progress;
-        launchState = data.status;
+        installStatusText = data.status;
         if (data.progress >= 100) {
           currentInstance.installed = true;
-          launchState = "Idle";
+          installStatusText = '';
         }
       }
     });
@@ -92,23 +88,23 @@
 
   async function handlePlay() {
     if (!currentInstance) return;
-    launchState = "Starting...";
+    gameStore.update(s => ({ ...s, instanceId: currentInstance.id, state: 'Starting...' }));
     try {
       await LaunchInstance(currentInstance.id);
     } catch (err) {
-      launchState = "Error";
+      gameStore.update(s => ({ ...s, state: 'Error' }));
       console.error(err);
     }
   }
 
   async function handleInstall() {
     if (!currentInstance) return;
-    launchState = "Installing...";
+    installStatusText = 'Installing...';
     installProgress = 0;
     try {
       await InstallInstance(currentInstance.id);
     } catch (err) {
-      launchState = "Error";
+      installStatusText = 'Error';
       console.error(err);
     }
   }
@@ -198,9 +194,9 @@
                 <button
                   class="btn btn-primary play-btn"
                   on:click={handleInstall}
-                  disabled={launchState.includes('Download') || launchState === 'Installing...'}
+                  disabled={installStatusText === 'Installing...' || (installProgress > 0 && installProgress < 100)}
                 >
-                  {launchState === 'Idle' || launchState === 'Error' ? 'Install' : 'Installing...'}
+                  {installStatusText === '' || installStatusText === 'Error' ? 'Install' : 'Installing...'}
                 </button>
                 {#if installProgress > 0 && installProgress < 100}
                   <div class="progress-track">
@@ -221,7 +217,7 @@
               </div>
             {/if}
 
-            {#if launchState !== 'Idle'}
+            {#if launchState !== 'Idle' && launchState !== ''}
               <span class="status-label">{launchState}</span>
             {/if}
           </div>

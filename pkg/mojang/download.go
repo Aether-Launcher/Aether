@@ -62,7 +62,7 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 	go func() {
 		defer wg.Done()
 		clientPath := filepath.Join(e.basePath, "bin", fmt.Sprintf("%s.jar", info.ID))
-		if err := netutil.DownloadFile(e.ctx, info.Downloads.Client.URL, clientPath, nil); err != nil {
+		if err := netutil.DownloadFile(e.ctx, info.Downloads.Client.URL, clientPath, nil, info.Downloads.Client.Sha1); err != nil {
 			errors <- err
 			return
 		}
@@ -80,7 +80,7 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 			defer func() { <-sem }()
 
 			libPath := filepath.Join(e.basePath, "libraries", l.Downloads.Artifact.Path)
-			if err := netutil.DownloadFile(e.ctx, l.Downloads.Artifact.URL, libPath, nil); err != nil {
+			if err := netutil.DownloadFile(e.ctx, l.Downloads.Artifact.URL, libPath, nil, l.Downloads.Artifact.Sha1); err != nil {
 				errors <- err
 				return
 			}
