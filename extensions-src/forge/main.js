@@ -21,6 +21,11 @@ Aether.launcher.registerModLoader({
         var jarType = "client";
         var mainClass = "cpw.mods.modlauncher.Launcher";
 
+        var cp = [];
+        for (var idx = 0; idx < ctx.classpath.length; idx++) {
+            cp.push(ctx.classpath[idx]);
+        }
+
         // 3. Try to fetch the Forge version JSON for library listing
         var jsonUrl = mavenUrl + basePath + ".json";
         try {
@@ -35,7 +40,7 @@ Aether.launcher.registerModLoader({
                     if (lib.downloads && lib.downloads.artifact && lib.downloads.artifact.url) {
                         try {
                             var localPath = Aether.fs.download(lib.downloads.artifact.url, lib.downloads.artifact.path);
-                            ctx.classpath.push(localPath);
+                            cp.push(localPath);
                         } catch (libErr) {
                             // Log the failure but continue — a missing optional lib shouldn't abort the launch
                             throw new Error("[Forge] Failed to download library " + lib.name + ": " + libErr);
@@ -66,9 +71,10 @@ Aether.launcher.registerModLoader({
             jarUrl = mavenUrl + basePath + "-universal.jar";
             jarPath = Aether.fs.download(jarUrl, basePath + "-universal.jar");
         }
-        ctx.classpath.push(jarPath);
+        cp.push(jarPath);
 
         ctx.mainClass = mainClass;
+        ctx.classpath = cp;
         return ctx;
     }
 });

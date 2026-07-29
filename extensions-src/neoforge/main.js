@@ -5,26 +5,53 @@ Aether.launcher.registerModLoader({
     onLaunch: function(ctx) {
         var mcVersion = ctx.mcVersion;
 
-        // 1. Fetch NeoForge API to get the recommended version for this MC version
-        var apiUrl = "https://api.neoforged.net/api/v1/versions/minecraft";
+        // 1. Fetch NeoForge Maven API to get the version list
+        var apiUrl = "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge";
         var apiStr = Aether.http.get(apiUrl);
-        var mcVersions = JSON.parse(apiStr);
+        var data = JSON.parse(apiStr);
+        var versions = data.versions || [];
 
-        // Find the entry matching our MC version
-        var neoforgeVer = null;
-        for (var i = 0; i < mcVersions.length; i++) {
-            if (mcVersions[i].version === mcVersion) {
-                neoforgeVer = mcVersions[i].recommended || mcVersions[i].latest;
-                break;
-            }
+        // Build version prefix matching Minecraft version
+        var parts = mcVersion.split(".");
+        var major = parts[0];
+        var prefix = "";
+        if (major === "1") {
+            var minor = parts[1] || "0";
+            var patch = parts[2] || "0";
+            prefix = minor + "." + patch + ".";
+        } else {
+            var minor = parts[1] || "0";
+            var patch = parts[2] || "0";
+            prefix = major + "." + minor + "." + patch + ".";
         }
-        if (!neoforgeVer) {
+
+        var compatible = versions.filter(function(v) {
+            return v.indexOf(prefix) === 0;
+        });
+
+        if (compatible.length === 0) {
+            // Fallback: try major.minor prefix
+            var altPrefix = major === "1" ? (parts[1] || "0") + "." : major + "." + (parts[1] || "0") + ".";
+            compatible = versions.filter(function(v) {
+                return v.indexOf(altPrefix) === 0;
+            });
+        }
+
+        if (compatible.length === 0) {
             throw new Error("NeoForge is not available for Minecraft " + mcVersion);
         }
+
+        // Select the latest compatible version
+        var neoforgeVer = compatible[compatible.length - 1];
 
         var mavenUrl = "https://maven.neoforged.net/releases/";
         var basePath = "net/neoforged/neoforge/" + neoforgeVer + "/neoforge-" + neoforgeVer;
         var mainClass = "cpw.mods.modlauncher.Launcher";
+
+        var cp = [];
+        for (var idx = 0; idx < ctx.classpath.length; idx++) {
+            cp.push(ctx.classpath[idx]);
+        }
 
         // 2. Fetch the NeoForge version JSON for library listing
         var jsonUrl = mavenUrl + basePath + ".json";
@@ -39,7 +66,7 @@ Aether.launcher.registerModLoader({
                     if (lib.downloads && lib.downloads.artifact && lib.downloads.artifact.url) {
                         try {
                             var localPath = Aether.fs.download(lib.downloads.artifact.url, lib.downloads.artifact.path);
-                            ctx.classpath.push(localPath);
+                            cp.push(localPath);
                         } catch (libErr) {
                             // Log the failure but continue — a missing optional lib shouldn't abort the launch
                             throw new Error("[NeoForge] Failed to download library " + lib.name + ": " + libErr);
@@ -69,9 +96,10 @@ Aether.launcher.registerModLoader({
             jarUrl = mavenUrl + basePath + ".jar";
             jarPath = Aether.fs.download(jarUrl, basePath + ".jar");
         }
-        ctx.classpath.push(jarPath);
+        cp.push(jarPath);
 
         ctx.mainClass = mainClass;
+        ctx.classpath = cp;
         return ctx;
     }
 });

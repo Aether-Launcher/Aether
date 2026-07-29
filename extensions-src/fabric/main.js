@@ -40,6 +40,11 @@ Aether.launcher.registerModLoader({
             }
         }
 
+        var cp = [];
+        for (var idx = 0; idx < ctx.classpath.length; idx++) {
+            cp.push(ctx.classpath[idx]);
+        }
+
         for (var i = 0; i < allLibs.length; i++) {
             var lib = allLibs[i];
             var parts = lib.name.split(":"); // group:artifact:version
@@ -54,7 +59,7 @@ Aether.launcher.registerModLoader({
             }
 
             var localPath = Aether.fs.download(baseUrl + relPath, relPath);
-            ctx.classpath.push(localPath);
+            cp.push(localPath);
         }
 
         // Set the main class
@@ -68,6 +73,7 @@ Aether.launcher.registerModLoader({
             ctx.mainClass = "net.fabricmc.loader.impl.launch.knot.KnotClient";
         }
 
+        ctx.classpath = cp;
         return ctx;
     }
 });
