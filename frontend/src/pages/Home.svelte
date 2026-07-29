@@ -101,10 +101,13 @@
     if (!currentInstance) return;
     installStatusText = 'Installing...';
     installProgress = 0;
+    // Set gameStore context so the log panel binds to this instance's installation logs
+    gameStore.update(s => ({ ...s, instanceId: currentInstance.id, state: 'Installing...', logs: [] }));
     try {
       await InstallInstance(currentInstance.id);
     } catch (err) {
       installStatusText = 'Error';
+      gameStore.update(s => ({ ...s, state: 'Error' }));
       console.error(err);
     }
   }

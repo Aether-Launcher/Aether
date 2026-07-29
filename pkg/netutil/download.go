@@ -27,7 +27,7 @@ type ProgressCallback func(downloaded, total int64)
 // DownloadFile downloads a file from url to dest, with support for resuming (Range requests)
 // and exponential backoff retries. If expectedSha1 is non-empty, the downloaded file's
 // SHA1 is verified and the file is deleted and an error returned on mismatch.
-func DownloadFile(ctx context.Context, url string, dest string, onProgress ProgressCallback, expectedSha1 ...string) error {
+func DownloadFile(ctx context.Context, url string, dest string, onProgress ProgressCallback, expectedSha1 ...string) (err error) {
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return err
 	}
@@ -47,11 +47,17 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 	}
 
 	tempDest := dest + ".tmp"
+	defer func() {
+		if err != nil {
+			_ = os.Remove(tempDest)
+		}
+	}()
+
 	maxRetries := 5
 	var lastErr error
 
 	for i := 0; i < maxRetries; i++ {
-		err := func() error {
+		err = func() error {
 			var startBytes int64 = 0
 
 			// Check if temp file exists to resume
@@ -84,6 +90,14 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 				}
 			} else if resp.StatusCode == http.StatusOK {
 				// Server didn't respect Range or we didn't send it, start from scratch
+				startBytes = 0
+				out, err = os.Create(tempDest)
+				if err != nil {
+					return err
+				}
+			} else if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+				// Range not satisfiable (e.g. temp file got corrupted or is larger than server file).
+				// Start from scratch.
 				startBytes = 0
 				out, err = os.Create(tempDest)
 				if err != nil {

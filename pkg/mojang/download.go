@@ -27,8 +27,17 @@ func NewDownloadEngine(ctx context.Context, instanceID, basePath string) *Downlo
 	}
 }
 
+func (e *DownloadEngine) log(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	// Print to backend terminal
+	fmt.Printf("[Installer:%s] %s\n", e.instance, msg)
+	// Emit event to frontend console log panel
+	runtime.EventsEmit(e.ctx, "instance:log", fmt.Sprintf("[Installer] %s", msg))
+}
+
 // Install processes the VersionInfo and downloads everything needed to launch
 func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
+	e.log("Starting installation pipeline for version %s", info.ID)
 	// Count only the libraries to download + client jar
 	allowedLibs := []Library{}
 	for _, lib := range info.Libraries {
@@ -58,18 +67,22 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 	}
 
 	// Download Client Jar
+	e.log("Downloading client jar: %s.jar", info.ID)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		clientPath := filepath.Join(e.basePath, "bin", fmt.Sprintf("%s.jar", info.ID))
 		if err := netutil.DownloadFile(e.ctx, info.Downloads.Client.URL, clientPath, nil, info.Downloads.Client.Sha1); err != nil {
+			e.log("Error downloading client jar: %v", err)
 			errors <- err
 			return
 		}
+		e.log("Successfully downloaded client jar")
 		reportProgress("client.jar", "Core")
 	}()
 
 	// Download Libraries concurrently
+	e.log("Downloading %d required libraries...", len(allowedLibs))
 	sem := make(chan struct{}, 10)
 
 	for _, lib := range allowedLibs {
@@ -81,6 +94,7 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 
 			libPath := filepath.Join(e.basePath, "libraries", l.Downloads.Artifact.Path)
 			if err := netutil.DownloadFile(e.ctx, l.Downloads.Artifact.URL, libPath, nil, l.Downloads.Artifact.Sha1); err != nil {
+				e.log("Error downloading library %s: %v", l.Name, err)
 				errors <- err
 				return
 			}
@@ -97,7 +111,10 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 		}
 	}
 
+	e.log("All libraries downloaded successfully")
+
 	// Download Assets
+	e.log("Downloading game assets index and objects...")
 	runtime.EventsEmit(e.ctx, "instance:progress", map[string]interface{}{
 		"id":       e.instance,
 		"progress": 50,
@@ -105,10 +122,14 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 	})
 
 	if err := e.DownloadAssets(e.ctx, info.AssetIndex, assetsDir); err != nil {
+		e.log("Error downloading assets: %v", err)
 		return fmt.Errorf("asset download error: %w", err)
 	}
 
+	e.log("Game assets downloaded successfully")
+
 	// Extract Native Libraries
+	e.log("Extracting native libraries...")
 	runtime.EventsEmit(e.ctx, "instance:progress", map[string]interface{}{
 		"id":       e.instance,
 		"progress": 90,
@@ -118,19 +139,25 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 	nativesDir := filepath.Join(e.basePath, "natives")
 	librariesDir := filepath.Join(e.basePath, "libraries")
 	if err := ExtractNatives(info.Libraries, librariesDir, nativesDir); err != nil {
+		e.log("Error extracting natives: %v", err)
 		return fmt.Errorf("native extraction error: %w", err)
 	}
+
+	e.log("Native libraries extracted successfully")
 
 	// Download Log4j config file
 	if info.Logging.Client.File.URL != "" {
 		logConfigPath := filepath.Join(e.basePath, info.Logging.Client.File.ID)
+		e.log("Downloading log4j configuration...")
 		if err := netutil.DownloadFile(e.ctx, info.Logging.Client.File.URL, logConfigPath, nil); err != nil {
+			e.log("Warning: failed to download log config: %v", err)
 			fmt.Printf("Warning: failed to download log config: %v\n", err)
 			// Non-fatal, continue
 		}
 	}
 
 	// Save version.json to disk (required for launcher to resolve arguments)
+	e.log("Saving version configuration info...")
 	versionData, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal version info: %w", err)
@@ -139,6 +166,8 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 	if err := os.WriteFile(versionPath, versionData, 0644); err != nil {
 		return fmt.Errorf("failed to save version.json: %w", err)
 	}
+
+	e.log("Installation completed successfully!")
 
 	runtime.EventsEmit(e.ctx, "instance:progress", map[string]interface{}{
 		"id":       e.instance,
