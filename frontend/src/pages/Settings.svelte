@@ -230,12 +230,10 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    align-items: center;
   }
 
   .header {
     width: 100%;
-    max-width: 600px;
     margin-bottom: var(--spacing-md);
   }
 
@@ -253,7 +251,7 @@
 
   .settings-grid {
     width: 100%;
-    max-width: 600px;
+    max-width: 720px;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
