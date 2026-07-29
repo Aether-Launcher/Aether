@@ -19,7 +19,9 @@ jobs:
             installer: Aether-amd64-installer.exe
             asset: Aether-windows-amd64-installer.exe
 
-          - os: macos-14
+          # macos-26 runner: ships Xcode 26, required to compile the
+          # Icon Composer (.icon) app icon via actool
+          - os: macos-26
             platform: darwin/arm64
             binary: Aether.app
             asset: Aether-macos-arm64.zip
