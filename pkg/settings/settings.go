@@ -14,6 +14,8 @@ type GlobalSettings struct {
 	CloseOnLaunch     bool   `json:"closeOnLaunch"`
 	DeveloperMode     bool   `json:"developerMode"`
 	DisableExtensions bool   `json:"disableExtensions"`
+	GarbageCollector  string `json:"garbageCollector,omitempty"`
+	CustomJVMArgs     string `json:"customJvmArgs,omitempty"`
 }
 
 // GetDefaultSettings returns the default configuration
@@ -23,6 +25,8 @@ func GetDefaultSettings() GlobalSettings {
 		CloseOnLaunch:     false,
 		DeveloperMode:     false,
 		DisableExtensions: false,
+		GarbageCollector:  "G1GC",
+		CustomJVMArgs:     "",
 	}
 }
 

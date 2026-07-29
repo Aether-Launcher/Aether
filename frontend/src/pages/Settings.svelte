@@ -8,6 +8,8 @@
     closeOnLaunch: false,
     developerMode: false,
     disableExtensions: false,
+    garbageCollector: 'G1GC',
+    customJvmArgs: '',
   };
 
   let saving = false;
@@ -20,6 +22,13 @@
     { label: '8 GB', value: '8192' },
     { label: '12 GB', value: '12288' },
     { label: '16 GB', value: '16384' },
+  ];
+
+  const gcOptions = [
+    { label: 'G1GC (Default)', value: 'G1GC' },
+    { label: 'ZGC (Ultra Low Latency)', value: 'ZGC' },
+    { label: 'Shenandoah GC', value: 'Shenandoah' },
+    { label: 'Parallel GC', value: 'Parallel' },
   ];
 
   onMount(async () => {
@@ -40,9 +49,6 @@
       setTimeout(() => {
         saveSuccess = false;
       }, 2000);
-      
-      // If extensions were disabled, we might want to prompt a restart, 
-      // but for now saving is enough.
     } catch (e) {
       console.error("Failed to save settings:", e);
     } finally {
@@ -81,6 +87,29 @@
             <div class="label-desc">Aether will hide itself when Minecraft opens and reappear when it closes.</div>
           </div>
         </label>
+      </div>
+    </div>
+
+    <!-- Java & Performance Section -->
+    <div class="settings-card card">
+      <h2>Java & Performance</h2>
+
+      <div class="form-group">
+        <div class="field-label">
+          <div class="label-title">Garbage Collector</div>
+          <div class="label-desc">Select the JVM garbage collection algorithm. ZGC is recommended for high memory (>= 8GB).</div>
+        </div>
+        <div class="control-wrap">
+          <Dropdown options={gcOptions} bind:value={settings.garbageCollector} />
+        </div>
+      </div>
+
+      <div class="form-group vertical">
+        <div class="field-label">
+          <div class="label-title">Custom JVM Arguments</div>
+          <div class="label-desc">Additional flags passed to the Java runtime on launch (e.g. -XX:+UnlockExperimentalVMOptions).</div>
+        </div>
+        <input type="text" class="custom-args-input" bind:value={settings.customJvmArgs} placeholder="e.g. -XX:+UnlockExperimentalVMOptions" />
       </div>
     </div>
 
@@ -274,6 +303,29 @@
     display: flex;
     justify-content: flex-end;
     margin-top: var(--spacing-md);
+  }
+
+  .form-group.vertical {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .custom-args-input {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius-md);
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-family: monospace;
+    font-size: 13px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color var(--transition-fast);
+  }
+
+  .custom-args-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
   }
 
   .save-btn {

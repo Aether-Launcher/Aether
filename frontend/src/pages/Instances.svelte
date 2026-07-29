@@ -166,6 +166,9 @@
             bind:value={newInstance.loader} 
             direction="up"
           />
+          <p class="loader-hint">
+            💡 Need Fabric, Forge, or NeoForge? Install mod loader extensions from the Extensions Gallery.
+          </p>
         </div>
 
         <div class="modal-actions">
@@ -369,5 +372,12 @@
   input:checked + .slider:before {
     transform: translateX(14px);
     background-color: white;
+  }
+
+  .loader-hint {
+    margin: 8px 0 0 0;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.4;
   }
 </style>

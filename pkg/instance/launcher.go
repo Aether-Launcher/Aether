@@ -170,7 +170,27 @@ func Launch(ctx context.Context, inst *Instance) error {
 		memory += "M"
 	}
 
-	jvmArgs = append([]string{"-Xmx" + memory, "-Xms512M"}, jvmArgs...)
+	prependedArgs := []string{"-Xmx" + memory, "-Xms512M"}
+
+	// Add Garbage Collector selection if specified
+	switch strings.ToUpper(globalSettings.GarbageCollector) {
+	case "ZGC":
+		prependedArgs = append(prependedArgs, "-XX:+UseZGC")
+	case "SHENANDOAH":
+		prependedArgs = append(prependedArgs, "-XX:+UseShenandoahGC")
+	case "PARALLEL":
+		prependedArgs = append(prependedArgs, "-XX:+UseParallelGC")
+	case "G1GC":
+		prependedArgs = append(prependedArgs, "-XX:+UseG1GC")
+	}
+
+	// Add custom JVM arguments if set
+	if globalSettings.CustomJVMArgs != "" {
+		customFields := strings.Fields(globalSettings.CustomJVMArgs)
+		prependedArgs = append(prependedArgs, customFields...)
+	}
+
+	jvmArgs = append(prependedArgs, jvmArgs...)
 
 	// Add log4j config if available
 	if versionInfo.Logging.Client.File.URL != "" {

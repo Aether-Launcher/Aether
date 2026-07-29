@@ -71,7 +71,6 @@
       const installed = await DownloadAndInstallExtension(url);
       if (installed) {
         await loadInstalled();
-        activeTab = 'installed';
         toast.success('Extension installed successfully!');
       }
     } catch (e: any) {
