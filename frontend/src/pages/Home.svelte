@@ -174,6 +174,35 @@
     }
     return raw;
   }
+
+  /**
+   * Parse Log4j XML into plain text if it looks like XML, otherwise return as-is.
+   */
+  function formatLog(logStr: string): string {
+    const trimmed = logStr.trim();
+    if (!trimmed.startsWith('<')) return logStr;
+    try {
+      const parser = new DOMParser();
+      // Wrap in a root tag in case the log string contains multiple sibling elements
+      const doc = parser.parseFromString(`<root>${trimmed}</root>`, 'text/xml');
+      
+      // Try finding log4j2 Message tags
+      const msgs = doc.getElementsByTagName('Message');
+      const log4jMsgs = doc.getElementsByTagName('log4j:Message');
+      
+      if (msgs.length > 0) {
+        return Array.from(msgs).map(m => m.textContent).join('\n');
+      } else if (log4jMsgs.length > 0) {
+        return Array.from(log4jMsgs).map(m => m.textContent).join('\n');
+      }
+      
+      // Fallback: just return all text content stripped of tags
+      const text = doc.documentElement.textContent;
+      return text ? text.trim() : logStr;
+    } catch {
+      return logStr; // fallback to raw
+    }
+  }
 </script>
 
 <div class="page">
@@ -250,7 +279,7 @@
           {#if logs.length > 0}
             <div class="log-panel">
               {#each logs as log}
-                <div class="log-line">{log}</div>
+                <div class="log-line">{formatLog(log)}</div>
               {/each}
             </div>
           {/if}
@@ -491,9 +520,13 @@
     border-radius: var(--border-radius);
     border: 1px solid rgba(255, 255, 255, 0.05);
     width: 100%;
+    overflow-x: auto;
   }
 
-  .log-line { line-height: 1.6; }
+  .log-line { 
+    line-height: 1.6;
+    white-space: nowrap;
+  }
 
   /* ── Recently Played ── */
   .recent-list {
