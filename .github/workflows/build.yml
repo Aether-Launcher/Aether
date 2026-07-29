@@ -21,10 +21,10 @@ jobs:
 
           # macos-26 runner: ships Xcode 26, required to compile the
           # Icon Composer (.icon) app icon via actool
-          - os: macos-26
+          - os: macos-14
             platform: darwin/arm64
             binary: Aether.app
-            asset: Aether-macos-arm64.zip
+            asset: Aether-macos-arm64.dmg
 
           - os: ubuntu-22.04
             platform: linux/amd64
@@ -59,7 +59,7 @@ jobs:
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
-        run: brew install pkg-config
+        run: brew install pkg-config create-dmg
 
       - name: Install NSIS (Windows)
         if: runner.os == 'Windows'
@@ -82,12 +82,20 @@ jobs:
         shell: bash
         run: mv "build/bin/${{ matrix.installer }}" "${{ matrix.asset }}"
 
-      # macOS: zip the .app bundle
-      - name: Package macOS app
+      # macOS: package as DMG with Applications shortcut
+      - name: Package macOS app (.dmg)
         if: runner.os == 'macOS'
         run: |
-          cd build/bin
-          zip -r "${{ github.workspace }}/${{ matrix.asset }}" "${{ matrix.binary }}"
+          create-dmg \
+            --volname "Aether" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Aether.app" 175 120 \
+            --hide-extension "Aether.app" \
+            --app-drop-link 425 120 \
+            "${{ github.workspace }}/${{ matrix.asset }}" \
+            "build/bin/Aether.app"
 
       # Linux: rename binary
       - name: Rename Linux binary
@@ -138,7 +146,7 @@ jobs:
             | Platform | File |
             |---|---|
             | Windows (x64) | `Aether-windows-amd64-installer.exe` |
-            | macOS (Apple Silicon) | `Aether-macos-arm64.zip` |
+            | macOS (Apple Silicon) | `Aether-macos-arm64.dmg` |
             | Linux (x64) | `Aether-linux-amd64` |
 
             > Intel Mac support coming in a future release.

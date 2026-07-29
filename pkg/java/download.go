@@ -36,6 +36,12 @@ func GetManagedJavaPath(majorVersion int) string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(base, "bin", "java.exe")
 	}
+	if runtime.GOOS == "darwin" {
+		macPath := filepath.Join(base, "Contents", "Home", "bin", "java")
+		if _, err := os.Stat(macPath); err == nil {
+			return macPath
+		}
+	}
 	return filepath.Join(base, "bin", "java")
 }
 
@@ -54,7 +60,10 @@ func getManagedJavaDir(majorVersion int) string {
 // DownloadJava downloads and installs a managed JRE from Adoptium for the
 // given major version. Emits progress events on ctx via Wails.
 func DownloadJava(ctx context.Context, majorVersion int) error {
-	os_ := "windows"
+	os_ := runtime.GOOS
+	if os_ == "darwin" {
+		os_ = "mac"
+	}
 	arch := "x64"
 	if runtime.GOARCH == "arm64" {
 		arch = "aarch64"

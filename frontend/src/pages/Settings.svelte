@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { GetSettings, SaveSettings } from '../../wailsjs/go/main/App.js';
+  import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime } from '../../wailsjs/go/main/App.js';
+  import { EventsOn } from '../../wailsjs/runtime/runtime.js';
   import Dropdown from '../components/Dropdown.svelte';
 
   let settings = {
@@ -14,6 +15,8 @@
 
   let saving = false;
   let saveSuccess = false;
+  let javaStatuses: any[] = [];
+  let javaDownloading: Record<number, string> = {};
 
   const memoryOptions = [
     { label: '2 GB', value: '2048' },
@@ -31,13 +34,48 @@
     { label: 'Parallel GC', value: 'Parallel' },
   ];
 
+  async function loadJavaStatuses() {
+    try {
+      javaStatuses = await GetJavaStatus();
+    } catch (e) {
+      console.error("Failed to fetch Java statuses:", e);
+    }
+  }
+
+  async function downloadJava(version: number) {
+    javaDownloading[version] = 'Starting...';
+    javaDownloading = { ...javaDownloading };
+    try {
+      await DownloadJavaRuntime(version);
+      await loadJavaStatuses();
+    } catch (e: any) {
+      console.error(e);
+      javaDownloading[version] = 'Error: ' + e;
+      javaDownloading = { ...javaDownloading };
+    }
+  }
+
   onMount(async () => {
     try {
       const s = await GetSettings();
       settings = { ...s };
+      await loadJavaStatuses();
     } catch (e) {
       console.error("Failed to load settings:", e);
     }
+
+    EventsOn('java:status', (data: any) => {
+      if (data && data.version) {
+        if (data.phase === 'done') {
+          delete javaDownloading[data.version];
+          javaDownloading = { ...javaDownloading };
+          loadJavaStatuses();
+        } else {
+          javaDownloading[data.version] = data.message || `${data.phase}...`;
+          javaDownloading = { ...javaDownloading };
+        }
+      }
+    });
   });
 
   async function save() {
@@ -93,6 +131,34 @@
     <!-- Java & Performance Section -->
     <div class="settings-card card">
       <h2>Java & Performance</h2>
+
+      <div class="form-group vertical">
+        <div class="field-label">
+          <div class="label-title">Managed Java Runtimes</div>
+          <div class="label-desc">Aether manages Java runtimes required by different Minecraft versions automatically.</div>
+        </div>
+        <div class="java-list">
+          {#each javaStatuses as js}
+            <div class="java-item">
+              <div class="java-item-info">
+                <span class="java-name">Java {js.version}</span>
+                <span class="java-target">
+                  {js.version === 8 ? '(Minecraft < 1.17)' : js.version === 17 ? '(Minecraft 1.17 – 1.20.4)' : '(Minecraft 1.20.5+)'}
+                </span>
+              </div>
+              <div class="java-item-status">
+                {#if js.installed}
+                  <span class="badge badge-installed" title={js.path}>✓ Installed</span>
+                {:else if javaDownloading[js.version]}
+                  <span class="java-progress">{javaDownloading[js.version]}</span>
+                {:else}
+                  <button class="btn btn-secondary btn-sm" on:click={() => downloadJava(js.version)}>Download JRE</button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
 
       <div class="form-group">
         <div class="field-label">
@@ -326,6 +392,61 @@
   .custom-args-input:focus {
     outline: none;
     border-color: var(--accent-color);
+  }
+
+  .java-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    width: 100%;
+  }
+
+  .java-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--border-radius-md);
+  }
+
+  .java-item-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .java-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+
+  .java-target {
+    font-size: 12px;
+    color: var(--text-meta);
+  }
+
+  .badge-installed {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .java-progress {
+    font-size: 12px;
+    color: #60a5fa;
+  }
+
+  .btn-sm {
+    padding: 4px 10px;
+    font-size: 12px;
   }
 
   .save-btn {
