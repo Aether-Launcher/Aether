@@ -114,6 +114,7 @@ window.addEventListener('message', (e) => {
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentMod = null;
 let currentVersions = [];
+let currentInstances = [];
 
 // ── Elements ──────────────────────────────────────────────────────────────────
 const searchInput    = document.getElementById('searchInput');
@@ -129,6 +130,64 @@ const installBtnText = document.getElementById('installBtnText');
 const cancelBtn      = document.getElementById('cancelBtn');
 const modalClose     = document.getElementById('modalClose');
 const installStatus  = document.getElementById('installStatus');
+
+// ── Version Filtering ─────────────────────────────────────────────────────────
+function updateVersionDropdown(inst) {
+    if (!inst) {
+        versionSelect.setOptions([{ label: 'No instance selected', value: '' }]);
+        return;
+    }
+
+    const loaderLower = inst.loader.toLowerCase();
+    const instVer = inst.version;
+
+    // Filter versions by loader and game version
+    let filtered = currentVersions.filter(v => {
+        // Game version check
+        const gameMatch = v.game_versions.includes(instVer);
+        if (!gameMatch) return false;
+
+        // Loader check
+        const vLoaders = (v.loaders || []).map(l => l.toLowerCase());
+        if (loaderLower === 'vanilla') {
+            const hasModLoader = vLoaders.some(l => ['fabric', 'forge', 'neoforge', 'quilt'].includes(l));
+            return !hasModLoader;
+        } else {
+            return vLoaders.includes(loaderLower) || vLoaders.length === 0;
+        }
+    });
+
+    let warning = '';
+    if (filtered.length === 0) {
+        // Fallback 1: show versions matching game version only (with warning)
+        filtered = currentVersions.filter(v => v.game_versions.includes(instVer));
+        if (filtered.length > 0) {
+            warning = ' (Loader mismatch)';
+        } else {
+            // Fallback 2: show all versions
+            filtered = currentVersions;
+            warning = ' (Incompatible version)';
+        }
+    }
+
+    versionSelect.setOptions(filtered.map(v => {
+        const origIdx = currentVersions.indexOf(v);
+        const compatLabel = v.game_versions.includes(instVer) ? '' : '⚠️ ';
+        return {
+            label: `${compatLabel}${v.version_number} — ${v.name} (${v.game_versions.slice(0, 3).join(', ')})${warning}`,
+            value: String(origIdx)
+        };
+    }));
+}
+
+// Listen for instance selection changes to update version filtering
+document.getElementById('instanceSelect').addEventListener('change', (e) => {
+    const instId = e.detail.value;
+    const inst = currentInstances.find(i => i.id === instId);
+    if (inst) {
+        updateVersionDropdown(inst);
+    }
+});
 
 // ── Search ────────────────────────────────────────────────────────────────────
 async function search(query) {
@@ -205,6 +264,7 @@ searchInput.addEventListener('keydown', (e) => {
 async function openInstallModal(mod) {
     currentMod = mod;
     currentVersions = [];
+    currentInstances = [];
 
     // Populate header
     modalModName.textContent = mod.title;
@@ -230,25 +290,25 @@ async function openInstallModal(mod) {
         sendMessage({ type: 'get_instances' })
     ]);
 
-    // Populate versions
+    // Store state
     currentVersions = versionsRes;
-    versionSelect.setOptions(versionsRes.length
-        ? versionsRes.map((v, i) => ({
-            label: `${v.version_number} — ${v.name} (${v.game_versions.slice(0,3).join(', ')})`,
-            value: String(i)
-          }))
-        : [{ label: 'No versions found', value: '' }]
-    );
+    currentInstances = instancesMsg.instances || [];
 
-    // Populate instances
-    const instances = instancesMsg.instances || [];
-    instanceSelect.setOptions(instances.length
-        ? instances.map(inst => ({
+    // Populate instances dropdown
+    instanceSelect.setOptions(currentInstances.length
+        ? currentInstances.map(inst => ({
             label: `${inst.name} (${inst.version} • ${inst.loader})`,
             value: inst.id
           }))
         : [{ label: 'No instances found', value: '' }]
     );
+
+    // Initial version list update based on the default selected instance
+    if (currentInstances.length > 0) {
+        updateVersionDropdown(currentInstances[0]);
+    } else {
+        versionSelect.setOptions([{ label: 'No instances available', value: '' }]);
+    }
 }
 
 function closeModal() {
