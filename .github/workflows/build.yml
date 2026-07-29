@@ -19,7 +19,9 @@ jobs:
             installer: Aether-amd64-installer.exe
             asset: Aether-windows-amd64-installer.exe
 
-          - os: macos-14
+          # macos-26 runner: ships Xcode 26, required to compile the
+          # Icon Composer (.icon) app icon via actool
+          - os: macos-26
             platform: darwin/arm64
             binary: Aether.app
             asset: Aether-macos-arm64.zip
@@ -73,6 +75,12 @@ jobs:
       - name: Build (non-Windows)
         if: runner.os != 'Windows'
         run: wails build -platform ${{ matrix.platform }}
+
+      # macOS 26: compile the Icon Composer icon (aether.icon) into the
+      # bundle's Assets.car and re-sign — must run after wails build
+      - name: Compile macOS app icon
+        if: runner.os == 'macOS'
+        run: ./build/darwin/compile-icon.sh "build/bin/${{ matrix.binary }}"
 
       # Windows: rename installer
       - name: Rename Windows installer
