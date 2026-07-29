@@ -148,7 +148,9 @@
               </div>
               <div class="java-item-status">
                 {#if js.installed}
-                  <span class="badge badge-installed" title={js.path}>✓ Installed</span>
+                  <span class="badge badge-installed" title={js.path}>
+                    ✓ Installed {js.isSystem ? '(System)' : '(Managed)'}
+                  </span>
                 {:else if javaDownloading[js.version]}
                   <span class="java-progress">{javaDownloading[js.version]}</span>
                 {:else}
