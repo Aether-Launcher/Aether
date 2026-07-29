@@ -49,6 +49,14 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install pkg-config
 
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
       - name: Run Go tests
         run: go test ./...
 
