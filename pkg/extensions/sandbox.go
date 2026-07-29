@@ -323,7 +323,12 @@ func NewSandbox(
 						if err != nil {
 							return nil, err
 						}
-						return val.Export().(map[string]interface{}), nil
+						exported := val.Export()
+						res, ok := exported.(map[string]interface{})
+						if !ok {
+							return nil, fmt.Errorf("onLaunch did not return an object, got %T", exported)
+						}
+						return res, nil
 					}
 				}
 

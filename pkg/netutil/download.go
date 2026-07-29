@@ -27,13 +27,13 @@ type ProgressCallback func(downloaded, total int64)
 // DownloadFile downloads a file from url to dest, with support for resuming (Range requests)
 // and exponential backoff retries. If expectedSha1 is non-empty, the downloaded file's
 // SHA1 is verified and the file is deleted and an error returned on mismatch.
-func DownloadFile(ctx context.Context, url string, dest string, onProgress ProgressCallback, expectedSha1 ...string) (err error) {
+func DownloadFile(ctx context.Context, url string, dest string, onProgress ProgressCallback, expectedSha1 ...string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return err
 	}
 
 	// If the file already exists, verify its checksum before skipping.
-	if _, err := os.Stat(dest); err == nil {
+	if _, statErr := os.Stat(dest); statErr == nil {
 		if len(expectedSha1) > 0 && expectedSha1[0] != "" {
 			if ok, _ := verifySha1(dest, expectedSha1[0]); !ok {
 				// Stale or corrupt — remove and re-download
@@ -47,103 +47,17 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 	}
 
 	tempDest := dest + ".tmp"
-	defer func() {
-		if err != nil {
-			_ = os.Remove(tempDest)
-		}
-	}()
-
 	maxRetries := 5
+
 	var lastErr error
-
 	for i := 0; i < maxRetries; i++ {
-		err = func() error {
-			var startBytes int64 = 0
+		// Attempt one download (or resume)
+		attemptErr := downloadAttempt(ctx, url, tempDest, onProgress)
 
-			// Check if temp file exists to resume
-			if info, err := os.Stat(tempDest); err == nil {
-				startBytes = info.Size()
-			}
-
-			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-			if err != nil {
-				return err
-			}
-
-			if startBytes > 0 {
-				req.Header.Set("Range", fmt.Sprintf("bytes=%d-", startBytes))
-			}
-
-			resp, err := defaultClient.Do(req)
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-
-			var out *os.File
-
-			// If server supports range requests, it returns 206 Partial Content
-			if resp.StatusCode == http.StatusPartialContent {
-				out, err = os.OpenFile(tempDest, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-				if err != nil {
-					return err
-				}
-			} else if resp.StatusCode == http.StatusOK {
-				// Server didn't respect Range or we didn't send it, start from scratch
-				startBytes = 0
-				out, err = os.Create(tempDest)
-				if err != nil {
-					return err
-				}
-			} else if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
-				// Range not satisfiable (e.g. temp file got corrupted or is larger than server file).
-				// Start from scratch.
-				startBytes = 0
-				out, err = os.Create(tempDest)
-				if err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("unexpected status %d", resp.StatusCode)
-			}
-			defer out.Close()
-
-			var totalBytes int64 = resp.ContentLength
-			if totalBytes > 0 {
-				totalBytes += startBytes // True total size
-			}
-
-			// Copy with progress reporting
-			buf := make([]byte, 32*1024)
-			var written int64 = startBytes
-
-			for {
-				nr, readErr := resp.Body.Read(buf)
-				if nr > 0 {
-					nw, writeErr := out.Write(buf[:nr])
-					if nw > 0 {
-						written += int64(nw)
-						if onProgress != nil {
-							onProgress(written, totalBytes)
-						}
-					}
-					if writeErr != nil {
-						return writeErr
-					}
-				}
-				if readErr == io.EOF {
-					break
-				}
-				if readErr != nil {
-					return readErr
-				}
-			}
-
-			return nil
-		}()
-
-		if err == nil {
+		if attemptErr == nil {
+			// Success — rename temp file to final destination
 			if err := os.Rename(tempDest, dest); err != nil {
+				_ = os.Remove(tempDest)
 				return fmt.Errorf("failed to rename temp file: %w", err)
 			}
 
@@ -158,18 +72,103 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 			return nil
 		}
 
-		lastErr = err
+		lastErr = attemptErr
+		// Clean up corrupt temp file before retry
+		_ = os.Remove(tempDest)
 
-		// Exponential backoff: 1s, 2s, 4s, 8s
+		// Exponential backoff: 1s, 2s, 4s, 8s…
 		select {
 		case <-ctx.Done():
-			return ctx.Err() // Abort immediately if cancelled
+			return ctx.Err()
 		case <-time.After(time.Duration(1<<i) * time.Second):
 			// Retry after delay
 		}
 	}
 
-	return fmt.Errorf("failed to download after %d retries, last error: %w", maxRetries, lastErr)
+	return fmt.Errorf("failed to download %s after %d retries, last error: %w", filepath.Base(dest), maxRetries, lastErr)
+}
+
+// downloadAttempt performs a single HTTP GET (with optional Range resume) and writes
+// the response body to tempDest. It is fully self-contained — no named returns,
+// no shared error variables, no variable capture issues.
+func downloadAttempt(ctx context.Context, url, tempDest string, onProgress ProgressCallback) error {
+	// Check how many bytes we already have so we can try to resume
+	var startBytes int64
+	if info, err := os.Stat(tempDest); err == nil {
+		startBytes = info.Size()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	if startBytes > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", startBytes))
+	}
+
+	resp, err := defaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	var out *os.File
+
+	switch resp.StatusCode {
+	case http.StatusPartialContent:
+		// Server honours the Range header — append to existing temp file
+		out, err = os.OpenFile(tempDest, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+	case http.StatusOK:
+		// Server ignored Range or we didn't send one — start fresh
+		startBytes = 0
+		out, err = os.Create(tempDest)
+		if err != nil {
+			return err
+		}
+	case http.StatusRequestedRangeNotSatisfiable:
+		// Our temp file is already complete (or corrupt beyond the file size).
+		// Delete it and start fresh on the next attempt.
+		return fmt.Errorf("range not satisfiable (temp file may be corrupt)")
+	default:
+		return fmt.Errorf("unexpected HTTP status %d for %s", resp.StatusCode, url)
+	}
+	defer out.Close()
+
+	totalBytes := resp.ContentLength
+	if totalBytes > 0 {
+		totalBytes += startBytes // True total size including already-downloaded bytes
+	}
+
+	buf := make([]byte, 32*1024)
+	written := startBytes
+
+	for {
+		nr, readErr := resp.Body.Read(buf)
+		if nr > 0 {
+			nw, writeErr := out.Write(buf[:nr])
+			if nw > 0 {
+				written += int64(nw)
+				if onProgress != nil {
+					onProgress(written, totalBytes)
+				}
+			}
+			if writeErr != nil {
+				return writeErr
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return readErr
+		}
+	}
+
+	return nil
 }
 
 // verifySha1 computes the SHA1 of the file at path and compares it to expected.

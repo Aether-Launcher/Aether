@@ -17,6 +17,18 @@ Aether.launcher.registerModLoader({
 
         // Download all required libraries (common + client)
         var allLibs = [];
+        if (entry.loader && entry.loader.maven) {
+            allLibs.push({
+                name: entry.loader.maven,
+                url: "https://maven.fabricmc.net/"
+            });
+        }
+        if (entry.intermediary && entry.intermediary.maven) {
+            allLibs.push({
+                name: entry.intermediary.maven,
+                url: "https://maven.fabricmc.net/"
+            });
+        }
         if (profile.libraries.common) {
             for (var i = 0; i < profile.libraries.common.length; i++) {
                 allLibs.push(profile.libraries.common[i]);
