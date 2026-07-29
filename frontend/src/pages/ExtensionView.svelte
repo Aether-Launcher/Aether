@@ -42,7 +42,7 @@
     <iframe
       bind:this={iframeEl}
       src={url}
-      title="Extension View"
+      aria-label="Extension View"
       sandbox="allow-scripts allow-same-origin allow-downloads"
     ></iframe>
   {:else}

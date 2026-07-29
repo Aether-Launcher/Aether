@@ -149,6 +149,31 @@
       return dateStr;
     }
   }
+
+  /**
+   * Normalise a raw memory string from the instance config into a human-friendly label.
+   * Handles: '4G', '4g', '4096', '4096M', '4096m', '2048', etc.
+   */
+  function formatMemory(raw: string): string {
+    if (!raw || raw === 'Default') return 'Default';
+    const upper = raw.trim().toUpperCase();
+    // Already in GB form — e.g. '4G' or '4GB'
+    const gbMatch = upper.match(/^(\d+(?:\.\d+)?)\s*G(?:B)?$/);
+    if (gbMatch) return `${gbMatch[1]} GB`;
+    // In MB form — e.g. '4096M' or '4096MB'
+    const mbMatch = upper.match(/^(\d+(?:\.\d+)?)\s*M(?:B)?$/);
+    if (mbMatch) {
+      const mb = parseFloat(mbMatch[1]);
+      return mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB` : `${mb} MB`;
+    }
+    // Plain number — assume MB
+    const numMatch = upper.match(/^(\d+(?:\.\d+)?)$/);
+    if (numMatch) {
+      const mb = parseFloat(numMatch[1]);
+      return mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB` : `${mb} MB`;
+    }
+    return raw;
+  }
 </script>
 
 <div class="page">
@@ -172,7 +197,7 @@
               <div class="instance-meta">
                 <span>{currentInstance.version}</span> •
                 <span>{currentInstance.loader}</span> •
-                <span>{currentInstance.memory}</span>
+                <span>{formatMemory(currentInstance.memory)}</span>
               </div>
             </div>
           </div>
@@ -389,13 +414,18 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-md);
+    /* Prevent status-text changes from reflowing button positions */
+    flex-wrap: nowrap;
   }
 
   .install-col {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    /* Fixed width prevents the column from growing/shrinking with status text */
     width: 200px;
+    min-width: 200px;
+    flex-shrink: 0;
   }
 
   .play-btn {
@@ -416,6 +446,13 @@
   .status-label {
     font-size: 13px;
     color: var(--text-secondary);
+    /* Fixed-width container: status text never pushes buttons wider */
+    min-width: 0;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
   }
 
   .java-status {
