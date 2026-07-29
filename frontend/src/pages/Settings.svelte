@@ -225,7 +225,8 @@
 <style>
   .page {
     padding: var(--spacing-xl);
-    flex-grow: 1;
+    height: 100%;
+    box-sizing: border-box;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -235,12 +236,12 @@
   .header {
     width: 100%;
     max-width: 600px;
-    margin-bottom: var(--spacing-xl);
+    margin-bottom: var(--spacing-md);
   }
 
   h1 {
-    font-size: 32px;
-    margin: 0 0 8px 0;
+    font-size: 24px;
+    margin: 0 0 4px 0;
     color: var(--text-primary);
   }
 
@@ -255,7 +256,8 @@
     max-width: 600px;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-md);
+    padding-bottom: var(--spacing-xl);
   }
 
   .settings-card {

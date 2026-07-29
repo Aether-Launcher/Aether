@@ -175,13 +175,16 @@
   .layout {
     display: flex;
     width: 100%;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
   }
 
   .content {
     flex-grow: 1;
     background-color: var(--bg-color);
-    overflow: hidden; /* Each page handles its own scroll if needed */
+    overflow: hidden;
+    height: 100%;
+    position: relative;
   }
 
   .placeholder {
