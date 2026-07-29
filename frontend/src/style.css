@@ -45,8 +45,26 @@ html, body {
   color: var(--text-primary);
   /* Typography: Inter / Roboto / Segoe UI */
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  overflow: hidden; 
-  user-select: none; /* Desktop feel */
+  overflow: hidden;
+  /* Prevent text selection on non-interactive elements — applied cross-platform
+     so macOS WebKit gets the same behaviour as Windows (fix for issue #5) */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Propagate the no-select rule through the full DOM tree on WebKit */
+* {
+  -webkit-user-select: inherit;
+  user-select: inherit;
+}
+
+/* Re-allow selection inside actual text inputs / editable areas */
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 #app {
@@ -54,6 +72,7 @@ html, body {
   height: 100vh;
   width: 100vw;
 }
+
 
 h1, h2, h3, h4, p {
   margin: 0;

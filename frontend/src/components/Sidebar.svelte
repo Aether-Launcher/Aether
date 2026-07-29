@@ -129,12 +129,17 @@
   .sidebar {
     width: 220px;
     min-width: 220px;
+    height: 100%;
     background-color: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
     padding: 24px 12px;
     box-sizing: border-box;
     border-right: 1px solid rgba(255, 255, 255, 0.05);
+    /* Fix #11: sidebar must be independently contained so Settings/account
+       card never gets clipped when the main panel grows taller (macOS) */
+    overflow: hidden;
+    flex-shrink: 0;
   }
 
   .logo {

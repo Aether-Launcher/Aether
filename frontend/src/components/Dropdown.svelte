@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   
   export let options: { label: string, value: string, disabled?: boolean }[] = [];
   export let value: string = "";
@@ -8,6 +8,8 @@
 
   let isOpen = false;
   let dropdownRef: HTMLElement;
+  // Unique ID for this dropdown instance used for mutual exclusion
+  const uid = Math.random().toString(36).slice(2);
 
   const dispatch = createEventDispatcher();
 
@@ -21,8 +23,25 @@
   }
 
   function toggle() {
-    if (!disabled) {
-      isOpen = !isOpen;
+    if (disabled) return;
+    if (!isOpen) {
+      open();
+    } else {
+      isOpen = false;
+    }
+  }
+
+  function open() {
+    isOpen = true;
+    // Tell every other dropdown instance to close
+    window.dispatchEvent(new CustomEvent('aether:dropdown-opened', { detail: uid }));
+  }
+
+  // Close when another dropdown opens
+  function onOtherDropdownOpened(e: Event) {
+    const evt = e as CustomEvent<string>;
+    if (evt.detail !== uid) {
+      isOpen = false;
     }
   }
 
@@ -32,6 +51,14 @@
       isOpen = false;
     }
   }
+
+  onMount(() => {
+    window.addEventListener('aether:dropdown-opened', onOtherDropdownOpened);
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('aether:dropdown-opened', onOtherDropdownOpened);
+  });
 </script>
 
 <svelte:window on:click={handleOutsideClick} />

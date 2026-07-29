@@ -149,8 +149,14 @@
 <style>
   .page {
     padding: var(--spacing-xl);
-    flex-grow: 1;
+    /* Fix #7: explicit height + overflow-y:auto makes this an independent
+       scroll context on macOS WebKit, preventing content/dropdown clipping */
+    height: 100%;
+    box-sizing: border-box;
     overflow-y: auto;
+    overflow-x: hidden;
+    /* Extra bottom padding so action buttons don't get clipped by the scroll container */
+    padding-bottom: calc(var(--spacing-xl) * 2);
   }
 
   .back-btn {
@@ -195,6 +201,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-lg);
+    /* overflow: visible so the Dropdown list (position: absolute)
+       can escape the card boundary on macOS WebKit (fix for #7) */
+    overflow: visible;
   }
 
   .settings-card h2 {
