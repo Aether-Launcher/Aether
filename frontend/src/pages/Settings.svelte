@@ -251,11 +251,24 @@
 
   .settings-grid {
     width: 100%;
-    max-width: 720px;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
     padding-bottom: var(--spacing-xl);
+  }
+
+  .grid-top {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    align-items: start;
+  }
+
+  .java-bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xl);
+    margin-top: var(--spacing-md);
   }
 
   .settings-card {
