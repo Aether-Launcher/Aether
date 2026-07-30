@@ -1,0 +1,157 @@
+export namespace auth {
+	
+	export class Account {
+	    id: string;
+	    type: string;
+	    username: string;
+	    accessToken?: string;
+	    refreshToken?: string;
+	    expiresAt?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Account(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.type = source["type"];
+	        this.username = source["username"];
+	        this.accessToken = source["accessToken"];
+	        this.refreshToken = source["refreshToken"];
+	        this.expiresAt = source["expiresAt"];
+	    }
+	}
+
+}
+
+export namespace extensions {
+	
+	export class Extension {
+	    id: string;
+	    name: string;
+	    version: string;
+	    author: string;
+	    description: string;
+	    status: string;
+	    memory: string;
+	    cpu: string;
+	    trust: string;
+	    iconUrl?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Extension(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.author = source["author"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	        this.memory = source["memory"];
+	        this.cpu = source["cpu"];
+	        this.trust = source["trust"];
+	        this.iconUrl = source["iconUrl"];
+	    }
+	}
+
+}
+
+export namespace instance {
+	
+	export class Instance {
+	    id: string;
+	    name: string;
+	    version: string;
+	    loader: string;
+	    memory: string;
+	    lastPlayed: string;
+	    installed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Instance(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.loader = source["loader"];
+	        this.memory = source["memory"];
+	        this.lastPlayed = source["lastPlayed"];
+	        this.installed = source["installed"];
+	    }
+	}
+
+}
+
+export namespace main {
+	
+	export class JavaRuntimeStatus {
+	    version: number;
+	    installed: boolean;
+	    path: string;
+	    isSystem: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new JavaRuntimeStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.installed = source["installed"];
+	        this.path = source["path"];
+	        this.isSystem = source["isSystem"];
+	    }
+	}
+	export class ModLoaderInfo {
+	    id: string;
+	    name: string;
+	    description: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModLoaderInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	    }
+	}
+
+}
+
+export namespace settings {
+	
+	export class GlobalSettings {
+	    defaultMemory: string;
+	    closeOnLaunch: boolean;
+	    developerMode: boolean;
+	    disableExtensions: boolean;
+	    garbageCollector?: string;
+	    customJvmArgs?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GlobalSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.defaultMemory = source["defaultMemory"];
+	        this.closeOnLaunch = source["closeOnLaunch"];
+	        this.developerMode = source["developerMode"];
+	        this.disableExtensions = source["disableExtensions"];
+	        this.garbageCollector = source["garbageCollector"];
+	        this.customJvmArgs = source["customJvmArgs"];
+	    }
+	}
+
+}
+

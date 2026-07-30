@@ -7,7 +7,6 @@
 build/bin/
 
 # Wails bindings
-frontend/wailsjs/
 wailsbindings.exe
 
 # Node/Svelte
