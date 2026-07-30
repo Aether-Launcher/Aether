@@ -12,20 +12,16 @@ jobs:
   build:
     strategy:
       fail-fast: false
-
       matrix:
         include:
           - os: ubuntu-22.04
-            platform: linux/amd64
-            artifact: Aether-linux-amd64
+            name: linux
 
           - os: windows-latest
-            platform: windows/amd64
-            artifact: Aether-windows-amd64-installer.exe
+            name: windows
 
           - os: macos-14
-            platform: darwin/arm64
-            artifact: Aether-macos-arm64.dmg
+            name: macos
 
     runs-on: ${{ matrix.os }}
 
@@ -34,23 +30,23 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: "1.26"
           cache: true
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
-      - name: Install frontend packages
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Install Linux dependencies
+      - name: Linux packages
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -59,48 +55,25 @@ jobs:
             libwebkit2gtk-4.0-dev \
             libayatana-appindicator3-dev
 
-      - name: Install macOS tools
+      - name: macOS packages
         if: runner.os == 'macOS'
         run: brew install pkg-config create-dmg
 
-      - name: Install NSIS
+      - name: Windows packages
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           choco install nsis --yes --no-progress
           echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
 
-      - name: Build Windows
-        if: runner.os == 'Windows'
-        run: wails build -clean --platform windows/amd64 --nsis
-
-      - name: Build macOS/Linux
-        if: runner.os != 'Windows'
-        run: wails build -clean -platform ${{ matrix.platform }}
-
-      - name: Package macOS
-        if: runner.os == 'macOS'
-        run: |
-          create-dmg \
-            "${{ matrix.artifact }}" \
-            build/bin/Aether.app
-
-      - name: Rename Linux binary
-        if: runner.os == 'Linux'
-        run: mv build/bin/Aether ${{ matrix.artifact }}
-
-      - name: Rename Windows installer
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Rename-Item `
-            "build/bin/Aether-amd64-installer.exe" `
-            "${{ matrix.artifact }}"
+      - name: Build
+        run: wails build -clean
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: ${{ matrix.name }}
+          path: build/bin/**
+          compression-level: 9
 
   release:
     needs: build
@@ -112,7 +85,9 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: Aether ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
           files: artifacts/**

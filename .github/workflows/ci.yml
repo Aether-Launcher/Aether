@@ -5,42 +5,44 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    name: Build & Test (${{ matrix.platform }})
+    name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-22.04
-            platform: linux/amd64
-
-          - os: windows-latest
-            platform: windows/amd64
-
-          - os: macos-14
-            platform: darwin/arm64
+        os:
+          - ubuntu-22.04
+          - windows-latest
+          - macos-14
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: "1.26"
           cache: true
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
-      - name: Install Linux dependencies
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -49,20 +51,12 @@ jobs:
             libwebkit2gtk-4.0-dev \
             libayatana-appindicator3-dev
 
-      - name: Install macOS dependencies
+      - name: macOS dependencies
         if: runner.os == 'macOS'
         run: brew install pkg-config
 
-      - name: Install frontend packages
-        working-directory: frontend
-        run: npm ci
-
-      - name: Run frontend build
-        working-directory: frontend
-        run: npm run build
-
-      - name: Run Go tests
+      - name: Go Tests
         run: go test ./...
 
-      - name: Verify Wails build
-        run: wails build -clean -platform ${{ matrix.platform }}
+      - name: Verify Build
+        run: wails build -clean
