@@ -3,7 +3,7 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
@@ -12,24 +12,20 @@ jobs:
   build:
     strategy:
       fail-fast: false
+
       matrix:
         include:
-          - os: windows-latest
-            platform: windows/amd64
-            installer: Aether-amd64-installer.exe
-            asset: Aether-windows-amd64-installer.exe
-
-          # macos-26 runner: ships Xcode 26, required to compile the
-          # Icon Composer (.icon) app icon via actool
-          - os: macos-14
-            platform: darwin/arm64
-            binary: Aether.app
-            asset: Aether-macos-arm64.dmg
-
           - os: ubuntu-22.04
             platform: linux/amd64
-            binary: Aether
-            asset: Aether-linux-amd64
+            artifact: Aether-linux-amd64
+
+          - os: windows-latest
+            platform: windows/amd64
+            artifact: Aether-windows-amd64-installer.exe
+
+          - os: macos-14
+            platform: darwin/arm64
+            artifact: Aether-macos-arm64.dmg
 
     runs-on: ${{ matrix.os }}
 
@@ -38,16 +34,22 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.25"
+          cache: true
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
-      # ubuntu-22.04 is required — webkit2gtk-4.0 was removed in Ubuntu 24.04
+      - name: Install frontend packages
+        working-directory: frontend
+        run: npm ci
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -57,97 +59,60 @@ jobs:
             libwebkit2gtk-4.0-dev \
             libayatana-appindicator3-dev
 
-      - name: Install macOS dependencies
+      - name: Install macOS tools
         if: runner.os == 'macOS'
         run: brew install pkg-config create-dmg
 
-      - name: Install NSIS (Windows)
+      - name: Install NSIS
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          choco install nsis --no-progress -y
+          choco install nsis --yes --no-progress
           echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
 
-      # Windows: build with --nsis to produce an installer
-      - name: Build (Windows)
+      - name: Build Windows
         if: runner.os == 'Windows'
-        run: wails build -platform ${{ matrix.platform }} --nsis
+        run: wails build -clean --platform windows/amd64 --nsis
 
-      - name: Build (non-Windows)
+      - name: Build macOS/Linux
         if: runner.os != 'Windows'
-        run: wails build -platform ${{ matrix.platform }}
+        run: wails build -clean -platform ${{ matrix.platform }}
 
-      # Windows: rename installer
-      - name: Rename Windows installer
-        if: runner.os == 'Windows'
-        shell: bash
-        run: mv "build/bin/${{ matrix.installer }}" "${{ matrix.asset }}"
-
-      # macOS: package as DMG with Applications shortcut
-      - name: Package macOS app (.dmg)
+      - name: Package macOS
         if: runner.os == 'macOS'
         run: |
           create-dmg \
-            --volname "Aether" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "Aether.app" 175 120 \
-            --hide-extension "Aether.app" \
-            --app-drop-link 425 120 \
-            "${{ github.workspace }}/${{ matrix.asset }}" \
-            "build/bin/Aether.app"
+            "${{ matrix.artifact }}" \
+            build/bin/Aether.app
 
-      # Linux: rename binary
       - name: Rename Linux binary
         if: runner.os == 'Linux'
-        run: mv build/bin/${{ matrix.binary }} ${{ matrix.asset }}
+        run: mv build/bin/Aether ${{ matrix.artifact }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Rename Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Rename-Item `
+            "build/bin/Aether-amd64-installer.exe" `
+            "${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
 
   release:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          name: "Aether ${{ github.ref_name }}"
-          prerelease: false
-          body: |
-            ## Aether ${{ github.ref_name }}
-
-            ### What's included
-            - Instance creation and management with Vanilla, Fabric, and NeoForge support
-            - Snapshot version toggle — switch between stable releases and latest snapshots
-            - Automatic Java detection across JAVA_HOME and PATH
-            - Mojang asset, library, and client JAR download pipeline
-            - Sandboxed JavaScript extension runtime (Goja)
-            - Extension Gallery with live registry fetch from GitHub
-            - Trust tiers: Official, Verified, Community, Local
-            - 1-click extension install from the in-app gallery
-            - Modrinth mod browser via extension
-            - Extension sidebar pages rendered in isolated iframes
-            - Command Palette (Ctrl+Shift+P)
-            - Custom in-app toast notifications (no browser popups)
-            - Windows installer (NSIS), macOS (Apple Silicon), and Linux builds
-
-            ### Downloads
-            | Platform | File |
-            |---|---|
-            | Windows (x64) | `Aether-windows-amd64-installer.exe` |
-            | macOS (Apple Silicon) | `Aether-macos-arm64.dmg` |
-            | Linux (x64) | `Aether-linux-amd64` |
-
-            > Intel Mac support coming in a future release.
-          files: artifacts/*
+          name: Aether ${{ github.ref_name }}
+          files: artifacts/**
