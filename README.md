@@ -51,7 +51,7 @@ Download the latest release for your platform from the [Releases](../../releases
 | Platform | File |
 |---|---|
 | Windows (x64) | `Aether-windows-amd64-installer.exe` |
-| macOS (Apple Silicon) | `Aether-macos-arm64.zip` |
+| macOS (Apple Silicon) | `Aether-macos-arm64.dmg` |
 | Linux (x64) | `Aether-linux-amd64` |
 
 ## Building from Source
@@ -65,7 +65,6 @@ If you'd like to build Aether from source, ensure you have the following install
 # Clone the repository
 git clone https://github.com/wayback09/Aether.git
 cd Aether
-
 # Run in development mode (live reload)
 wails dev
 
