@@ -65,4 +65,3 @@ jobs:
 
       - name: Verify Build
         run: wails build -clean
-

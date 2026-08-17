@@ -109,4 +109,3 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
           files: artifacts/**
-
