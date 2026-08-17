@@ -20,7 +20,7 @@ jobs:
           - os: windows-latest
             name: windows-amd64
             platform: windows/amd64
-          - os: macos-13
+          - os: macos-15-intel
             name: macos-amd64
             platform: darwin/amd64
           - os: macos-14
@@ -109,3 +109,4 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
           files: artifacts/**
+
