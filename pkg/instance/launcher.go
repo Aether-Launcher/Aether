@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	goruntime "runtime"
+
 	"Aether/pkg/auth"
 	"Aether/pkg/fs"
 	"Aether/pkg/java"
@@ -22,6 +24,15 @@ import (
 )
 
 var launchLogMu sync.Mutex
+
+func loaderOSName() string {
+	switch goruntime.GOOS {
+	case "darwin":
+		return "osx"
+	default:
+		return goruntime.GOOS
+	}
+}
 
 // launchLogf writes a timestamped line to the persistent launch log and stdout.
 func launchLogf(format string, args ...interface{}) {
@@ -171,6 +182,8 @@ func Launch(ctx context.Context, inst *Instance) error {
 			"mcVersion":    inst.Version,
 			"classpath":    cpArray,
 			"mainClass":    mainClass,
+			"os":           loaderOSName(),
+			"arch":         goruntime.GOARCH,
 		}
 
 		// The hook always runs in a JS sandbox (goja) which is NOT goroutine-safe.
@@ -287,7 +300,7 @@ func Launch(ctx context.Context, inst *Instance) error {
 	args := append(jvmArgs, mainClass)
 	args = append(args, gameArgs...)
 
-	launchLogf("Command: %s %s", javaPath, strings.Join(args, " "))
+	launchLogf("Launching Java: path=%s jvmArgs=%d gameArgs=%d classpathEntries=%d", javaPath, len(jvmArgs), len(gameArgs), len(cpArray))
 
 	cmd := exec.Command(javaPath, args...)
 	cmd.Dir = instanceDir

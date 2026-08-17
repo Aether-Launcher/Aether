@@ -97,6 +97,23 @@ type ArgumentRule struct {
 	Value json.RawMessage `json:"value"` // can be string or []string
 }
 
+// ruleMatchesPlatform reports whether a Mojang rule applies to this process.
+func ruleMatchesPlatform(rule Rule) bool {
+	if len(rule.Features) > 0 {
+		return false
+	}
+	if rule.OS == nil {
+		return true
+	}
+	if rule.OS.Name != "" && rule.OS.Name != getOSName() {
+		return false
+	}
+	if rule.OS.Arch != "" && rule.OS.Arch != runtime.GOARCH && !(rule.OS.Arch == "x86" && runtime.GOARCH == "386") {
+		return false
+	}
+	return true
+}
+
 // IsLibraryAllowed checks if a library should be included based on its rules and the current OS.
 func IsLibraryAllowed(lib Library) bool {
 	if len(lib.Rules) == 0 {
@@ -147,8 +164,6 @@ func getOSName() string {
 // It evaluates OS rules and skips conditional arguments that don't apply.
 func ResolveArguments(rawArgs []json.RawMessage) []string {
 	var result []string
-	osName := getOSName()
-
 	for _, raw := range rawArgs {
 		// Try as plain string first
 		var str string
@@ -163,31 +178,12 @@ func ResolveArguments(rawArgs []json.RawMessage) []string {
 			continue
 		}
 
-		// Evaluate rules — skip feature-based rules (demo mode, custom resolution, etc.)
-		allowed := false
+		allowed := len(argRule.Rules) == 0
 		for _, rule := range argRule.Rules {
-			if len(rule.Features) > 0 {
-				// Feature-based rules (is_demo_user, has_custom_resolution) — skip
-				allowed = false
-				break
-			}
-			if rule.OS == nil {
-				if rule.Action == "allow" {
-					allowed = true
-				}
-				continue
-			}
-			if rule.OS.Name == osName {
+			if ruleMatchesPlatform(rule) {
 				allowed = rule.Action == "allow"
 			}
-			// Check arch rule
-			if rule.OS.Arch != "" {
-				if rule.OS.Arch == "x86" && runtime.GOARCH != "386" {
-					allowed = false
-				}
-			}
 		}
-
 		if !allowed {
 			continue
 		}

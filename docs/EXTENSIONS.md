@@ -111,7 +111,7 @@ The Aether Registry may assign trust metadata. The launcher displays these badge
 1. 🔵 **Official**: Developed and maintained directly by the Aether Team.
 2. 🟢 **Verified**: Personally reviewed by an Aether maintainer. The code has been thoroughly audited for security, performance, and stability.
 3. 🟣 **Community**: Passed automated checks and was merged into the registry via Pull Request, but has not received a manual code audit. Use with caution.
-4. 🟡 **Local**: Installed manually from a `.aex` file. Aether treats these as untrusted.
+4. 🟡 **Local**: Installed manually from a `.aex` file. These are Local unless the manifest ID matches a registry entry, in which case the registry trust tier is displayed.
 
 The registry's planned review process would consider:
 1. **No Malicious Code**: Extensions must not steal tokens, install malware, or attempt to break out of the Goja sandbox.
@@ -124,9 +124,9 @@ The Aether CLI (`aether`) is the official toolkit for creating, developing, test
 
 In the local development workspace, the related repositories are:
 
-- `C:\Users\temit\Documents\Aether-Cli`
-- `C:\Users\temit\Documents\Aether-SDK`
-- `C:\Users\temit\Documents\Aether-Extensions`
+- `$WORKSPACE/Aether-Cli`
+- `$WORKSPACE/Aether-SDK`
+- `$WORKSPACE/Aether-Extensions`
 
 ### Project Creation
 

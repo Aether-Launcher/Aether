@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -18,6 +19,8 @@ import (
 	"Aether/pkg/mojang"
 	"Aether/pkg/settings"
 )
+
+var modLoaderLaunchMu sync.Mutex
 
 type App struct {
 	ctx context.Context
@@ -51,6 +54,8 @@ func (a *App) startup(ctx context.Context) {
 			if loader.Callback == nil {
 				return nil, fmt.Errorf("mod loader '%s' has no onLaunch callback (extension failed to register it)", loaderID)
 			}
+			modLoaderLaunchMu.Lock()
+			defer modLoaderLaunchMu.Unlock()
 			return loader.Callback(hookCtx)
 		}
 	}

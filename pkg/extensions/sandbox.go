@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"Aether/pkg/fs"
 	"Aether/pkg/netutil"
@@ -34,9 +35,29 @@ type InstanceInfo struct {
 
 const maxExtensionHTTPResponse = 10 * 1024 * 1024
 
-// lastRegisteredModLoaderCallbacks remembers the last onLaunch callback per
-// loader ID so a re-registration that omits onLaunch doesn't silently drop it.
-var lastRegisteredModLoaderCallbacks = map[string]func(map[string]interface{}) (map[string]interface{}, error){}
+type modLoaderCallbackKey struct {
+	extensionID string
+	loaderID    string
+}
+
+var (
+	lastRegisteredModLoaderCallbacks = map[modLoaderCallbackKey]func(map[string]interface{}) (map[string]interface{}, error){}
+	modLoaderCallbackMu              sync.Mutex
+)
+
+func clearModLoaderCallbackCache(extensionID string) {
+	modLoaderCallbackMu.Lock()
+	defer modLoaderCallbackMu.Unlock()
+	if extensionID == "" {
+		lastRegisteredModLoaderCallbacks = make(map[modLoaderCallbackKey]func(map[string]interface{}) (map[string]interface{}, error))
+		return
+	}
+	for key := range lastRegisteredModLoaderCallbacks {
+		if key.extensionID == extensionID {
+			delete(lastRegisteredModLoaderCallbacks, key)
+		}
+	}
+}
 
 // NewSandbox creates a new Goja isolate restricted by the given manifest.
 // emit is an optional function for broadcasting events (e.g. runtime.EventsEmit);
@@ -333,7 +354,10 @@ func NewSandbox(
 				// don't rely on goja.Value.ToObject. If a previously registered
 				// mod loader with the same ID exists we keep its callback unless
 				// this registration provides a new one.
-				prev, hadPrev := lastRegisteredModLoaderCallbacks[config.ID]
+				callbackKey := modLoaderCallbackKey{extensionID: manifest.ID, loaderID: config.ID}
+				modLoaderCallbackMu.Lock()
+				prev, hadPrev := lastRegisteredModLoaderCallbacks[callbackKey]
+				modLoaderCallbackMu.Unlock()
 
 				if cb, ok := goja.AssertFunction(call.Argument(0).ToObject(vm).Get("onLaunch")); ok {
 					config.Callback = func(ctx map[string]interface{}) (map[string]interface{}, error) {
@@ -348,7 +372,9 @@ func NewSandbox(
 						}
 						return res, nil
 					}
-					lastRegisteredModLoaderCallbacks[config.ID] = config.Callback
+					modLoaderCallbackMu.Lock()
+					lastRegisteredModLoaderCallbacks[callbackKey] = config.Callback
+					modLoaderCallbackMu.Unlock()
 				} else if hadPrev {
 					config.Callback = prev
 				} else {

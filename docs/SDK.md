@@ -128,7 +128,7 @@ aether build
 
 ## Installation
 
-```
+```bash
 npm install --save-dev @aether/sdk
 ```
 

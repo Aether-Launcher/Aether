@@ -155,3 +155,40 @@ func TestSandboxModLoaderCallbackNonNil(t *testing.T) {
 		t.Fatalf("callback did not patch mainClass, got %v", out["mainClass"])
 	}
 }
+
+func TestModLoaderCallbackCacheIsScopedAndCleared(t *testing.T) {
+	clearModLoaderCallbackCache("")
+
+	register := func(id string) ModLoaderConfig {
+		var got ModLoaderConfig
+		manifest := Manifest{ID: id, Permissions: []string{"launcher:modloader"}}
+		sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
+			nil, func(config ModLoaderConfig) { got = config }, nil, nil, nil, nil, nil, nil, nil)
+		if err := sandbox.Execute(`Aether.launcher.registerModLoader({id: "fabric", name: "Fabric", description: "test loader"});`); err != nil {
+			t.Fatalf("registerModLoader execution failed for %s: %v", id, err)
+		}
+		return got
+	}
+
+	first := register("com.test.first")
+	if first.Callback == nil {
+		t.Fatal("first loader callback must not be nil")
+	}
+	second := register("com.test.second")
+	if second.Callback == nil {
+		t.Fatal("second loader callback must not be nil")
+	}
+	if _, err := second.Callback(map[string]interface{}{}); err == nil {
+		t.Fatal("second extension reused the first extension callback")
+	}
+
+	clearModLoaderCallbackCache("com.test.first")
+	third := register("com.test.first")
+	if third.Callback == nil {
+		t.Fatal("third loader callback must not be nil")
+	}
+	if _, err := third.Callback(map[string]interface{}{}); err == nil {
+		t.Fatal("clearing an extension cache did not remove its callback")
+	}
+	clearModLoaderCallbackCache("")
+}

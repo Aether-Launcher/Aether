@@ -70,7 +70,7 @@ jobs:
           wails build -clean -platform ${{ matrix.platform }} -nsis
           $installer = Get-ChildItem build\bin -Filter "*installer.exe" | Select-Object -First 1
           if (-not $installer) { throw "Wails NSIS installer was not produced" }
-          Rename-Item $installer.FullName Aether-${{ matrix.name }}-installer.exe
+          Move-Item $installer.FullName Aether-${{ matrix.name }}-installer.exe
           Copy-Item build\bin\Aether.exe Aether-${{ matrix.name }}.exe
 
       - name: Build Linux archive
