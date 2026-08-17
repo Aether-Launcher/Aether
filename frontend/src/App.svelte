@@ -14,6 +14,7 @@
   import Settings from './pages/Settings.svelte';
   import ConfirmDialog from './lib/components/ConfirmDialog.svelte';
 
+  const isMacOS = /Macintosh|Mac OS X/i.test(navigator.userAgent);
   let activePage = 'home';
   let targetInstanceId = '';
   let activeInstanceId = '';
@@ -87,11 +88,18 @@
     const target = request.jarName
       ? `mod "${request.jarName}" in instance "${request.instanceId}"`
       : `instance "${request.instanceId}"`;
-    const source = request.url ? `\n\nSource: ${request.url}` : '';
+    let source = '';
+    if (request.url) {
+      try {
+        source = ' Source: ' + new URL(request.url).hostname;
+      } catch {
+        source = ' Source: external download';
+      }
+    }
     confirmationDialog.open(
       'Allow extension action?',
       `${extensionName} wants to ${action} on ${target}. This may change files that Minecraft will load.${source}`,
-      true,
+      action === 'delete mod',
       'Allow'
     );
   }
@@ -118,7 +126,11 @@
 </script>
 
 <div class="app-container">
-  <TitleBar />
+  {#if isMacOS}
+    <div class="native-titlebar-spacer" aria-hidden="true"></div>
+  {:else}
+    <TitleBar />
+  {/if}
   <div class="layout">
     <Sidebar
       {activePage}
@@ -170,6 +182,12 @@
     height: 100vh;
     overflow: hidden;
     background: var(--bg-dark, #0d0d0d);
+  }
+
+  .native-titlebar-spacer {
+    height: 32px;
+    flex-shrink: 0;
+    background: #0d0d0d;
   }
 
   .layout {

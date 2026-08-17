@@ -58,7 +58,7 @@
   onMount(async () => {
     try {
       const s = await GetSettings();
-      settings = { ...s };
+      settings = { ...settings, ...s };
       await loadJavaStatuses();
     } catch (e) {
       console.error("Failed to load settings:", e);
