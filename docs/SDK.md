@@ -1,8 +1,8 @@
-# Aether SDK (Planned)
+# Aether SDK
 
-> The CLI and `@aether/sdk` package described in this document are design plans. They are not currently published or included in this repository. The Go runtime and the examples in `docs/API.md` are the current source of truth.
+> The CLI and `@aether/sdk` package are maintained outside this core launcher repository. The Go runtime in this repository remains the source of truth for which APIs are actually injected into extension sandboxes.
 
-The planned Aether SDK (`@aether/sdk`) is intended to be the development companion for building Aether extensions. It is intended as a development-time package and would not ship inside an extension at runtime.
+The Aether SDK (`@aether/sdk`) is the development companion for building Aether extensions. It is intended as a development-time package and does not ship inside an extension at runtime.
 
 ## CLI vs SDK
 
@@ -126,10 +126,10 @@ aether build
   └─ bundles into a .aex file, SDK types stripped automatically
 ```
 
-## Installation (Planned)
+## Installation
 
 ```
 npm install --save-dev @aether/sdk
 ```
 
-The SDK will be published to npm when the extension ecosystem reaches a stable API. Until then, the TypeScript definitions are available directly inside the `extensions-src/` directory of the core repository as a reference.
+Use the SDK package from the SDK repository for local development. The TypeScript definitions in that repository should mirror the Go runtime APIs exposed by this launcher.

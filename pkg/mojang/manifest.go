@@ -10,7 +10,7 @@ import (
 const ManifestURL = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
 
 type VersionManifest struct {
-	Latest   struct {
+	Latest struct {
 		Release  string `json:"release"`
 		Snapshot string `json:"snapshot"`
 	} `json:"latest"`
@@ -35,10 +35,11 @@ type VersionInfo struct {
 			Sha1 string `json:"sha1"`
 		} `json:"client"`
 	} `json:"downloads"`
-	Libraries  []Library  `json:"libraries"`
-	AssetIndex AssetIndex `json:"assetIndex"`
-	Assets     string     `json:"assets"`
-	Arguments  struct {
+	Libraries          []Library  `json:"libraries"`
+	AssetIndex         AssetIndex `json:"assetIndex"`
+	Assets             string     `json:"assets"`
+	MinecraftArguments string     `json:"minecraftArguments"`
+	Arguments          struct {
 		Game []json.RawMessage `json:"game"`
 		JVM  []json.RawMessage `json:"jvm"`
 	} `json:"arguments"`
@@ -92,7 +93,7 @@ type Rule struct {
 
 // ArgumentRule represents a conditional argument entry in the arguments arrays
 type ArgumentRule struct {
-	Rules []Rule   `json:"rules"`
+	Rules []Rule          `json:"rules"`
 	Value json.RawMessage `json:"value"` // can be string or []string
 }
 

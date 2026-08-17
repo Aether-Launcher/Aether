@@ -21,6 +21,16 @@
 #
 # Requires Xcode 26+ (actool).
 set -euo pipefail
+# Icon Composer requires Xcode 26. Older toolchains keep the Wails legacy icon.
+if ! command -v xcodebuild >/dev/null 2>&1; then
+  echo "warning: xcodebuild unavailable; keeping the Wails-generated legacy icon"
+  exit 0
+fi
+XCODE_MAJOR="$(xcodebuild -version | awk '/^Xcode / {print int($2)}')"
+if [[ -z "$XCODE_MAJOR" || "$XCODE_MAJOR" -lt 26 ]]; then
+  echo "warning: Xcode 26+ required for Icon Composer; keeping the Wails-generated legacy icon"
+  exit 0
+fi
 
 # Resolve the repo root from the script's own location (postBuildHooks run
 # with build/bin as the working directory).

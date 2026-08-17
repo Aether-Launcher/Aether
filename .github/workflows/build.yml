@@ -15,13 +15,17 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            name: linux
-
+            name: linux-amd64
+            platform: linux/amd64
           - os: windows-latest
-            name: windows
-
+            name: windows-amd64
+            platform: windows/amd64
+          - os: macos-13
+            name: macos-amd64
+            platform: darwin/amd64
           - os: macos-14
-            name: macos
+            name: macos-arm64
+            platform: darwin/arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -30,7 +34,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
           cache: true
 
       - uses: actions/setup-node@v4
@@ -46,34 +50,48 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Linux packages
+      - name: Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.0-dev \
-            libayatana-appindicator3-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev
 
-      - name: macOS packages
-        if: runner.os == 'macOS'
-        run: brew install pkg-config create-dmg
-
-      - name: Windows packages
+      - name: Windows dependencies
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           choco install nsis --yes --no-progress
-          echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
+          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      - name: Build
-        run: wails build -clean
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          wails build -clean -platform ${{ matrix.platform }} -nsis
+          $installer = Get-ChildItem build\bin -Filter "*installer.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Wails NSIS installer was not produced" }
+          Rename-Item $installer.FullName Aether-${{ matrix.name }}-installer.exe
+          Copy-Item build\bin\Aether.exe Aether-${{ matrix.name }}.exe
+
+      - name: Build Linux archive
+        if: runner.os == 'Linux'
+        run: |
+          wails build -clean -platform ${{ matrix.platform }}
+          tar -C build/bin -czf Aether-${{ matrix.name }}.tar.gz Aether
+
+      - name: Build macOS disk image
+        if: runner.os == 'macOS'
+        run: |
+          wails build -clean -platform ${{ matrix.platform }}
+          hdiutil create -volname Aether -srcfolder build/bin/Aether.app -ov -format UDZO Aether-${{ matrix.name }}.dmg
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: build/bin/**
-          compression-level: 9
+          path: |
+            Aether-*.tar.gz
+            Aether-*.dmg
+            Aether-*.exe
 
   release:
     needs: build

@@ -47,6 +47,8 @@ Aether.launcher.registerModLoader({
         var mavenUrl = "https://maven.neoforged.net/releases/";
         var basePath = "net/neoforged/neoforge/" + neoforgeVer + "/neoforge-" + neoforgeVer;
         var mainClass = "cpw.mods.modlauncher.Launcher";
+        var jvmArgs = [];
+        var gameArgs = [];
 
         var cp = [];
         for (var idx = 0; idx < ctx.classpath.length; idx++) {
@@ -58,6 +60,29 @@ Aether.launcher.registerModLoader({
         try {
             var jsonStr = Aether.http.get(jsonUrl);
             var versionInfo = JSON.parse(jsonStr);
+
+            function collectArgs(args) {
+                var out = [];
+                if (!args) return out;
+                for (var a = 0; a < args.length; a++) {
+                    var item = args[a];
+                    if (typeof item === "string") {
+                        out.push(item);
+                    } else if (item && item.value) {
+                        if (typeof item.value === "string") {
+                            out.push(item.value);
+                        } else if (Array.isArray(item.value)) {
+                            for (var av = 0; av < item.value.length; av++) out.push(item.value[av]);
+                        }
+                    }
+                }
+                return out;
+            }
+
+            if (versionInfo.arguments) {
+                jvmArgs = collectArgs(versionInfo.arguments.jvm);
+                gameArgs = collectArgs(versionInfo.arguments.game);
+            }
 
             var libs = versionInfo.libraries || [];
             for (var j = 0; j < libs.length; j++) {
@@ -100,6 +125,8 @@ Aether.launcher.registerModLoader({
 
         ctx.mainClass = mainClass;
         ctx.classpath = cp;
+        ctx.jvmArgs = jvmArgs;
+        ctx.gameArgs = gameArgs;
         return ctx;
     }
 });

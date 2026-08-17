@@ -107,3 +107,51 @@ func TestSandboxGranularModPermissionAndConfirmation(t *testing.T) {
 		t.Fatal("expected list-only extension to lack installMod")
 	}
 }
+
+// TestSandboxModLoaderCallbackNonNil guards against the regression where
+// registerModLoader produced a config with a nil Callback (due to a
+// goja.Value.ToObject path), which later panicked at launch.
+func TestSandboxModLoaderCallbackNonNil(t *testing.T) {
+	var got ModLoaderConfig
+	onModLoader := func(c ModLoaderConfig) { got = c }
+
+	manifest := Manifest{
+		ID:          "com.test.fabric",
+		Permissions: []string{"launcher:modloader"},
+	}
+	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
+		nil, onModLoader, nil, nil, nil, nil, nil, nil, nil)
+
+	script := `
+		Aether.launcher.registerModLoader({
+			id: "fabric",
+			name: "Fabric",
+			description: "test loader",
+			onLaunch: function(ctx) {
+				ctx.mainClass = "net.fabricmc.loader.impl.launch.knot.KnotClient";
+				ctx.gameArgs = ["--modded"];
+				return ctx;
+			}
+		});
+	`
+	if err := sandbox.Execute(script); err != nil {
+		t.Fatalf("registerModLoader execution failed: %v", err)
+	}
+	if got.ID != "fabric" {
+		t.Fatalf("expected loader id 'fabric', got %q", got.ID)
+	}
+	if got.Callback == nil {
+		t.Fatal("Callback must not be nil after a JS onLaunch function was provided")
+	}
+
+	out, err := got.Callback(map[string]interface{}{
+		"mainClass": "net.minecraft.client.main.Main",
+		"classpath": []string{"a.jar", "b.jar"},
+	})
+	if err != nil {
+		t.Fatalf("callback invocation error: %v", err)
+	}
+	if out["mainClass"] != "net.fabricmc.loader.impl.launch.knot.KnotClient" {
+		t.Fatalf("callback did not patch mainClass, got %v", out["mainClass"])
+	}
+}
