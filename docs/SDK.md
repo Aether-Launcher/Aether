@@ -1,15 +1,15 @@
 # Aether SDK
 
-> The CLI and `@aether/sdk` package are maintained outside this core launcher repository. The Go runtime in this repository remains the source of truth for which APIs are actually injected into extension sandboxes.
+> The CLI and `@aethermc/sdk` package are maintained outside this core launcher repository. The Go runtime in this repository remains the source of truth for which APIs are actually injected into extension sandboxes.
 
-The Aether SDK (`@aether/sdk`) is the development companion for building Aether extensions. It is intended as a development-time package and does not ship inside an extension at runtime.
+The Aether SDK (`@aethermc/sdk`) is the development companion for building Aether extensions. It is intended as a development-time package and does not ship inside an extension at runtime.
 
 ## CLI vs SDK
 
 These are two separate but connected tools:
 
 - **CLI** (`aether`) — what you run in your terminal. Scaffolds projects, runs dev mode, packages extensions.
-- **SDK** (`@aether/sdk`) — what you import inside your extension's code. Provides types and helper utilities.
+- **SDK** (`@aethermc/sdk`) — what you import inside your extension's code. Provides types and helper utilities.
 
 ## The Problem It Solves
 
@@ -59,7 +59,7 @@ declare global {
 Thin wrappers that make common patterns cleaner and catch mistakes earlier:
 
 ```javascript
-import { onReady, createLogger } from '@aether/sdk';
+import { onReady, createLogger } from '@aethermc/sdk';
 
 const log = createLogger('my-extension');
 
@@ -93,10 +93,10 @@ The `"api"` field in `manifest.json` ties directly to the SDK version:
 }
 ```
 
-When you install `@aether/sdk@1.0`, you get types and helpers that match Aether's runtime API at that version exactly. When Aether ships a new API version, `aether migrate` updates your manifest and you run:
+When you install `@aethermc/sdk@1.0`, you get types and helpers that match Aether's runtime API at that version exactly. When Aether ships a new API version, `aether migrate` updates your manifest and you run:
 
 ```
-npm install @aether/sdk@2.0
+npm install @aethermc/sdk@2.0
 ```
 
 ## What the SDK Does NOT Do
@@ -111,7 +111,7 @@ The Go runtime is the single source of truth for what APIs actually exist. The S
 
 ```
 aether init
-  └─ scaffolds project, installs @aether/sdk
+  └─ scaffolds project, installs @aethermc/sdk
 
 Edit main.js
   └─ full autocomplete and type checking via SDK
@@ -129,7 +129,7 @@ aether build
 ## Installation
 
 ```bash
-npm install --save-dev @aether/sdk
+npm install --save-dev @aethermc/sdk
 ```
 
 Use the SDK package from the SDK repository for local development. The TypeScript definitions in that repository should mirror the Go runtime APIs exposed by this launcher.
