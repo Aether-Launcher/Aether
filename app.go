@@ -228,6 +228,33 @@ func (a *App) UninstallExtension(id string) error {
 	return extensions.GlobalManager.Uninstall(id)
 }
 
+// GetExtensionUpdates returns available updates for installed extensions.
+func (a *App) GetExtensionUpdates() []extensions.ExtensionUpdate {
+	if extensions.GlobalManager == nil {
+		return nil
+	}
+	return extensions.CheckForUpdates()
+}
+
+// UpdateExtension updates an installed extension to its newest registry version.
+func (a *App) UpdateExtension(id string) (extensions.ExtensionUpdate, error) {
+	if extensions.GlobalManager == nil {
+		return extensions.ExtensionUpdate{}, fmt.Errorf("extensions are disabled")
+	}
+	return extensions.UpdateExtension(id)
+}
+
+// ReloadExtensions re-scans the extensions directory and reloads all
+// extensions, refreshing the sidebar and mod loader registrations.
+func (a *App) ReloadExtensions() error {
+	if extensions.GlobalManager == nil {
+		return fmt.Errorf("extensions are disabled")
+	}
+	// Clear the sidebar first so removed extensions don't leave stale tabs.
+	runtime.EventsEmit(a.ctx, "extension:sidebar:reset")
+	return extensions.GlobalManager.LoadAll()
+}
+
 // SelectAndImportInstance imports an existing instance directory.
 func (a *App) SelectAndImportInstance() (bool, error) {
 	source, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Select Minecraft Instance"})

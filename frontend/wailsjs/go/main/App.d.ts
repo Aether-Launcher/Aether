@@ -24,6 +24,8 @@ export function GetAvailableVersions(arg1:boolean):Promise<Array<string>>;
 
 export function GetExtensionSidebarPages():Promise<Array<Record<string, any>>>;
 
+export function GetExtensionUpdates():Promise<Array<extensions.ExtensionUpdate>>;
+
 export function GetExtensions():Promise<Array<extensions.Extension>>;
 
 export function GetInstances():Promise<Array<instance.Instance>>;
@@ -39,6 +41,8 @@ export function InstallInstance(arg1:string):Promise<void>;
 export function LaunchInstance(arg1:string):Promise<void>;
 
 export function LoginOffline(arg1:string):Promise<auth.Account>;
+
+export function ReloadExtensions():Promise<void>;
 
 export function RemoveAccount(arg1:string):Promise<void>;
 
@@ -57,5 +61,7 @@ export function SetActiveAccount(arg1:string):Promise<void>;
 export function StartMicrosoftAuth():Promise<auth.Account>;
 
 export function UninstallExtension(arg1:string):Promise<void>;
+
+export function UpdateExtension(arg1:string):Promise<extensions.ExtensionUpdate>;
 
 export function UpdateInstance(arg1:instance.Instance):Promise<void>;
