@@ -120,7 +120,7 @@ The registry's planned review process would consider:
 
 ## Developer Experience (Aether CLI)
 
-The Aether CLI (`aether`) is the official toolkit for creating, developing, testing, packaging, validating, and publishing Aether extensions. The goal is a new developer can go from nothing to a working extension in under five minutes.
+The Aether CLI (`aether-cli-cli`) is the official toolkit for creating, developing, testing, packaging, validating, and publishing Aether extensions. The goal is a new developer can go from nothing to a working extension in under five minutes.
 
 In the local development workspace, the related repositories are:
 
@@ -131,7 +131,7 @@ In the local development workspace, the related repositories are:
 ### Project Creation
 
 ```
-aether init
+aether-cli init
 ```
 
 Starts an interactive folder generator. You will be asked:
@@ -182,7 +182,7 @@ Watches source files and hot-reloads the extension. Requires an active Aether in
 ### Validation
 
 ```
-aether validate
+aether-cli validate
 ```
 
 Checks manifest syntax, missing files, invalid permissions, API compatibility, version format, duplicate IDs, invalid assets, missing icons, and missing metadata. Returns a clear pass/fail with specific error messages.
@@ -192,7 +192,7 @@ Checks manifest syntax, missing files, invalid permissions, API compatibility, v
 ### Packaging
 
 ```
-aether build
+aether-cli build
 ```
 
 Produces a `my-extension.aex` file. Automatically minifies, compresses, validates, generates a checksum, and strips development files. The `.aex` format is Aether's first-class extension container. It is zip-compatible internally, but `.zip` is not the supported package extension for launcher installs.
@@ -225,14 +225,14 @@ Automatically updates `manifest.json`, `package.json`, and `CHANGELOG`.
 
 | Command | Purpose |
 |---|---|
-| `aether lint` | Warns about unused permissions, deprecated APIs, missing metadata |
-| `aether fmt` | Formats `manifest.json`, source, and configuration |
-| `aether clean` | Removes build files |
-| `aether info` | Shows extension ID, version, API version, permissions, build size, author |
-| `aether migrate` | Upgrades manifest and API usage for new API versions |
-| `aether permissions` | Scans source code and suggests required permissions |
-| `aether docs <api>` | Searches and prints API documentation inline |
-| `aether examples` | Generates example code for sidebar pages, dialogs, loaders, etc. |
+| `aether-cli lint` | Warns about unused permissions, deprecated APIs, missing metadata |
+| `aether-cli fmt` | Formats `manifest.json`, source, and configuration |
+| `aether-cli clean` | Removes build files |
+| `aether-cli info` | Shows extension ID, version, API version, permissions, build size, author |
+| `aether-cli migrate` | Upgrades manifest and API usage for new API versions |
+| `aether-cli permissions` | Scans source code and suggests required permissions |
+| `aether-cli docs <api>` | Searches and prints API documentation inline |
+| `aether-cli examples` | Generates example code for sidebar pages, dialogs, loaders, etc. |
 
 ---
 
@@ -262,9 +262,9 @@ aether profile    # View performance metrics
 
 | Command | Purpose |
 |---|---|
-| `aether benchmark` | Measures startup time and memory usage |
-| `aether doctor` | Checks the development environment |
-| `aether sdk update` | Updates SDK templates to the latest version |
-| `aether create provider` | Scaffolds a new Loader Provider extension |
-| `aether create theme` | Scaffolds a new Appearance Pack |
-| `aether create loader` | Scaffolds a new Mod Loader extension |
+| `aether-cli benchmark` | Measures startup time and memory usage |
+| `aether-cli doctor` | Checks the development environment |
+| `aether-cli sdk update` | Updates SDK templates to the latest version |
+| `aether-cli create provider` | Scaffolds a new Loader Provider extension |
+| `aether-cli create theme` | Scaffolds a new Appearance Pack |
+| `aether-cli create loader` | Scaffolds a new Mod Loader extension |

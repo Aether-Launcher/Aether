@@ -40,7 +40,7 @@ All project documentation is located in the `docs/` directory. If you are lookin
 The following tools are available for building Aether extensions. They are maintained outside this core launcher repository and are available for terminal installation:
 
 - [Aether SDK](https://github.com/wayback09/Aether-SDK) (`@aethermc/sdk`) - TypeScript type definitions and helper utilities for extension development, published to [npm](https://www.npmjs.com/package/@aethermc/sdk). Install with `npm install --save-dev @aethermc/sdk`.
-- [Aether CLI](https://github.com/wayback09/Aether-Cli) (`aether`) - Scaffold, validate, and package extensions into `.aex` format. Install with `go install github.com/wayback09/aether-cli@latest`.
+- [Aether CLI](https://github.com/wayback09/Aether-Cli) (`aether-cli`) - Scaffold, validate, and package extensions into `.aex` format. Install with `go install github.com/wayback09/aether-cli@latest`.
 
 ## Getting Started
 
