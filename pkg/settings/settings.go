@@ -10,23 +10,27 @@ import (
 
 // GlobalSettings holds launcher-wide configuration
 type GlobalSettings struct {
-	DefaultMemory     string `json:"defaultMemory"`
-	CloseOnLaunch     bool   `json:"closeOnLaunch"`
-	DeveloperMode     bool   `json:"developerMode"`
-	DisableExtensions bool   `json:"disableExtensions"`
-	GarbageCollector  string `json:"garbageCollector,omitempty"`
-	CustomJVMArgs     string `json:"customJvmArgs,omitempty"`
+	DefaultMemory      string `json:"defaultMemory"`
+	CloseOnLaunch      bool   `json:"closeOnLaunch"`
+	DeveloperMode      bool   `json:"developerMode"`
+	DisableExtensions  bool   `json:"disableExtensions"`
+	GarbageCollector   string `json:"garbageCollector,omitempty"`
+	CustomJVMArgs      string `json:"customJvmArgs,omitempty"`
+	AutoCheckUpdates   bool   `json:"autoCheckUpdates"`
+	IncludeBetaUpdates bool   `json:"includeBetaUpdates"`
 }
 
 // GetDefaultSettings returns the default configuration
 func GetDefaultSettings() GlobalSettings {
 	return GlobalSettings{
-		DefaultMemory:     "4096",
-		CloseOnLaunch:     false,
-		DeveloperMode:     false,
-		DisableExtensions: false,
-		GarbageCollector:  "G1GC",
-		CustomJVMArgs:     "",
+		DefaultMemory:      "4096",
+		CloseOnLaunch:      false,
+		DeveloperMode:      false,
+		DisableExtensions:  false,
+		GarbageCollector:   "G1GC",
+		CustomJVMArgs:      "",
+		AutoCheckUpdates:   true,
+		IncludeBetaUpdates: false,
 	}
 }
 

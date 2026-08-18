@@ -157,6 +157,8 @@ export namespace settings {
 	    disableExtensions: boolean;
 	    garbageCollector?: string;
 	    customJvmArgs?: string;
+	    autoCheckUpdates: boolean;
+	    includeBetaUpdates: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new GlobalSettings(source);
@@ -170,6 +172,35 @@ export namespace settings {
 	        this.disableExtensions = source["disableExtensions"];
 	        this.garbageCollector = source["garbageCollector"];
 	        this.customJvmArgs = source["customJvmArgs"];
+	        this.autoCheckUpdates = source["autoCheckUpdates"];
+	        this.includeBetaUpdates = source["includeBetaUpdates"];
+	    }
+	}
+
+}
+
+export namespace update {
+	
+	export class Info {
+	    version: string;
+	    assetName: string;
+	    downloadUrl: string;
+	    releaseNotes: string;
+	    isPrerelease: boolean;
+	    installerOnly?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Info(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.assetName = source["assetName"];
+	        this.downloadUrl = source["downloadUrl"];
+	        this.releaseNotes = source["releaseNotes"];
+	        this.isPrerelease = source["isPrerelease"];
+	        this.installerOnly = source["installerOnly"];
 	    }
 	}
 

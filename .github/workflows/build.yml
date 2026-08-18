@@ -119,7 +119,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          wails build -clean -platform ${{ matrix.platform }} -nsis
+          wails build -clean -platform ${{ matrix.platform }} -ldflags "-X main.Version=v${{ inputs.version }}" -nsis
           $installer = Get-ChildItem build\bin -Filter "*installer.exe" | Select-Object -First 1
           if (-not $installer) { throw "Wails NSIS installer was not produced" }
           Move-Item $installer.FullName Aether-${{ matrix.name }}-installer.exe
@@ -128,13 +128,27 @@ jobs:
       - name: Build Linux archive
         if: runner.os == 'Linux'
         run: |
-          wails build -clean -platform ${{ matrix.platform }}
+          wails build -clean -platform ${{ matrix.platform }} -ldflags "-X main.Version=v${{ inputs.version }}"
           tar -C build/bin -czf Aether-${{ matrix.name }}.tar.gz Aether
+
+      - name: Build AppImage
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          APPDIR=build/appimage/Aether.AppDir
+          mkdir -p "$APPDIR/usr/bin"
+          mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+          cp build/bin/Aether "$APPDIR/usr/bin/Aether"
+          cp build/appicon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/aether.png"
+          cp build/linux/aether.desktop "$APPDIR/aether.desktop"
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O /tmp/appimagetool
+          chmod +x /tmp/appimagetool
+          /tmp/appimagetool --appimage-extract-and-run "$APPDIR" Aether-${{ matrix.name }}.AppImage
 
       - name: Build macOS disk image
         if: runner.os == 'macOS'
         run: |
-          wails build -clean -platform ${{ matrix.platform }}
+          wails build -clean -platform ${{ matrix.platform }} -ldflags "-X main.Version=v${{ inputs.version }}"
           hdiutil create -volname Aether -srcfolder build/bin/Aether.app -ov -format UDZO Aether-${{ matrix.name }}.dmg
 
       - uses: actions/upload-artifact@v4
@@ -144,6 +158,7 @@ jobs:
             Aether-*.tar.gz
             Aether-*.dmg
             Aether-*.exe
+            Aether-*.AppImage
 
   release:
     needs: build

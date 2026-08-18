@@ -11,6 +11,8 @@
     disableExtensions: false,
     garbageCollector: 'G1GC',
     customJvmArgs: '',
+    autoCheckUpdates: true,
+    includeBetaUpdates: false,
   };
 
   let saving = false;
@@ -178,6 +180,33 @@
           <div class="label-desc">Additional flags passed to the Java runtime on launch (e.g. -XX:+UnlockExperimentalVMOptions).</div>
         </div>
         <input type="text" class="custom-args-input" bind:value={settings.customJvmArgs} placeholder="e.g. -XX:+UnlockExperimentalVMOptions" />
+      </div>
+    </div>
+
+    <!-- Updates Section -->
+    <div class="settings-card card">
+      <h2>Updates</h2>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="auto-check-updates">
+          <input id="auto-check-updates" type="checkbox" bind:checked={settings.autoCheckUpdates} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">Check for updates automatically</div>
+            <div class="label-desc">Aether checks for new releases on startup and offers to update itself in place.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="include-beta-updates">
+          <input id="include-beta-updates" type="checkbox" bind:checked={settings.includeBetaUpdates} disabled={!settings.autoCheckUpdates} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">Include beta releases</div>
+            <div class="label-desc">Also offer pre-release versions in the updater. Beta versions may be unstable.</div>
+          </div>
+        </label>
       </div>
     </div>
 
