@@ -47,10 +47,31 @@
         dispatch('registerExtensionRoute', tab);
       }
     });
+
+    // Extensions were reloaded — clear tabs and refetch so removed/updated
+    // extensions don't leave stale sidebar entries.
+    EventsOn('extension:sidebar:reset', async () => {
+      extensionTabs = [];
+      try {
+        const tabs = await GetExtensionSidebarPages();
+        if (tabs) {
+          for (const tab of tabs) {
+            const t = tab as ExtensionTab;
+            if (!extensionTabs.find((e) => e.id === t.id)) {
+              extensionTabs = [...extensionTabs, t];
+              dispatch('registerExtensionRoute', t);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to reload extension tabs', e);
+      }
+    });
   });
 
   onDestroy(() => {
     EventsOff('extension:sidebar:add');
+    EventsOff('extension:sidebar:reset');
   });
 
   function navigate(pageId: string) {

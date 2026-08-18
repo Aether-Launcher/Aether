@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { GetExtensions, SelectAndInstallExtension, DownloadAndInstallExtension, GetSettings, UninstallExtension } from '../../wailsjs/go/main/App.js';
+  import { GetExtensions, SelectAndInstallExtension, DownloadAndInstallExtension, GetSettings, UninstallExtension, GetExtensionUpdates, UpdateExtension, ReloadExtensions } from '../../wailsjs/go/main/App.js';
   import EmptyState from '../components/EmptyState.svelte';
   import ConfirmDialog from '../lib/components/ConfirmDialog.svelte';
   import { toast } from '../stores/toast';
@@ -11,6 +11,7 @@
   let activeTab = 'installed'; // 'installed' or 'gallery'
   let galleryError = '';
   let galleryLoading = false;
+  let gallerySearch = '';
 
   // Real GitHub URL for the Aether Extension Registry
   const GALLERY_INDEX_URL = 'https://raw.githubusercontent.com/wayback09/Aether-Extensions/main/index.json';
@@ -18,6 +19,84 @@
   let isDevMode = false;
   let confirmDialog: any;
   let pendingUninstall: any = null;
+
+  let updates: any[] = [];
+  let checkingUpdates = false;
+  let updatingId = '';
+  let reloading = false;
+
+  $: filteredGalleryExtensions = galleryExtensions.filter((ext) => {
+    const query = gallerySearch.trim().toLowerCase();
+    if (!query) return true;
+    return [ext.name, ext.author, ext.id, ext.description].some((value) => String(value || '').toLowerCase().includes(query));
+  });
+
+  function compareVersions(left: string, right: string): number {
+    const parse = (version: string) => {
+      const match = String(version || '').trim().replace(/^v/i, '').match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+      return match ? [Number(match[1]), Number(match[2] || 0), Number(match[3] || 0)] : null;
+    };
+    const a = parse(left), b = parse(right);
+    if (!a || !b) return 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
+    return 0;
+  }
+
+  function installedFor(ext: any): any { return installedExtensions.find((installed) => installed.id === ext.id); }
+  function updateFor(ext: any): any { return updates.find((u) => u.id === ext.id); }
+  function hasUpdate(ext: any): boolean {
+    const installed = installedFor(ext);
+    return !!installed && compareVersions(ext.version, installed.version) > 0;
+  }
+
+  async function fetchUpdates(): Promise<any[]> {
+    try {
+      return (await GetExtensionUpdates()) || [];
+    } catch (e: any) {
+      console.error('Failed to check for updates:', e);
+      return [];
+    }
+  }
+
+  async function checkForUpdates() {
+    if (checkingUpdates) return;
+    checkingUpdates = true;
+    updates = await fetchUpdates();
+    if (updates.length === 0) toast.info('No updates available.');
+    checkingUpdates = false;
+  }
+
+  async function handleUpdate(ext: any) {
+    if (updatingId) return;
+    updatingId = ext.id;
+    try {
+      const updated = await UpdateExtension(ext.id);
+      await loadInstalled();
+      updates = await fetchUpdates();
+      toast.success(`Updated ${updated.name} to v${updated.newVersion}`);
+    } catch (e: any) {
+      console.error('Update failed:', e);
+      toast.error('Update failed: ' + e);
+    } finally {
+      updatingId = '';
+    }
+  }
+
+  async function handleReload() {
+    if (reloading) return;
+    reloading = true;
+    try {
+      await ReloadExtensions();
+      await loadInstalled();
+      updates = await fetchUpdates();
+      toast.success('Extensions reloaded.');
+    } catch (e: any) {
+      console.error('Reload failed:', e);
+      toast.error('Failed to reload extensions: ' + e);
+    } finally {
+      reloading = false;
+    }
+  }
 
   async function loadInstalled() {
     try {
@@ -104,7 +183,10 @@
     }
   }
 
-  onMount(loadInstalled);
+  onMount(async () => {
+    await loadInstalled();
+    checkForUpdates();
+  });
 
   function setTab(tab: string) {
     activeTab = tab;
@@ -153,6 +235,12 @@
         <button class="tab-btn {activeTab === 'installed' ? 'active' : ''}" on:click={() => setTab('installed')}>Installed</button>
         <button class="tab-btn {activeTab === 'gallery' ? 'active' : ''}" on:click={() => setTab('gallery')}>Gallery</button>
       </div>
+      <button class="btn btn-secondary" on:click={handleReload} disabled={reloading || installedExtensions.length === 0}>
+        {reloading ? 'Reloading...' : 'Reload'}
+      </button>
+      <button class="btn btn-secondary" on:click={checkForUpdates} disabled={checkingUpdates || installedExtensions.length === 0}>
+        {checkingUpdates ? 'Checking...' : 'Check for Updates'}
+      </button>
       <button class="btn btn-secondary" on:click={handleLocalInstall} disabled={isInstalling}>
         {isInstalling ? 'Installing...' : 'Install from .aex'}
       </button>
@@ -189,7 +277,12 @@
                 <div class="ext-info">
                   <div class="ext-title-row">
                     <h3 class="ext-title">{ext.name} <span class="ext-version">v{ext.version}</span></h3>
-                    <span class="badge {badge.cls}">{badge.label}</span>
+                    <div class="ext-badges">
+                      {#if updateFor(ext)}
+                        <span class="badge badge-update" title="Update available">Update</span>
+                      {/if}
+                      <span class="badge {badge.cls}">{badge.label}</span>
+                    </div>
                   </div>
                   <div class="ext-meta">
                     <span class="ext-author">by {ext.author}</span>
@@ -202,20 +295,27 @@
 
               <p class="ext-desc">{ext.description}</p>
               
-              <div class="ext-footer">
-                <div class="ext-status-wrap">
-                  <div class="ext-status-dot" style="background: {dot}; box-shadow: 0 0 6px {dot};"></div>
-                  <span class="ext-status-text">{ext.status || 'Active'}</span>
-                  {#if isDevMode && ext.status === 'Running'}
-                    <div class="dev-stats">
-                      <span title="Memory Usage">{ext.memory || '0MB'}</span>
-                      <span class="dot-separator">•</span>
-                      <span title="CPU Usage">{ext.cpu || '0%'} cpu</span>
-                    </div>
-                  {/if}
+                <div class="ext-footer">
+                  <div class="ext-status-wrap">
+                    <div class="ext-status-dot" style="background: {dot}; box-shadow: 0 0 6px {dot};"></div>
+                    <span class="ext-status-text">{ext.status || 'Active'}</span>
+                    {#if isDevMode && ext.status === 'Running'}
+                      <div class="dev-stats">
+                        <span title="Memory Usage">{ext.memory || '0MB'}</span>
+                        <span class="dot-separator">•</span>
+                        <span title="CPU Usage">{ext.cpu || '0%'} cpu</span>
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="ext-footer-actions">
+                    {#if updateFor(ext)}
+                      <button class="btn btn-primary" on:click={() => handleUpdate(ext)} disabled={!!updatingId}>
+                        {updatingId === ext.id ? 'Updating...' : `Update to v${updateFor(ext).newVersion}`}
+                      </button>
+                    {/if}
+                    <button class="btn btn-secondary" on:click={() => handleUninstall(ext)}>Uninstall</button>
+                  </div>
                 </div>
-                <button class="btn btn-secondary" on:click={() => handleUninstall(ext)}>Uninstall</button>
-              </div>
             </div>
           </div>
         {/each}
@@ -224,6 +324,7 @@
   {/if}
 
   {#if activeTab === 'gallery'}
+    <input class='gallery-search' type='search' placeholder='Search extensions...' aria-label='Search extensions' bind:value={gallerySearch} />
     {#if galleryLoading}
       <div class="loading-state">
         <div class="spinner"></div>
@@ -237,7 +338,7 @@
         actionLabel="Try Again"
         on:action={loadGallery}
       />
-    {:else if galleryExtensions.length === 0}
+    {:else if filteredGalleryExtensions.length === 0}
       <EmptyState
         icon="search"
         title="No Extensions Found"
@@ -245,7 +346,7 @@
       />
     {:else}
       <div class="grid">
-        {#each galleryExtensions as ext}
+        {#each filteredGalleryExtensions as ext}
           {@const grad = extGradient(ext.name)}
           
           <div class="card ext-card">
@@ -273,8 +374,14 @@
               <p class="ext-desc">{ext.description}</p>
               
               <div class="ext-footer">
-                {#if installedExtensions.find(e => e.id === ext.id)}
-                  <button class="btn btn-secondary" disabled>Installed</button>
+                {#if installedFor(ext)}
+                  {#if hasUpdate(ext)}
+                    <button class="btn btn-primary" on:click={() => handleRemoteInstall(ext.url, ext.id)} disabled={isInstalling}>
+                      {installingId === ext.id ? "Updating..." : "Update to v" + ext.version}
+                    </button>
+                  {:else}
+                    <button class="btn btn-secondary" disabled>Installed</button>
+                  {/if}
                 {:else}
                   <button class="btn btn-primary" on:click={() => handleRemoteInstall(ext.url, ext.id)} disabled={isInstalling}>
                     {installingId === ext.id ? 'Installing...' : 'Install'}
@@ -347,6 +454,28 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   }
 
+  .gallery-search {
+    display: block;
+    width: min(360px, 100%);
+    box-sizing: border-box;
+    margin: 0 0 var(--spacing-lg) auto;
+    padding: 10px 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    outline: none;
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.9);
+    font: inherit;
+  }
+
+  .gallery-search:focus {
+    border-color: rgba(59,130,246,0.7);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+  }
+
+  .gallery-search::placeholder {
+    color: rgba(255,255,255,0.4);
+  }
   .loading-state {
     display: flex;
     flex-direction: column;
@@ -506,6 +635,20 @@
   .badge-verified  { background: rgba(16, 185, 129, 0.15);  color: #34d399;  border: 1px solid rgba(16, 185, 129, 0.35);  }
   .badge-community { background: rgba(168, 85, 247, 0.12);  color: #c084fc;  border: 1px solid rgba(168, 85, 247, 0.3);   }
   .badge-local     { background: rgba(245, 158, 11, 0.12);  color: #fbbf24;  border: 1px solid rgba(245, 158, 11, 0.3);   }
+  .badge-update    { background: rgba(34, 197, 94, 0.15);   color: #4ade80;  border: 1px solid rgba(34, 197, 94, 0.35);   }
+
+  .ext-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .ext-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
   /* Dev Mode Styles */
   .dev-id {

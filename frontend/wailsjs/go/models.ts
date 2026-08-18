@@ -57,6 +57,26 @@ export namespace extensions {
 	        this.iconUrl = source["iconUrl"];
 	    }
 	}
+	export class ExtensionUpdate {
+	    id: string;
+	    name: string;
+	    currentVersion: string;
+	    newVersion: string;
+	    url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExtensionUpdate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.currentVersion = source["currentVersion"];
+	        this.newVersion = source["newVersion"];
+	        this.url = source["url"];
+	    }
+	}
 
 }
 

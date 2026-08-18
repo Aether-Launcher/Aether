@@ -38,6 +38,10 @@ export function GetExtensionSidebarPages() {
   return window['go']['main']['App']['GetExtensionSidebarPages']();
 }
 
+export function GetExtensionUpdates() {
+  return window['go']['main']['App']['GetExtensionUpdates']();
+}
+
 export function GetExtensions() {
   return window['go']['main']['App']['GetExtensions']();
 }
@@ -68,6 +72,10 @@ export function LaunchInstance(arg1) {
 
 export function LoginOffline(arg1) {
   return window['go']['main']['App']['LoginOffline'](arg1);
+}
+
+export function ReloadExtensions() {
+  return window['go']['main']['App']['ReloadExtensions']();
 }
 
 export function RemoveAccount(arg1) {
@@ -104,6 +112,10 @@ export function StartMicrosoftAuth() {
 
 export function UninstallExtension(arg1) {
   return window['go']['main']['App']['UninstallExtension'](arg1);
+}
+
+export function UpdateExtension(arg1) {
+  return window['go']['main']['App']['UpdateExtension'](arg1);
 }
 
 export function UpdateInstance(arg1) {
