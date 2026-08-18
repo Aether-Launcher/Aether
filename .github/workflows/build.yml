@@ -1,9 +1,6 @@
 name: Build & Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       release_type:
@@ -24,9 +21,7 @@ permissions:
 
 jobs:
   tag:
-    # Only runs when triggered manually: validates the version, creates the
-    # tag, and pushes it. The tag push triggers the build job below.
-    if: github.event_name == 'workflow_dispatch'
+    # Validates the version, creates the tag, and pushes it.
     runs-on: ubuntu-latest
     steps:
       - name: Validate version
@@ -66,9 +61,7 @@ jobs:
           git push origin "v$VERSION"
 
   build:
-    # Runs on the tag push (either from the manual run above or a tag pushed
-    # directly, e.g. via `git push --tags`).
-    if: github.event_name == 'push'
+    needs: tag
     strategy:
       fail-fast: false
       matrix:
@@ -154,7 +147,6 @@ jobs:
 
   release:
     needs: build
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
@@ -166,6 +158,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ inputs.version }}
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
+          prerelease: ${{ contains(inputs.version, 'alpha') || contains(inputs.version, 'beta') }}
           files: artifacts/**
