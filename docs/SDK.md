@@ -8,7 +8,7 @@ The Aether SDK (`@aethermc/sdk`) is the development companion for building Aethe
 
 These are two separate but connected tools:
 
-- **CLI** (`aether`) — what you run in your terminal. Scaffolds projects, runs dev mode, packages extensions.
+- **CLI** (`aether-cli`) — what you run in your terminal. Scaffolds projects, runs dev mode, packages extensions.
 - **SDK** (`@aethermc/sdk`) — what you import inside your extension's code. Provides types and helper utilities.
 
 ## The Problem It Solves
@@ -93,7 +93,7 @@ The `"api"` field in `manifest.json` ties directly to the SDK version:
 }
 ```
 
-When you install `@aethermc/sdk@1.0`, you get types and helpers that match Aether's runtime API at that version exactly. When Aether ships a new API version, `aether migrate` updates your manifest and you run:
+When you install `@aethermc/sdk@1.0`, you get types and helpers that match Aether's runtime API at that version exactly. When Aether ships a new API version, `aether-cli migrate` updates your manifest and you run:
 
 ```
 npm install @aethermc/sdk@2.0
@@ -110,7 +110,7 @@ The Go runtime is the single source of truth for what APIs actually exist. The S
 ## Full Developer Flow
 
 ```
-aether init
+aether-cli init
   └─ scaffolds project, installs @aethermc/sdk
 
 Edit main.js
@@ -119,10 +119,10 @@ Edit main.js
 aether dev
   └─ connects to a running Aether instance, hot-reloads on save
 
-aether validate
+aether-cli validate
   └─ checks your manifest against the declared SDK/API version
 
-aether build
+aether-cli build
   └─ bundles into a .aex file, SDK types stripped automatically
 ```
 
