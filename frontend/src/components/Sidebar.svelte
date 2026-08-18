@@ -4,6 +4,7 @@
   import { GetExtensionSidebarPages } from '../../wailsjs/go/main/App';
   import AccountManager from './AccountManager.svelte';
   import Icon from './Icon.svelte';
+  import UpdateBanner from './UpdateBanner.svelte';
 
   export let activePage: string = 'home';
 
@@ -142,6 +143,8 @@
       </button>
     {/each}
   </nav>
+
+  <UpdateBanner />
 
   <AccountManager />
 </aside>

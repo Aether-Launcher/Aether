@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	stdruntime "runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -18,6 +20,7 @@ import (
 	"Aether/pkg/java"
 	"Aether/pkg/mojang"
 	"Aether/pkg/settings"
+	"Aether/pkg/update"
 )
 
 var modLoaderLaunchMu sync.Mutex
@@ -59,6 +62,44 @@ func (a *App) startup(ctx context.Context) {
 			return loader.Callback(hookCtx)
 		}
 	}
+
+	go checkForUpdatesDelayed(ctx)
+}
+
+// checkForUpdatesDelayed runs a background update check shortly after startup.
+func checkForUpdatesDelayed(ctx context.Context) {
+	time.Sleep(3 * time.Second)
+
+	// Clean up a leftover .old binary from a previous interrupted update.
+	if exePath, err := os.Executable(); err == nil {
+		_ = os.Remove(exePath + ".old")
+	}
+
+	if Version == "dev" {
+		return
+	}
+	s := settings.Load()
+	if !s.AutoCheckUpdates {
+		return
+	}
+
+	runtime.EventsEmit(ctx, "update:status", map[string]interface{}{"phase": "checking"})
+	info, err := update.Check(ctx, Version, s.IncludeBetaUpdates)
+	if err != nil {
+		// Background check failures (offline etc.) stay silent; user-initiated
+		// checks surface their errors through the bound method.
+		runtime.EventsEmit(ctx, "update:status", map[string]interface{}{"phase": "none"})
+		return
+	}
+	if info == nil {
+		runtime.EventsEmit(ctx, "update:status", map[string]interface{}{"phase": "none"})
+		return
+	}
+	runtime.EventsEmit(ctx, "update:status", map[string]interface{}{
+		"phase":   "available",
+		"version": info.Version,
+		"notes":   info.ReleaseNotes,
+	})
 }
 
 // registeredLoaderIDs lists the currently registered mod loader IDs for error messages.
@@ -74,6 +115,53 @@ func registeredLoaderIDs() []string {
 // Aether's custom frameless title bar ("custom") is active on this platform.
 func (a *App) WindowChrome() string {
 	return windowChrome()
+}
+
+// CheckForUpdates queries GitHub Releases for a newer launcher version.
+// Returns nil when the app is up to date.
+func (a *App) CheckForUpdates() (*update.Info, error) {
+	if Version == "dev" {
+		return nil, nil
+	}
+	s := settings.Load()
+	return update.Check(a.ctx, Version, s.IncludeBetaUpdates)
+}
+
+// DownloadAndUpdate downloads and applies the newest release. On success
+// the app relaunches (or the DMG is opened on macOS).
+func (a *App) DownloadAndUpdate() error {
+	if Version == "dev" {
+		return fmt.Errorf("local builds cannot self-update")
+	}
+	s := settings.Load()
+	info, err := update.Check(a.ctx, Version, s.IncludeBetaUpdates)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return fmt.Errorf("no update available")
+	}
+
+	// macOS has no in-place apply path — hand the DMG to the user.
+	if stdruntime.GOOS == "darwin" {
+		runtime.BrowserOpenURL(a.ctx, info.DownloadURL)
+		return nil
+	}
+
+	runtime.EventsEmit(a.ctx, "update:status", map[string]interface{}{
+		"phase": "downloading", "version": info.Version,
+	})
+	path, err := update.Download(a.ctx, info)
+	if err != nil {
+		runtime.EventsEmit(a.ctx, "update:status", map[string]interface{}{
+			"phase": "error", "message": err.Error(),
+		})
+		return err
+	}
+	runtime.EventsEmit(a.ctx, "update:status", map[string]interface{}{
+		"phase": "ready", "version": info.Version,
+	})
+	return update.Apply(a.ctx, info, path)
 }
 
 // GetSettings returns the global launcher settings

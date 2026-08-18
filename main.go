@@ -33,6 +33,11 @@ func windowChrome() string {
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// Version is the app version, stamped at build time via
+// -ldflags "-X main.Version=vX.Y.Z". It stays "dev" for local builds,
+// which disables the auto-update checks.
+var Version = "dev"
+
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()

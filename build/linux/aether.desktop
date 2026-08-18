@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Aether
+Comment=Minecraft launcher
+Exec=Aether
+Icon=aether
+Terminal=false
+Type=Application
+Categories=Game;Utility;
+StartupWMClass=Aether
