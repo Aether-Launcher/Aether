@@ -37,10 +37,10 @@ All project documentation is located in the `docs/` directory. If you are lookin
 
 ## Developer Tooling
 
-The following tools are available for building Aether extensions. They are maintained outside this core launcher repository and are still **work in progress**:
+The following tools are available for building Aether extensions. They are maintained outside this core launcher repository and are available for terminal installation:
 
-- **Aether SDK** (`@aether/sdk`) — TypeScript type definitions and helper utilities for extension development.
-- **Aether CLI** (`aether`) — Scaffold, validate, and package extensions into `.aex` format.
+- **Aether SDK** (`@aether/sdk`) - TypeScript type definitions and helper utilities for extension development. Install with `npm install --save-dev @aether/sdk`.
+- **Aether CLI** (`aether`) - Scaffold, validate, and package extensions into `.aex` format. Install with `go install github.com/wayback09/aether-cli@latest`.
 
 ## Getting Started
 
@@ -69,3 +69,7 @@ wails dev
 # Or build a production binary
 wails build
 ```
+
+## License
+
+The Aether launcher and first-party tooling are licensed under the GNU GPL v3.0-only. See [LICENSE](LICENSE).
