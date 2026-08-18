@@ -42,3 +42,11 @@ Every privileged operation is strictly mediated by the launcher. Extensions expl
 - Network access is HTTPS-only and host-allow-listed. Requests are not currently rate-limited or security-logged, but backend responses and mod downloads have size limits.
 
 Sensitive extension confirmation requests and their decisions are recorded as JSON lines in `logs/extension-security.log`.
+
+## Security Boundary and Commitments
+
+Aether can promise that backend extension code executes inside a Goja JavaScript runtime without Node.js, Go, shell, or direct host-filesystem APIs. Manifest permissions control which launcher bridge objects are injected, HTTPS requests are host-allow-listed, and privileged mod/file operations can require user confirmation.
+
+Aether cannot promise that an installed extension is trustworthy, that shared launcher data is isolated per extension, or that the Goja runtime is an operating-system security boundary. Extensions granted install, delete, toggle, download, or mod-loader permissions can affect shared launcher or instance state. Frontend extension iframes are a separate browser surface and may have browser networking behavior outside the backend sandbox policy.
+
+Treat extensions as code with the permissions shown in their manifest. Review Local and Community extensions, keep permissions minimal, and do not describe the sandbox as malware-proof or equivalent to a separate process/container. The current implementation does not provide automated code analysis, quarantine, network rate limiting, or a host approval prompt.
