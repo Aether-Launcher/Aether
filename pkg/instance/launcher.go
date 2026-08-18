@@ -9,7 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
+
+	goruntime "runtime"
 
 	"Aether/pkg/auth"
 	"Aether/pkg/fs"
@@ -20,13 +23,59 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+var launchLogMu sync.Mutex
+
+func loaderOSName() string {
+	switch goruntime.GOOS {
+	case "darwin":
+		return "osx"
+	default:
+		return goruntime.GOOS
+	}
+}
+
+// launchLogf writes a timestamped line to the persistent launch log and stdout.
+func launchLogf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	launchLogMu.Lock()
+	defer launchLogMu.Unlock()
+
+	fmt.Printf("[Launcher] %s\n", msg)
+
+	logDir := filepath.Join(fs.GetDataDir(), "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(logDir, "aether-launch.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s %s\n", time.Now().UTC().Format(time.RFC3339Nano), msg)
+}
+
 // Launch spawns the Minecraft process with the correct arguments
 func Launch(ctx context.Context, inst *Instance) error {
 	instanceDir := filepath.Join(fs.GetDataDir(), "instances", inst.ID)
 	assetsDir := fs.GetAssetsDir()
 
-	// Determine the required Java version for this Minecraft version
+	// Load saved version.json before choosing Java so metadata can override heuristics.
+	versionPath := filepath.Join(instanceDir, "version.json")
+	versionData, err := os.ReadFile(versionPath)
+	if err != nil {
+		return fmt.Errorf("version.json not found - is the instance installed? %w", err)
+	}
+
+	var versionInfo mojang.VersionInfo
+	if err := json.Unmarshal(versionData, &versionInfo); err != nil {
+		return fmt.Errorf("failed to parse version.json: %w", err)
+	}
+
+	// Determine the required Java version for this Minecraft version.
 	requiredJava := java.RequiredJavaVersion(inst.Version)
+	if versionInfo.JavaVersion.MajorVersion > 0 {
+		requiredJava = versionInfo.JavaVersion.MajorVersion
+	}
 	fmt.Printf("[Launcher] Minecraft %s requires Java >= %d\n", inst.Version, requiredJava)
 
 	var javaPath string
@@ -53,20 +102,14 @@ func Launch(ctx context.Context, inst *Instance) error {
 
 	fmt.Printf("[Launcher] Using Java: %s\n", javaPath)
 
-	// Load saved version.json
-	versionPath := filepath.Join(instanceDir, "version.json")
-	versionData, err := os.ReadFile(versionPath)
+	// Build classpath — a missing library previously produced a broken classpath
+	// that only failed deep inside the JVM with no useful message. Fail fast now.
+	classpath, err := buildClasspath(instanceDir, &versionInfo)
 	if err != nil {
-		return fmt.Errorf("version.json not found — is the instance installed? %w", err)
+		runtime.EventsEmit(ctx, "instance:log", "Classpath error: "+err.Error())
+		runtime.EventsEmit(ctx, "instance:state", map[string]interface{}{"id": inst.ID, "state": "Error"})
+		return err
 	}
-
-	var versionInfo mojang.VersionInfo
-	if err := json.Unmarshal(versionData, &versionInfo); err != nil {
-		return fmt.Errorf("failed to parse version.json: %w", err)
-	}
-
-	// Build classpath
-	classpath := buildClasspath(instanceDir, &versionInfo)
 
 	// Build native directory path
 	nativesDir := filepath.Join(instanceDir, "natives")
@@ -120,36 +163,74 @@ func Launch(ctx context.Context, inst *Instance) error {
 	// Mod Loader Interception
 	mainClass := versionInfo.MainClass
 	cpArray := strings.Split(classpath, string(os.PathListSeparator))
+	var extraJVMArgs []string
+	var extraGameArgs []string
 
-	if inst.Loader != "" && inst.Loader != "Vanilla" && ModLoaderHook != nil {
-		fmt.Printf("[Launcher] Intercepting launch with mod loader: %s\n", inst.Loader)
+	if inst.Loader != "" && !strings.EqualFold(inst.Loader, "vanilla") {
+		launchLogf("Modded launch requested: loader=%q version=%s", inst.Loader, inst.Version)
+
+		if ModLoaderHook == nil {
+			msg := fmt.Sprintf("No mod loader extensions are active (loader '%s'). Install the matching extension from the Gallery.", inst.Loader)
+			launchLogf("ERROR: %s", msg)
+			runtime.EventsEmit(ctx, "instance:log", msg)
+			runtime.EventsEmit(ctx, "instance:state", map[string]interface{}{"id": inst.ID, "state": "Error"})
+			return fmt.Errorf("%s", msg)
+		}
 
 		hookCtx := map[string]interface{}{
 			"instancePath": instanceDir,
 			"mcVersion":    inst.Version,
 			"classpath":    cpArray,
 			"mainClass":    mainClass,
+			"os":           loaderOSName(),
+			"arch":         goruntime.GOARCH,
 		}
 
-		modified, err := ModLoaderHook(strings.ToLower(inst.Loader), hookCtx)
+		// The hook always runs in a JS sandbox (goja) which is NOT goroutine-safe.
+		// A panic inside the callback would crash the Wails app with no logs, so
+		// wrap it.
+		var modified map[string]interface{}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					err = fmt.Errorf("mod loader '%s' panicked: %v", inst.Loader, r)
+				}
+			}()
+			modified, err = ModLoaderHook(strings.ToLower(inst.Loader), hookCtx)
+		}()
 		if err != nil {
-			return fmt.Errorf("mod loader failed: %w", err)
+			msg := fmt.Sprintf("Mod loader '%s' failed: %v", inst.Loader, err)
+			launchLogf("ERROR: %s", msg)
+			runtime.EventsEmit(ctx, "instance:log", msg)
+			runtime.EventsEmit(ctx, "instance:state", map[string]interface{}{"id": inst.ID, "state": "Error"})
+			return fmt.Errorf("%s", msg)
+		}
+		if modified == nil {
+			msg := fmt.Sprintf("Mod loader '%s' returned no launch context", inst.Loader)
+			launchLogf("ERROR: %s", msg)
+			runtime.EventsEmit(ctx, "instance:log", msg)
+			runtime.EventsEmit(ctx, "instance:state", map[string]interface{}{"id": inst.ID, "state": "Error"})
+			return fmt.Errorf("%s", msg)
 		}
 
 		// Extract modified values
 		if mc, ok := modified["mainClass"].(string); ok {
 			mainClass = mc
 		}
-
-		if cpIface, ok := modified["classpath"].([]interface{}); ok {
-			cpArray = make([]string, len(cpIface))
-			for i, v := range cpIface {
-				cpArray[i] = fmt.Sprint(v)
-			}
+		if cp, ok := stringSliceFromInterface(modified["classpath"]); ok {
+			cpArray = cp
+		}
+		if args, ok := stringSliceFromInterface(modified["jvmArgs"]); ok {
+			extraJVMArgs = args
+		}
+		if args, ok := stringSliceFromInterface(modified["gameArgs"]); ok {
+			extraGameArgs = args
 		}
 
 		// Rebuild classpath variable for substitution
 		vars["${classpath}"] = strings.Join(cpArray, string(os.PathListSeparator))
+		launchLogf("Loader '%s' OK: mainClass=%s classpathEntries=%d jvmArgs=%d gameArgs=%d",
+			inst.Loader, mainClass, len(cpArray), len(extraJVMArgs), len(extraGameArgs))
 	}
 
 	// Resolve JVM arguments from version JSON
@@ -191,6 +272,9 @@ func Launch(ctx context.Context, inst *Instance) error {
 	}
 
 	jvmArgs = append(prependedArgs, jvmArgs...)
+	if len(extraJVMArgs) > 0 {
+		jvmArgs = append(jvmArgs, substituteVars(extraJVMArgs, vars)...)
+	}
 
 	// Add log4j config if available
 	if versionInfo.Logging.Client.File.URL != "" {
@@ -201,18 +285,26 @@ func Launch(ctx context.Context, inst *Instance) error {
 		}
 	}
 
-	// Resolve game arguments from version JSON
+	// Resolve game arguments from version JSON. Older Minecraft versions use
+	// legacy minecraftArguments instead of the modern arguments.game array.
 	gameArgs := mojang.ResolveArguments(versionInfo.Arguments.Game)
+	if len(gameArgs) == 0 && versionInfo.MinecraftArguments != "" {
+		gameArgs = strings.Fields(versionInfo.MinecraftArguments)
+	}
 	gameArgs = substituteVars(gameArgs, vars)
+	if len(extraGameArgs) > 0 {
+		gameArgs = append(gameArgs, substituteVars(extraGameArgs, vars)...)
+	}
 
 	// Construct full command: java [jvm args] mainClass [game args]
 	args := append(jvmArgs, mainClass)
 	args = append(args, gameArgs...)
 
-	fmt.Printf("[Launcher] Command: %s %s\n", javaPath, strings.Join(args, " "))
+	launchLogf("Launching Java: path=%s jvmArgs=%d gameArgs=%d classpathEntries=%d", javaPath, len(jvmArgs), len(gameArgs), len(cpArray))
 
 	cmd := exec.Command(javaPath, args...)
 	cmd.Dir = instanceDir
+	hideProcessWindow(cmd)
 
 	// Get pipes for stdout and stderr
 	stdout, err := cmd.StdoutPipe()
@@ -278,8 +370,8 @@ func Launch(ctx context.Context, inst *Instance) error {
 }
 
 // buildClasspath constructs the Java classpath from installed libraries + client jar
-func buildClasspath(instanceDir string, info *mojang.VersionInfo) string {
-	var paths []string
+func buildClasspath(instanceDir string, info *mojang.VersionInfo) (string, error) {
+	var paths, missing []string
 
 	for _, lib := range info.Libraries {
 		if !mojang.IsLibraryAllowed(lib) {
@@ -292,14 +384,25 @@ func buildClasspath(instanceDir string, info *mojang.VersionInfo) string {
 		libPath := filepath.Join(instanceDir, "libraries", lib.Downloads.Artifact.Path)
 		if _, err := os.Stat(libPath); err == nil {
 			paths = append(paths, libPath)
+		} else {
+			missing = append(missing, lib.Downloads.Artifact.Path)
 		}
 	}
 
 	// Add the client jar
 	clientJar := filepath.Join(instanceDir, "bin", info.ID+".jar")
+	if _, err := os.Stat(clientJar); err != nil {
+		missing = append(missing, "client jar: "+info.ID+".jar")
+	}
 	paths = append(paths, clientJar)
 
-	return strings.Join(paths, string(os.PathListSeparator))
+	if len(missing) > 0 {
+		launchLogf("ERROR: %d required files missing: %v", len(missing), missing)
+		return "", fmt.Errorf("%d required files are missing (instance not fully installed?) — e.g. %s", len(missing), missing[0])
+	}
+
+	launchLogf("Classpath: %d entries", len(paths))
+	return strings.Join(paths, string(os.PathListSeparator)), nil
 }
 
 // substituteVars replaces ${variable} placeholders in arguments
@@ -312,4 +415,19 @@ func substituteVars(args []string, vars map[string]string) []string {
 		result[i] = arg
 	}
 	return result
+}
+
+func stringSliceFromInterface(value interface{}) ([]string, bool) {
+	switch items := value.(type) {
+	case []string:
+		return items, true
+	case []interface{}:
+		out := make([]string, 0, len(items))
+		for _, item := range items {
+			out = append(out, fmt.Sprint(item))
+		}
+		return out, true
+	default:
+		return nil, false
+	}
 }

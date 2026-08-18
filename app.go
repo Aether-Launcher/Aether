@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -18,6 +19,8 @@ import (
 	"Aether/pkg/mojang"
 	"Aether/pkg/settings"
 )
+
+var modLoaderLaunchMu sync.Mutex
 
 type App struct {
 	ctx context.Context
@@ -44,12 +47,27 @@ func (a *App) startup(ctx context.Context) {
 		// Wire the mod loader hook so launcher.go can call extension mod loaders
 		// without an import cycle (instance → extensions → instance)
 		instance.ModLoaderHook = func(loaderID string, hookCtx map[string]interface{}) (map[string]interface{}, error) {
-			if loader, ok := extensions.GlobalManager.ModLoaders[loaderID]; ok {
-				return loader.Callback(hookCtx)
+			loader, ok := extensions.GlobalManager.ModLoaders[loaderID]
+			if !ok {
+				return nil, fmt.Errorf("mod loader '%s' is not installed — available: %v", loaderID, registeredLoaderIDs())
 			}
-			return nil, fmt.Errorf("mod loader '%s' is not installed", loaderID)
+			if loader.Callback == nil {
+				return nil, fmt.Errorf("mod loader '%s' has no onLaunch callback (extension failed to register it)", loaderID)
+			}
+			modLoaderLaunchMu.Lock()
+			defer modLoaderLaunchMu.Unlock()
+			return loader.Callback(hookCtx)
 		}
 	}
+}
+
+// registeredLoaderIDs lists the currently registered mod loader IDs for error messages.
+func registeredLoaderIDs() []string {
+	ids := make([]string, 0, len(extensions.GlobalManager.ModLoaders))
+	for id := range extensions.GlobalManager.ModLoaders {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // GetSettings returns the global launcher settings

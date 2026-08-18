@@ -1,6 +1,6 @@
 # Extensions Guide
 
-> **Current status:** `.zip` extensions and the Goja backend API described below are implemented. The CLI, SDK, `.aex` format, review workflow, and lifecycle APIs later in this document are planned and are not included in this repository yet.
+> **Current status:** `.aex` extensions and the Goja backend API described below are implemented. An `.aex` file is a zip-format package with an Aether-specific file extension; standard `.zip` packages are not the supported user-facing install format. The Aether CLI, SDK, and extension registry are maintained as sibling repositories in the local development workspace.
 
 ## Architecture Overview
 Aether extensions operate in two distinct, isolated layers:
@@ -29,7 +29,7 @@ Aether.ui.registerSidebarPage({
 We recommend using a rich package structure to give your extension a professional presentation:
 
 ```text
-my-extension.zip
+my-extension.aex
 ├── manifest.json
 ├── main.js
 ├── README.md
@@ -43,7 +43,7 @@ my-extension.zip
 └── assets/
 ```
 
-**Installation**: Users can install a `.zip` from the Extensions page or place an extracted folder in Aether's data directory under `extensions`. In development, the launcher uses a local `AetherData` directory when present; otherwise it uses the platform configuration directory.
+**Installation**: Users install `.aex` packages from the Extensions page or through the Extension Gallery. An `.aex` package uses the zip container format internally, but the launcher treats `.aex` as the supported extension package type. In development, an extracted extension folder may be placed directly in Aether's data directory under `extensions`; the launcher uses a local `.aether` directory when present, otherwise it uses the platform configuration directory.
 
 ## Manifest
 Every extension requires a `manifest.json` at its root.
@@ -111,16 +111,22 @@ The Aether Registry may assign trust metadata. The launcher displays these badge
 1. 🔵 **Official**: Developed and maintained directly by the Aether Team.
 2. 🟢 **Verified**: Personally reviewed by an Aether maintainer. The code has been thoroughly audited for security, performance, and stability.
 3. 🟣 **Community**: Passed automated checks and was merged into the registry via Pull Request, but has not received a manual code audit. Use with caution.
-4. 🟡 **Local**: Installed manually from a `.zip` file. Aether treats these as untrusted.
+4. 🟡 **Local**: Installed manually from a `.aex` file. These are Local unless the manifest ID matches a registry entry, in which case the registry trust tier is displayed.
 
 The registry's planned review process would consider:
 1. **No Malicious Code**: Extensions must not steal tokens, install malware, or attempt to break out of the Goja sandbox.
 2. **Performance**: Extensions must not leak memory or block the main thread.
 3. **Clear Purpose**: The extension must do exactly what its description claims.
 
-## Developer Experience (Planned: Aether CLI)
+## Developer Experience (Aether CLI)
 
-The Aether CLI (`aether`) is the planned official toolkit for creating, developing, testing, packaging, validating, and publishing Aether extensions. The goal is a new developer can go from nothing to a working extension in under five minutes.
+The Aether CLI (`aether`) is the official toolkit for creating, developing, testing, packaging, validating, and publishing Aether extensions. The goal is a new developer can go from nothing to a working extension in under five minutes.
+
+In the local development workspace, the related repositories are:
+
+- `$WORKSPACE/Aether-Cli`
+- `$WORKSPACE/Aether-SDK`
+- `$WORKSPACE/Aether-Extensions`
 
 ### Project Creation
 
@@ -189,7 +195,7 @@ Checks manifest syntax, missing files, invalid permissions, API compatibility, v
 aether build
 ```
 
-Produces a `my-extension.aex` file. Automatically minifies, compresses, validates, generates a checksum, and strips development files. The `.aex` format is Aether's planned first-class extension container. *(Currently, standard `.zip` files are used for packaging)*.
+Produces a `my-extension.aex` file. Automatically minifies, compresses, validates, generates a checksum, and strips development files. The `.aex` format is Aether's first-class extension container. It is zip-compatible internally, but `.zip` is not the supported package extension for launcher installs.
 
 ---
 

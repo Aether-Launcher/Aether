@@ -60,6 +60,7 @@ func NewManager(ctx context.Context) *Manager {
 // LoadAll scans the directory, parses manifests, and executes the JS isolate
 func (m *Manager) LoadAll() error {
 	// Reloading replaces the in-memory view so removed extensions do not linger.
+	clearModLoaderCallbackCache("")
 	m.LoadedExtensions = make(map[string]Extension)
 	m.sandboxes = make(map[string]*Sandbox)
 	m.SidebarPages = make([]map[string]interface{}, 0)
@@ -354,6 +355,7 @@ func (m *Manager) Uninstall(id string) error {
 	if err != nil {
 		return err
 	}
+	clearModLoaderCallbackCache(id)
 	if err := os.RemoveAll(extDir); err != nil {
 		return err
 	}

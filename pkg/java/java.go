@@ -44,7 +44,7 @@ func RequiredJavaVersion(mcVersion string) int {
 // GetMajorVersion returns the major version number of the given java binary.
 // e.g. "1.8.0_301" → 8, "17.0.5" → 17, "21.0.1" → 21
 func GetMajorVersion(javaPath string) (int, error) {
-	cmd := exec.Command(javaPath, "-version")
+	cmd := newHiddenCommand(javaPath, "-version")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return 0, err

@@ -20,6 +20,8 @@ Aether.launcher.registerModLoader({
         // 2. Determine which jar to download (client for modern, universal for legacy)
         var jarType = "client";
         var mainClass = "cpw.mods.modlauncher.Launcher";
+        var jvmArgs = [];
+        var gameArgs = [];
 
         var cp = [];
         for (var idx = 0; idx < ctx.classpath.length; idx++) {
@@ -33,6 +35,41 @@ Aether.launcher.registerModLoader({
             var versionInfo = JSON.parse(jsonStr);
 
             // Download all libraries from the version JSON
+            function collectArgs(args) {
+                var out = [];
+                if (!args) return out;
+                function allowed(item) {
+                    if (!item.rules || item.rules.length === 0) return true;
+                    var result = false;
+                    for (var r = 0; r < item.rules.length; r++) {
+                        var rule = item.rules[r];
+                        if (rule.features && Object.keys(rule.features).length > 0) { result = false; break; }
+                        var platform = rule.os;
+                        if (platform && platform.name && platform.name !== ctx.os) continue;
+                        if (platform && platform.arch && platform.arch !== ctx.arch && !(platform.arch === "x86" && ctx.arch === "386")) continue;
+                        result = rule.action === "allow";
+                    }
+                    return result;
+                }
+                for (var a = 0; a < args.length; a++) {
+                    var item = args[a];
+                    if (typeof item === "string") {
+                        out.push(item);
+                    } else if (item && allowed(item)) {
+                        if (typeof item.value === "string") out.push(item.value);
+                        else if (Array.isArray(item.value)) {
+                            for (var av = 0; av < item.value.length; av++) out.push(item.value[av]);
+                        }
+                    }
+                }
+                return out;
+            }
+
+            if (versionInfo.arguments) {
+                jvmArgs = collectArgs(versionInfo.arguments.jvm);
+                gameArgs = collectArgs(versionInfo.arguments.game);
+            }
+
             var libs = versionInfo.libraries || [];
             for (var i = 0; i < libs.length; i++) {
                 var lib = libs[i];
@@ -75,6 +112,8 @@ Aether.launcher.registerModLoader({
 
         ctx.mainClass = mainClass;
         ctx.classpath = cp;
+        ctx.jvmArgs = jvmArgs;
+        ctx.gameArgs = gameArgs;
         return ctx;
     }
 });

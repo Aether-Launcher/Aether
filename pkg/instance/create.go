@@ -24,15 +24,14 @@ func Create(name, version, loader string) (*Instance, error) {
 		return nil, fmt.Errorf("instance with ID '%s' already exists", id)
 	}
 
-	// Create directory structure
-	if err := os.MkdirAll(filepath.Join(instancePath, "bin"), 0755); err != nil {
+	// Create directory structure (root + the well-known subdirs in one pass)
+	if err := os.MkdirAll(instancePath, 0755); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Join(instancePath, "mods"), 0755); err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(filepath.Join(instancePath, "resourcepacks"), 0755); err != nil {
-		return nil, err
+	for _, sub := range []string{"bin", "mods", "resourcepacks"} {
+		if err := os.MkdirAll(filepath.Join(instancePath, sub), 0755); err != nil {
+			return nil, err
+		}
 	}
 
 	// Default memory allocation based on version (simplified)

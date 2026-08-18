@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"Aether/pkg/fs"
 	"Aether/pkg/netutil"
@@ -33,6 +34,30 @@ type InstanceInfo struct {
 }
 
 const maxExtensionHTTPResponse = 10 * 1024 * 1024
+
+type modLoaderCallbackKey struct {
+	extensionID string
+	loaderID    string
+}
+
+var (
+	lastRegisteredModLoaderCallbacks = map[modLoaderCallbackKey]func(map[string]interface{}) (map[string]interface{}, error){}
+	modLoaderCallbackMu              sync.Mutex
+)
+
+func clearModLoaderCallbackCache(extensionID string) {
+	modLoaderCallbackMu.Lock()
+	defer modLoaderCallbackMu.Unlock()
+	if extensionID == "" {
+		lastRegisteredModLoaderCallbacks = make(map[modLoaderCallbackKey]func(map[string]interface{}) (map[string]interface{}, error))
+		return
+	}
+	for key := range lastRegisteredModLoaderCallbacks {
+		if key.extensionID == extensionID {
+			delete(lastRegisteredModLoaderCallbacks, key)
+		}
+	}
+}
 
 // NewSandbox creates a new Goja isolate restricted by the given manifest.
 // emit is an optional function for broadcasting events (e.g. runtime.EventsEmit);
@@ -307,16 +332,33 @@ func NewSandbox(
 		launcherObj := vm.NewObject()
 		launcherObj.Set("registerModLoader", func(call goja.FunctionCall) goja.Value {
 			if len(call.Arguments) > 0 {
-				arg := call.Argument(0).Export().(map[string]interface{})
+				exported, ok := call.Argument(0).Export().(map[string]interface{})
+				if !ok {
+					panic(vm.NewGoError(fmt.Errorf("registerModLoader expects an object with id, name, description and onLaunch")))
+				}
 
+				idStr, _ := exported["id"].(string)
+				nameStr, _ := exported["name"].(string)
+				descStr, _ := exported["description"].(string)
+				if idStr == "" || nameStr == "" {
+					panic(vm.NewGoError(fmt.Errorf("registerModLoader: id and name are required strings")))
+				}
 				config := ModLoaderConfig{
-					ID:          arg["id"].(string),
-					Name:        arg["name"].(string),
-					Description: arg["description"].(string),
+					ID:          idStr,
+					Name:        nameStr,
+					Description: descStr,
 					ExtensionID: manifest.ID,
 				}
 
-				// Extract the JS callback function safely
+				// Extract onLaunch from the original (un-exported) goja value so we
+				// don't rely on goja.Value.ToObject. If a previously registered
+				// mod loader with the same ID exists we keep its callback unless
+				// this registration provides a new one.
+				callbackKey := modLoaderCallbackKey{extensionID: manifest.ID, loaderID: config.ID}
+				modLoaderCallbackMu.Lock()
+				prev, hadPrev := lastRegisteredModLoaderCallbacks[callbackKey]
+				modLoaderCallbackMu.Unlock()
+
 				if cb, ok := goja.AssertFunction(call.Argument(0).ToObject(vm).Get("onLaunch")); ok {
 					config.Callback = func(ctx map[string]interface{}) (map[string]interface{}, error) {
 						val, err := cb(goja.Undefined(), vm.ToValue(ctx))
@@ -329,6 +371,15 @@ func NewSandbox(
 							return nil, fmt.Errorf("onLaunch did not return an object, got %T", exported)
 						}
 						return res, nil
+					}
+					modLoaderCallbackMu.Lock()
+					lastRegisteredModLoaderCallbacks[callbackKey] = config.Callback
+					modLoaderCallbackMu.Unlock()
+				} else if hadPrev {
+					config.Callback = prev
+				} else {
+					config.Callback = func(_ map[string]interface{}) (map[string]interface{}, error) {
+						return nil, fmt.Errorf("mod loader '%s' does not define an onLaunch callback", config.ID)
 					}
 				}
 

@@ -107,3 +107,88 @@ func TestSandboxGranularModPermissionAndConfirmation(t *testing.T) {
 		t.Fatal("expected list-only extension to lack installMod")
 	}
 }
+
+// TestSandboxModLoaderCallbackNonNil guards against the regression where
+// registerModLoader produced a config with a nil Callback (due to a
+// goja.Value.ToObject path), which later panicked at launch.
+func TestSandboxModLoaderCallbackNonNil(t *testing.T) {
+	var got ModLoaderConfig
+	onModLoader := func(c ModLoaderConfig) { got = c }
+
+	manifest := Manifest{
+		ID:          "com.test.fabric",
+		Permissions: []string{"launcher:modloader"},
+	}
+	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
+		nil, onModLoader, nil, nil, nil, nil, nil, nil, nil)
+
+	script := `
+		Aether.launcher.registerModLoader({
+			id: "fabric",
+			name: "Fabric",
+			description: "test loader",
+			onLaunch: function(ctx) {
+				ctx.mainClass = "net.fabricmc.loader.impl.launch.knot.KnotClient";
+				ctx.gameArgs = ["--modded"];
+				return ctx;
+			}
+		});
+	`
+	if err := sandbox.Execute(script); err != nil {
+		t.Fatalf("registerModLoader execution failed: %v", err)
+	}
+	if got.ID != "fabric" {
+		t.Fatalf("expected loader id 'fabric', got %q", got.ID)
+	}
+	if got.Callback == nil {
+		t.Fatal("Callback must not be nil after a JS onLaunch function was provided")
+	}
+
+	out, err := got.Callback(map[string]interface{}{
+		"mainClass": "net.minecraft.client.main.Main",
+		"classpath": []string{"a.jar", "b.jar"},
+	})
+	if err != nil {
+		t.Fatalf("callback invocation error: %v", err)
+	}
+	if out["mainClass"] != "net.fabricmc.loader.impl.launch.knot.KnotClient" {
+		t.Fatalf("callback did not patch mainClass, got %v", out["mainClass"])
+	}
+}
+
+func TestModLoaderCallbackCacheIsScopedAndCleared(t *testing.T) {
+	clearModLoaderCallbackCache("")
+
+	register := func(id string) ModLoaderConfig {
+		var got ModLoaderConfig
+		manifest := Manifest{ID: id, Permissions: []string{"launcher:modloader"}}
+		sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
+			nil, func(config ModLoaderConfig) { got = config }, nil, nil, nil, nil, nil, nil, nil)
+		if err := sandbox.Execute(`Aether.launcher.registerModLoader({id: "fabric", name: "Fabric", description: "test loader"});`); err != nil {
+			t.Fatalf("registerModLoader execution failed for %s: %v", id, err)
+		}
+		return got
+	}
+
+	first := register("com.test.first")
+	if first.Callback == nil {
+		t.Fatal("first loader callback must not be nil")
+	}
+	second := register("com.test.second")
+	if second.Callback == nil {
+		t.Fatal("second loader callback must not be nil")
+	}
+	if _, err := second.Callback(map[string]interface{}{}); err == nil {
+		t.Fatal("second extension reused the first extension callback")
+	}
+
+	clearModLoaderCallbackCache("com.test.first")
+	third := register("com.test.first")
+	if third.Callback == nil {
+		t.Fatal("third loader callback must not be nil")
+	}
+	if _, err := third.Callback(map[string]interface{}{}); err == nil {
+		t.Fatal("clearing an extension cache did not remove its callback")
+	}
+	clearModLoaderCallbackCache("")
+}

@@ -95,6 +95,7 @@
   }
 
   .dialog-message {
+    overflow-wrap: anywhere;
     font-size: 14px;
     line-height: 1.5;
     color: var(--text-meta);

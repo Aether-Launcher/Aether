@@ -73,8 +73,6 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 		}
 
 		lastErr = attemptErr
-		// Clean up corrupt temp file before retry
-		_ = os.Remove(tempDest)
 
 		// Exponential backoff: 1s, 2s, 4s, 8s…
 		select {

@@ -37,7 +37,7 @@ Every privileged operation is strictly mediated by the launcher. Extensions expl
 - Escape the Goja runtime through Node.js or Go bindings.
 - Access Go APIs directly.
 
-- Authentication is currently offline-only. Extensions are not given account credentials or tokens through the `Aether` API.
+- Authentication supports offline accounts and Microsoft account sign-in. Extensions are not given account credentials, access tokens, or refresh tokens through the `Aether` API.
 - File access is abstracted through scoped APIs, but the permitted locations are shared launcher directories such as instance `mods`, `libraries`, and `skins`; they are not isolated per extension.
 - Network access is HTTPS-only and host-allow-listed. Requests are not currently rate-limited or security-logged, but backend responses and mod downloads have size limits.
 

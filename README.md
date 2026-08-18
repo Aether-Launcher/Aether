@@ -37,12 +37,10 @@ All project documentation is located in the `docs/` directory. If you are lookin
 
 ## Developer Tooling
 
-The following tools are available for building Aether extensions. They are currently **Work In Progress** and are not yet publicly released:
+The following tools are available for building Aether extensions. They are maintained outside this core launcher repository and are still **work in progress**:
 
 - **Aether SDK** (`@aether/sdk`) — TypeScript type definitions and helper utilities for extension development.
 - **Aether CLI** (`aether`) — Scaffold, validate, and package extensions into `.aex` format.
-
-Both repos are currently private while they are being finalized.
 
 ## Getting Started
 
