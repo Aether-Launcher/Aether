@@ -4,12 +4,71 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: Release category
+        required: true
+        type: choice
+        options:
+          - major
+          - beta
+          - hotfix
+      version:
+        description: Version without the leading v, for example 1.0.0-beta.5
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
+  tag:
+    # Only runs when triggered manually: validates the version, creates the
+    # tag, and pushes it. The tag push triggers the build job below.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version
+        shell: bash
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$RELEASE_TYPE" in
+            major)
+              [[ "$VERSION" =~ ^[0-9]+\.0\.0$ ]] || { echo "Major releases must use X.0.0"; exit 1; }
+              ;;
+            beta)
+              [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] || { echo "Beta releases must use X.Y.Z-beta.N"; exit 1; }
+              ;;
+            hotfix)
+              [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Hotfix releases must use X.Y.Z"; exit 1; }
+              ;;
+          esac
+          git check-ref-format "refs/tags/v$VERSION"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists"
+            exit 1
+          fi
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+
   build:
+    # Runs on the tag push (either from the manual run above or a tag pushed
+    # directly, e.g. via `git push --tags`).
+    if: github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
@@ -95,6 +154,7 @@ jobs:
 
   release:
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
