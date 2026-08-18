@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { EventsOn } from '../wailsjs/runtime/runtime.js';
-  import { ResolveExtensionConfirmation } from '../wailsjs/go/main/App.js';
+  import { ResolveExtensionConfirmation, WindowChrome } from '../wailsjs/go/main/App.js';
   import TitleBar from './components/TitleBar.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
@@ -15,6 +15,7 @@
   import ConfirmDialog from './lib/components/ConfirmDialog.svelte';
 
   const isMacOS = /Macintosh|Mac OS X/i.test(navigator.userAgent);
+  let titleBarStyle: 'custom' | 'system' | 'pending' = 'pending';
   let activePage = 'home';
   let targetInstanceId = '';
   let activeInstanceId = '';
@@ -115,7 +116,9 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
+    const chrome = await WindowChrome().catch(() => 'custom');
+    titleBarStyle = chrome === 'system' ? 'system' : 'custom';
     window.addEventListener('keydown', onGlobalKeydown);
     const unsubscribe = EventsOn('extension:confirmation', showExtensionConfirmation);
     return () => {
@@ -126,10 +129,10 @@
 </script>
 
 <div class="app-container">
-  {#if isMacOS}
-    <div class="native-titlebar-spacer" aria-hidden="true"></div>
-  {:else}
+  {#if titleBarStyle === 'custom'}
     <TitleBar />
+  {:else if titleBarStyle === 'system' && isMacOS}
+    <div class="native-titlebar-spacer" aria-hidden="true"></div>
   {/if}
   <div class="layout">
     <Sidebar

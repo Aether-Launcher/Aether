@@ -121,3 +121,7 @@ export function UpdateExtension(arg1) {
 export function UpdateInstance(arg1) {
   return window['go']['main']['App']['UpdateInstance'](arg1);
 }
+
+export function WindowChrome() {
+  return window['go']['main']['App']['WindowChrome']();
+}

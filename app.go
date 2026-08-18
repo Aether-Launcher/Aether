@@ -70,6 +70,12 @@ func registeredLoaderIDs() []string {
 	return ids
 }
 
+// WindowChrome reports whether the native window title bar ("system") or
+// Aether's custom frameless title bar ("custom") is active on this platform.
+func (a *App) WindowChrome() string {
+	return windowChrome()
+}
+
 // GetSettings returns the global launcher settings
 func (a *App) GetSettings() settings.GlobalSettings {
 	return settings.Load()

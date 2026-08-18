@@ -65,3 +65,5 @@ export function UninstallExtension(arg1:string):Promise<void>;
 export function UpdateExtension(arg1:string):Promise<extensions.ExtensionUpdate>;
 
 export function UpdateInstance(arg1:instance.Instance):Promise<void>;
+
+export function WindowChrome():Promise<string>;
