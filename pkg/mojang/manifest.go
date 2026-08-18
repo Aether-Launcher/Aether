@@ -9,6 +9,8 @@ import (
 
 const ManifestURL = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
 
+var versionManifestURL = ManifestURL
+
 type VersionManifest struct {
 	Latest struct {
 		Release  string `json:"release"`
@@ -206,7 +208,7 @@ func ResolveArguments(rawArgs []json.RawMessage) []string {
 
 // GetVersionManifest fetches the master manifest
 func GetVersionManifest() (*VersionManifest, error) {
-	resp, err := http.Get(ManifestURL)
+	resp, err := http.Get(versionManifestURL)
 	if err != nil {
 		return nil, err
 	}
