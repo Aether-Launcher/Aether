@@ -156,6 +156,7 @@ jobs:
           mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
           cp build/bin/Aether "$APPDIR/usr/bin/Aether"
           cp build/appicon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/aether.png"
+          cp build/appicon.png "$APPDIR/aether.png"
           cp build/linux/aether.desktop "$APPDIR/aether.desktop"
           wget -q --timeout=60 https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O /tmp/appimagetool
           chmod +x /tmp/appimagetool
