@@ -117,6 +117,12 @@ func buildInfo(r githubRelease) (*Info, error) {
 func assetNameForPlatform() string {
 	switch runtime.GOOS {
 	case "linux":
+		if os.Getenv("APPIMAGE") != "" {
+			// AppImage installs must be updated with the AppImage asset.
+			// Swapping a tar.gz over the AppImage path would leave a file
+			// the kernel cannot execute.
+			return fmt.Sprintf("Aether-%s-%s.AppImage", runtime.GOOS, runtime.GOARCH)
+		}
 		return "Aether-linux-amd64.tar.gz"
 	case "windows":
 		return "Aether-windows-amd64.exe"
@@ -169,7 +175,10 @@ func Apply(ctx context.Context, info *Info, downloadedPath string) error {
 func applyLinux(ctx context.Context, info *Info, downloadedPath string) error {
 	appImage := os.Getenv("APPIMAGE")
 	if appImage != "" {
-		if err := swapFile(appImage, downloadedPath); err != nil {
+		if err := verifyAppImagePayload(downloadedPath); err != nil {
+			return fmt.Errorf("refusing to replace the AppImage: %w", err)
+		}
+		if err := replaceFile(appImage, downloadedPath); err != nil {
 			return err
 		}
 		if err := os.Chmod(appImage, 0755); err != nil {
@@ -200,10 +209,30 @@ func applyLinux(ctx context.Context, info *Info, downloadedPath string) error {
 	if err := os.Chmod(newBin, 0755); err != nil {
 		return err
 	}
-	if err := swapFile(exePath, newBin); err != nil {
+	if err := replaceFile(exePath, newBin); err != nil {
 		return err
 	}
 	return relaunch(exePath)
+}
+
+// verifyAppImagePayload rejects downloads that are not executable ELF images
+// (e.g. a tar.gz that was fetched by mistake) so a broken file can never be
+// swapped over a working AppImage.
+func verifyAppImagePayload(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	magic := make([]byte, 4)
+	if _, err := io.ReadFull(f, magic); err != nil {
+		return fmt.Errorf("cannot read downloaded payload: %w", err)
+	}
+	if magic[0] != 0x7f || magic[1] != 'E' || magic[2] != 'L' || magic[3] != 'F' {
+		return fmt.Errorf("downloaded file is not an AppImage (bad payload: %x)", magic)
+	}
+	return nil
 }
 
 // applyWindows swaps the exe in place; if the location is not writable
@@ -215,7 +244,7 @@ func applyWindows(ctx context.Context, info *Info, downloadedPath string) error 
 	}
 
 	// Try an in-place swap first.
-	if swapErr := swapFile(exePath, downloadedPath); swapErr == nil {
+	if swapErr := replaceFile(exePath, downloadedPath); swapErr == nil {
 		return relaunch(exePath)
 	}
 
@@ -238,19 +267,27 @@ func applyWindows(ctx context.Context, info *Info, downloadedPath string) error 
 	return relaunch(exePath)
 }
 
-// swapFile atomically replaces target with replacement via a .old sibling.
-func swapFile(target, replacement string) error {
-	oldPath := target + ".old"
-	_ = os.Remove(oldPath)
-	if err := os.Rename(target, oldPath); err != nil {
-		return fmt.Errorf("cannot move existing binary (%w) — is the install location writable?", err)
+// replaceFile replaces target with replacement. On Unix this is a single
+// atomic rename(2) — the target is never missing, even momentarily. Windows
+// uses a .old sibling dance because rename-over-existing can fail there.
+func replaceFile(target, replacement string) error {
+	if runtime.GOOS == "windows" {
+		oldPath := target + ".old"
+		_ = os.Remove(oldPath)
+		if err := os.Rename(target, oldPath); err != nil {
+			return fmt.Errorf("cannot move existing binary (%w) — is the install location writable?", err)
+		}
+		if err := os.Rename(replacement, target); err != nil {
+			// Try to restore the original.
+			_ = os.Rename(oldPath, target)
+			return fmt.Errorf("cannot install new binary: %w", err)
+		}
+		_ = os.Remove(oldPath)
+		return nil
 	}
 	if err := os.Rename(replacement, target); err != nil {
-		// Try to restore the original.
-		_ = os.Rename(oldPath, target)
 		return fmt.Errorf("cannot install new binary: %w", err)
 	}
-	_ = os.Remove(oldPath)
 	return nil
 }
 

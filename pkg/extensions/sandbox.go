@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"Aether/pkg/fs"
 	"Aether/pkg/netutil"
@@ -34,6 +35,27 @@ type InstanceInfo struct {
 }
 
 const maxExtensionHTTPResponse = 10 * 1024 * 1024
+
+// httpGetWithRetry performs the request, retrying transient network failures
+// (e.g. temporary DNS resolution failures) a few times with short backoff.
+// Mod loader metadata endpoints are usually reachable again within seconds.
+func httpGetWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if attempt > 1 {
+			time.Sleep(time.Duration(attempt-1) * 500 * time.Millisecond)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if !netutil.IsTransientNetworkError(err) {
+			break
+		}
+	}
+	return nil, lastErr
+}
 
 type modLoaderCallbackKey struct {
 	extensionID string
@@ -160,7 +182,7 @@ func NewSandbox(
 			if err != nil {
 				panic(vm.NewGoError(err))
 			}
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpGetWithRetry(ctx, req)
 			if err != nil {
 				panic(vm.NewGoError(err))
 			}

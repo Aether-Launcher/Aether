@@ -18,6 +18,7 @@ import (
 	"Aether/pkg/fs"
 	"Aether/pkg/java"
 	"Aether/pkg/mojang"
+	"Aether/pkg/netutil"
 	"Aether/pkg/settings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -199,7 +200,7 @@ func Launch(ctx context.Context, inst *Instance) error {
 			modified, err = ModLoaderHook(strings.ToLower(inst.Loader), hookCtx)
 		}()
 		if err != nil {
-			msg := fmt.Sprintf("Mod loader '%s' failed: %v", inst.Loader, err)
+			msg := friendlyLoaderError(inst.Loader, err)
 			launchLogf("ERROR: %s", msg)
 			runtime.EventsEmit(ctx, "instance:log", msg)
 			runtime.EventsEmit(ctx, "instance:state", map[string]interface{}{"id": inst.ID, "state": "Error"})
@@ -367,6 +368,17 @@ func Launch(ctx context.Context, inst *Instance) error {
 	}()
 
 	return nil
+}
+
+// friendlyLoaderError converts a raw mod loader failure into a message users
+// can act on: strips GoError noise and adds a connectivity hint on network
+// failures (e.g. a temporary DNS outage).
+func friendlyLoaderError(loader string, err error) string {
+	msg := strings.TrimPrefix(err.Error(), "GoError: ")
+	if netutil.IsTransientNetworkError(err) {
+		return fmt.Sprintf("Mod loader '%s' failed: %s — couldn't reach the mod loader's servers. Check your internet connection and try again.", loader, msg)
+	}
+	return fmt.Sprintf("Mod loader '%s' failed: %s", loader, msg)
 }
 
 // buildClasspath constructs the Java classpath from installed libraries + client jar
