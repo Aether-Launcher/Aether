@@ -3,6 +3,7 @@
 import {update} from '../models';
 import {instance} from '../models';
 import {auth} from '../models';
+import {mojang} from '../models';
 import {extensions} from '../models';
 import {main} from '../models';
 import {settings} from '../models';
@@ -26,6 +27,8 @@ export function GetActiveAccount():Promise<auth.Account>;
 export function GetActiveInstance():Promise<instance.Instance>;
 
 export function GetAvailableVersions(arg1:boolean):Promise<Array<string>>;
+
+export function GetConnectivityStatus():Promise<mojang.ConnectivityStatus>;
 
 export function GetExtensionSidebarPages():Promise<Array<Record<string, any>>>;
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
-  import { GetExtensionSidebarPages } from '../../wailsjs/go/main/App';
+  import { GetExtensionSidebarPages, GetConnectivityStatus } from '../../wailsjs/go/main/App';
   import AccountManager from './AccountManager.svelte';
   import Icon from './Icon.svelte';
   import UpdateBanner from './UpdateBanner.svelte';
@@ -23,7 +23,25 @@
   type ExtensionTab = { id: string; label: string; url: string; icon?: string; extensionId: string };
   let extensionTabs: ExtensionTab[] = [];
 
+  let connectivity: any = null;
+  let checkingConnectivity = false;
+  let connTimer: any = null;
+
+  async function refreshConnectivity() {
+    checkingConnectivity = true;
+    try {
+      connectivity = await GetConnectivityStatus();
+    } catch (e) {
+      connectivity = { overall: 'unknown' };
+    } finally {
+      checkingConnectivity = false;
+    }
+  }
+
   onMount(async () => {
+    refreshConnectivity();
+    connTimer = setInterval(refreshConnectivity, 60000);
+
     // Fetch extension UI tabs registered during backend startup
     try {
       const cachedTabs = await GetExtensionSidebarPages();
@@ -73,6 +91,7 @@
   onDestroy(() => {
     EventsOff('extension:sidebar:add');
     EventsOff('extension:sidebar:reset');
+    if (connTimer) clearInterval(connTimer);
   });
 
   function navigate(pageId: string) {
@@ -144,6 +163,23 @@
     {/each}
   </nav>
 
+  <button class="conn-indicator" on:click={refreshConnectivity} title="Connection status — click to refresh">
+    <span class="conn-dot" class:online={connectivity?.overall === 'online'} class:degraded={connectivity?.overall === 'degraded'} class:offline={connectivity?.overall === 'offline'}></span>
+    <span class="conn-label">
+      {#if checkingConnectivity || !connectivity}
+        Checking…
+      {:else if connectivity.overall === 'online'}
+        Online
+      {:else if connectivity.overall === 'degraded'}
+        Degraded
+      {:else if connectivity.overall === 'offline'}
+        Offline
+      {:else}
+        Unknown
+      {/if}
+    </span>
+  </button>
+
   <UpdateBanner />
 
   <AccountManager />
@@ -195,6 +231,47 @@
     flex-direction: column;
     gap: 2px;
     margin-top: auto;
+  }
+
+  .conn-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    margin: 8px 0;
+    background: none;
+    border: none;
+    border-radius: var(--border-radius);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color var(--transition-fast);
+  }
+
+  .conn-indicator:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .conn-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6b7280;
+    flex-shrink: 0;
+  }
+
+  .conn-dot.online { background: #22c55e; }
+  .conn-dot.degraded { background: #f59e0b; }
+  .conn-dot.offline { background: #ef4444; }
+
+  .conn-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Nav item — icon + label layout */

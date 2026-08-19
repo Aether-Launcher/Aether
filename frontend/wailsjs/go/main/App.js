@@ -42,6 +42,10 @@ export function GetAvailableVersions(arg1) {
   return window['go']['main']['App']['GetAvailableVersions'](arg1);
 }
 
+export function GetConnectivityStatus() {
+  return window['go']['main']['App']['GetConnectivityStatus']();
+}
+
 export function GetExtensionSidebarPages() {
   return window['go']['main']['App']['GetExtensionSidebarPages']();
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions } from '../../wailsjs/go/main/App.js';
+  import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
   import { EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { gameStore } from '../stores/gameStore.js';
   import EmptyState from '../components/EmptyState.svelte';
@@ -16,6 +16,9 @@
   let installProgress = 0;
   let installStatusText = '';
   let javaStatus: { phase: string; message: string; progress?: number } | null = null;
+  let connectivity: any = null;
+  let checkingConnectivity = false;
+  let installError = '';
 
   // Derive from global store — survives navigation
   $: launchState = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.state : 'Idle';
@@ -23,6 +26,7 @@
 
   onMount(async () => {
     await loadHome();
+    refreshConnectivity();
 
     // instance:state and instance:log are handled globally in gameStore.
     // Install progress is page-local — only relevant while Home is mounted.
@@ -33,7 +37,15 @@
         if (data.progress >= 100) {
           currentInstance.installed = true;
           installStatusText = '';
+          installError = '';
         }
+      }
+    });
+
+    EventsOn("instance:error", (data: any) => {
+      if (currentInstance && data.id === currentInstance.id) {
+        installError = data.message || 'Installation failed.';
+        installStatusText = 'Error';
       }
     });
 
@@ -99,6 +111,7 @@
 
   async function handleInstall() {
     if (!currentInstance) return;
+    installError = '';
     installStatusText = 'Installing...';
     installProgress = 0;
     // Set gameStore context so the log panel binds to this instance's installation logs
@@ -107,8 +120,20 @@
       await InstallInstance(currentInstance.id);
     } catch (err) {
       installStatusText = 'Error';
+      installError = String(err);
       gameStore.update(s => ({ ...s, state: 'Error' }));
       console.error(err);
+    }
+  }
+
+  async function refreshConnectivity() {
+    checkingConnectivity = true;
+    try {
+      connectivity = await GetConnectivityStatus();
+    } catch (e) {
+      connectivity = { overall: 'unknown', services: [] };
+    } finally {
+      checkingConnectivity = false;
     }
   }
 
@@ -236,6 +261,31 @@
             </div>
           </div>
 
+          {#if !currentInstance.installed}
+            <div class="conn-row">
+              <div class="conn-status" class:conn-offline={connectivity?.overall === 'offline'} class:conn-degraded={connectivity?.overall === 'degraded'}>
+                <span class="conn-dot"></span>
+                <span class="conn-text">
+                  {#if checkingConnectivity || !connectivity}
+                    Checking connection…
+                  {:else if connectivity.overall === 'online'}
+                    Minecraft services online
+                  {:else if connectivity.overall === 'degraded'}
+                    Some services unreachable — install may fail
+                  {:else}
+                    Minecraft services unreachable
+                  {/if}
+                </span>
+                <button class="btn btn-secondary btn-sm conn-refresh" on:click={refreshConnectivity} disabled={checkingConnectivity}>
+                  {checkingConnectivity ? 'Checking…' : 'Retry'}
+                </button>
+              </div>
+              {#if connectivity?.overall === 'offline'}
+                <p class="conn-warning">Aether can't reach Minecraft servers. Your instance is saved — installation will work once you're back online.</p>
+              {/if}
+            </div>
+          {/if}
+
           <div class="actions-row">
             {#if currentInstance.installed}
               <button
@@ -253,7 +303,7 @@
                 <button
                   class="btn btn-primary play-btn"
                   on:click={handleInstall}
-                  disabled={installStatusText === 'Installing...' || (installProgress > 0 && installProgress < 100)}
+                  disabled={installStatusText === 'Installing...' || (installProgress > 0 && installProgress < 100) || connectivity?.overall === 'offline'}
                 >
                   {installStatusText === '' || installStatusText === 'Error' ? 'Install' : 'Installing...'}
                 </button>
@@ -280,6 +330,10 @@
               <span class="status-label">{launchState}</span>
             {/if}
           </div>
+
+          {#if installError}
+            <div class="install-error">{installError}</div>
+          {/if}
 
           {#if logs.length > 0}
             <div class="log-panel">
@@ -487,6 +541,70 @@
     overflow: hidden;
     text-overflow: ellipsis;
     flex-shrink: 1;
+  }
+
+  .conn-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .conn-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .conn-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6b7280;
+    flex-shrink: 0;
+  }
+
+  .conn-status:not(.conn-offline):not(.conn-degraded) .conn-dot {
+    background: #22c55e;
+  }
+
+  .conn-offline .conn-dot {
+    background: #ef4444;
+  }
+
+  .conn-degraded .conn-dot {
+    background: #f59e0b;
+  }
+
+  .conn-text {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .conn-refresh {
+    flex-shrink: 0;
+  }
+
+  .conn-warning {
+    margin: 0;
+    font-size: 12px;
+    color: #ef4444;
+    line-height: 1.5;
+  }
+
+  .install-error {
+    font-size: 12px;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: var(--border-radius);
+    padding: 8px 12px;
+    line-height: 1.5;
+    word-break: break-word;
   }
 
   .java-status {

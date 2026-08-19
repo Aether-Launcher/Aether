@@ -487,7 +487,11 @@ func (a *App) InstallInstance(id string) error {
 
 	info, err := mojang.GetVersionInfo(target.Version)
 	if err != nil {
-		return fmt.Errorf("failed to get version info: %w", err)
+		status := mojang.CheckConnectivity()
+		if status.Overall == "offline" || status.Overall == "degraded" {
+			return fmt.Errorf("can't reach Minecraft servers — check your internet connection (couldn't fetch version info for %s)", target.Version)
+		}
+		return fmt.Errorf("failed to get version info for %s: %w", target.Version, err)
 	}
 
 	basePath := filepath.Join(fs.GetDataDir(), "instances", target.ID)
@@ -496,7 +500,12 @@ func (a *App) InstallInstance(id string) error {
 
 	go func() {
 		if err := engine.Install(info, assetsDir); err != nil {
+			msg := fmt.Sprintf("Installation failed: %v", err)
 			fmt.Printf("Install error: %v\n", err)
+			runtime.EventsEmit(a.ctx, "instance:error", map[string]interface{}{
+				"id":      target.ID,
+				"message": msg,
+			})
 			runtime.EventsEmit(a.ctx, "instance:state", map[string]interface{}{
 				"id":    target.ID,
 				"state": "Error",
@@ -526,6 +535,12 @@ func (a *App) GetAvailableVersions(includeSnapshots bool) ([]string, error) {
 		}
 	}
 	return versions, nil
+}
+
+// GetConnectivityStatus returns the health of the services Aether depends on
+// for installing and launching Minecraft instances.
+func (a *App) GetConnectivityStatus() mojang.ConnectivityStatus {
+	return mojang.CheckConnectivity()
 }
 
 // CreateInstance creates a new instance on disk and returns the created instance

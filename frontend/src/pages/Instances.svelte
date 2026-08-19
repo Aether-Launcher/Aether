@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
-  import { GetInstances, GetAvailableVersions, CreateInstance, GetModLoaders, SelectAndImportInstance } from '../../wailsjs/go/main/App.js';
+  import { GetInstances, GetAvailableVersions, CreateInstance, GetModLoaders, SelectAndImportInstance, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
   import Dropdown from '../components/Dropdown.svelte';
   import EmptyState from '../components/EmptyState.svelte';
   import { toast } from '../stores/toast';
@@ -14,6 +14,15 @@
   let availableLoaders: any[] = [];
   let isCreating = false;
   let includeSnapshots = false;
+  let connectivity: any = null;
+
+  async function refreshConnectivity() {
+    try {
+      connectivity = await GetConnectivityStatus();
+    } catch (e) {
+      connectivity = { overall: 'unknown' };
+    }
+  }
 
   async function loadInstances() {
     const res = await GetInstances();
@@ -41,6 +50,8 @@
       console.error(err);
       toast.error("Failed to load Minecraft versions from Mojang. Check your network: " + err);
     }
+
+    refreshConnectivity();
     
     try {
       const loaders = await GetModLoaders();
@@ -132,6 +143,12 @@
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div class="modal" on:click|stopPropagation>
         <h2>Create Instance</h2>
+
+        {#if connectivity?.overall === 'offline'}
+          <div class="conn-warning">
+            You're offline — Aether can't reach Minecraft servers. Creating an instance now will save it, but installation won't work until you're back online.
+          </div>
+        {/if}
         
         <div class="form-group">
           <!-- svelte-ignore a11y-label-has-associated-control -->
@@ -156,6 +173,9 @@
             bind:value={newInstance.version} 
             direction="up"
           />
+          {#if availableVersions.length === 0}
+            <p class="version-hint">Couldn't load Minecraft versions — check your connection.</p>
+          {/if}
         </div>
 
         <div class="form-group">
@@ -173,7 +193,7 @@
 
         <div class="modal-actions">
           <button class="btn btn-secondary" on:click={() => showModal = false}>Cancel</button>
-          <button class="btn btn-primary" on:click={handleCreate} disabled={isCreating || !newInstance.name}>
+          <button class="btn btn-primary" on:click={handleCreate} disabled={isCreating || !newInstance.name || !newInstance.version}>
             {isCreating ? 'Creating...' : 'Create'}
           </button>
         </div>
@@ -379,5 +399,22 @@
     font-size: 12px;
     color: rgba(255, 255, 255, 0.5);
     line-height: 1.4;
+  }
+
+  .conn-warning {
+    margin: 0;
+    font-size: 12px;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: var(--border-radius);
+    padding: 8px 12px;
+    line-height: 1.5;
+  }
+
+  .version-hint {
+    margin: 0;
+    font-size: 12px;
+    color: #f59e0b;
   }
 </style>
