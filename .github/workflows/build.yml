@@ -104,9 +104,14 @@ jobs:
 
       - name: Linux dependencies
         if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev
+          # Bounded, retrying apt so a slow mirror or a lock held by
+          # unattended-upgrades cannot hang the job for hours.
+          APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=60 -o Acquire::https::Timeout=60 -o DPkg::Lock::Timeout=120"
+          sudo apt-get $APT_OPTS update
+          sudo apt-get $APT_OPTS install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev
 
       - name: Windows dependencies
         if: runner.os == 'Windows'
@@ -141,9 +146,9 @@ jobs:
           cp build/bin/Aether "$APPDIR/usr/bin/Aether"
           cp build/appicon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/aether.png"
           cp build/linux/aether.desktop "$APPDIR/aether.desktop"
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O /tmp/appimagetool
+          wget -q --timeout=60 https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O /tmp/appimagetool
           chmod +x /tmp/appimagetool
-          /tmp/appimagetool --appimage-extract-and-run "$APPDIR" Aether-${{ matrix.name }}.AppImage
+          timeout 600 /tmp/appimagetool --appimage-extract-and-run "$APPDIR" Aether-${{ matrix.name }}.AppImage
 
       - name: Build macOS disk image
         if: runner.os == 'macOS'

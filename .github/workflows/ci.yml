@@ -49,9 +49,14 @@ jobs:
 
       - name: Linux dependencies
         if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          # Bounded, retrying apt so a slow mirror or a lock held by
+          # unattended-upgrades cannot hang the job for hours.
+          APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=60 -o Acquire::https::Timeout=60 -o DPkg::Lock::Timeout=120"
+          sudo apt-get $APT_OPTS update
+          sudo apt-get $APT_OPTS install -y \
             libgtk-3-dev \
             libwebkit2gtk-4.0-dev \
             libayatana-appindicator3-dev
