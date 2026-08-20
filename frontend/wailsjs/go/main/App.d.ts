@@ -58,7 +58,7 @@ export function ResolveExtensionConfirmation(arg1:string,arg2:boolean):Promise<v
 
 export function SaveSettings(arg1:settings.GlobalSettings):Promise<void>;
 
-export function SelectAndImportInstance():Promise<boolean>;
+export function SelectAndImportInstance():Promise<string>;
 
 export function SelectAndInstallExtension():Promise<boolean>;
 

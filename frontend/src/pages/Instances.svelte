@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { GetInstances, GetAvailableVersions, CreateInstance, GetModLoaders, SelectAndImportInstance, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
+  import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime.js';
   import Dropdown from '../components/Dropdown.svelte';
   import EmptyState from '../components/EmptyState.svelte';
   import { toast } from '../stores/toast';
@@ -15,6 +16,9 @@
   let isCreating = false;
   let includeSnapshots = false;
   let connectivity: any = null;
+  let isImporting = false;
+  let importPct = 0;
+  let importingFile = '';
 
   async function refreshConnectivity() {
     try {
@@ -63,6 +67,15 @@
       console.error(err);
       availableLoaders = [{ label: 'Vanilla', value: 'Vanilla' }];
     }
+
+    EventsOn('instance:import-progress', (data: any) => {
+      importPct = data?.total > 0 ? Math.round((data.done / data.total) * 100) : 0;
+      importingFile = data?.file || '';
+    });
+  });
+
+  onDestroy(() => {
+    EventsOff('instance:import-progress');
   });
 
   async function handleCreate() {
@@ -85,13 +98,22 @@
   }
 
   async function handleImport() {
+    if (isImporting) return;
+    isImporting = true;
+    importPct = 0;
+    importingFile = '';
     try {
-      if (await SelectAndImportInstance()) {
+      const label = await SelectAndImportInstance();
+      if (label) {
         await loadInstances();
-        toast.success('Instance imported successfully!');
+        toast.success(`Imported ${label} — open it and press Install to download the game files.`);
       }
     } catch (err: any) {
       toast.error('Failed to import instance: ' + err);
+    } finally {
+      isImporting = false;
+      importPct = 0;
+      importingFile = '';
     }
   }
 </script>
@@ -100,10 +122,23 @@
   <header class="page-header">
     <h1>Instances</h1>
     <div class="actions">
-      <button class="btn btn-secondary" on:click={handleImport}>Import</button>
+      <button class="btn btn-secondary" on:click={handleImport} disabled={isImporting}>
+        {isImporting ? 'Importing…' : 'Import'}
+      </button>
       <button class="btn btn-primary" on:click={() => showModal = true}>Create New</button>
     </div>
   </header>
+
+  {#if isImporting}
+    <div class="import-progress">
+      <div class="import-track">
+        <div class="import-fill" style="width: {importPct}%"></div>
+      </div>
+      <span class="import-label">
+        {importPct > 0 ? importPct + '%' : 'Scanning instance…'} {importingFile ? '· ' + importingFile : ''}
+      </span>
+    </div>
+  {/if}
 
   {#if instances.length === 0}
     <EmptyState
@@ -220,6 +255,32 @@
   .actions {
     display: flex;
     gap: var(--spacing-md);
+  }
+
+  .import-progress {
+    margin-bottom: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .import-track {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .import-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--accent);
+    transition: width 0.15s ease;
+  }
+
+  .import-label {
+    font-size: 12px;
+    color: var(--text-secondary);
   }
 
 

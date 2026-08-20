@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	stdruntime "runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -349,74 +347,41 @@ func (a *App) ReloadExtensions() error {
 	return extensions.GlobalManager.LoadAll()
 }
 
-// SelectAndImportInstance imports an existing instance directory.
-func (a *App) SelectAndImportInstance() (bool, error) {
+// SelectAndImportInstance imports an existing instance folder from Aether,
+// Prism/MultiMC, or CurseForge. It returns a display label for the imported
+// instance, or "" when the user cancelled the dialog.
+func (a *App) SelectAndImportInstance() (string, error) {
 	source, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Select Minecraft Instance"})
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if source == "" {
-		return false, nil
+		return "", nil
 	}
 
-	manifestPath := filepath.Join(source, "instance.json")
-	data, err := os.ReadFile(manifestPath)
-	if err != nil {
-		return false, fmt.Errorf("invalid instance: missing instance.json: %w", err)
-	}
-	var imported instance.Instance
-	if err := json.Unmarshal(data, &imported); err != nil {
-		return false, fmt.Errorf("invalid instance manifest: %w", err)
-	}
-	if imported.ID == "" {
-		imported.ID = strings.ToLower(strings.ReplaceAll(filepath.Base(source), " ", "-"))
-	}
-	if imported.ID == "" || imported.Version == "" {
-		return false, fmt.Errorf("instance manifest must include an ID and version")
+	if instance.DetectFormat(source) == instance.FormatUnknown {
+		return "", fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, or CurseForge instance folder")
 	}
 
-	target, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), imported.ID)
-	if err != nil {
-		return false, err
-	}
-	if _, err := os.Stat(target); err == nil {
-		return false, fmt.Errorf("instance already exists: %s", imported.ID)
-	} else if !os.IsNotExist(err) {
-		return false, err
-	}
-
-	if err := copyDirectory(source, target); err != nil {
-		_ = os.RemoveAll(target)
-		return false, fmt.Errorf("failed to import instance: %w", err)
-	}
-	return true, nil
-}
-
-func copyDirectory(source, target string) error {
-	return filepath.WalkDir(source, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		rel, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		dest, err := fs.ContainedPath(target, rel)
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return os.MkdirAll(dest, 0755)
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("symbolic links are not supported in imported instances")
-		}
-		contents, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(dest, contents, 0644)
+	instancesDir := filepath.Join(fs.GetDataDir(), "instances")
+	inst, err := instance.ImportInstance(source, instancesDir, func(done, total int, file string) {
+		runtime.EventsEmit(a.ctx, "instance:import-progress", map[string]interface{}{
+			"done":  done,
+			"total": total,
+			"file":  file,
+		})
 	})
+	if err != nil {
+		return "", err
+	}
+
+	launcher := map[instance.Format]string{
+		instance.FormatNative:     "Aether",
+		instance.FormatMultiMC:    "Prism/MultiMC",
+		instance.FormatCurseForge: "CurseForge",
+	}[instance.DetectFormat(source)]
+
+	return fmt.Sprintf("%s (%s)", inst.Name, launcher), nil
 }
 
 func (a *App) GetActiveAccount() *auth.Account {
