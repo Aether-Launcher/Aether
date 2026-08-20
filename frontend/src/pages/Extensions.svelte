@@ -53,17 +53,23 @@
     try {
       return (await GetExtensionUpdates()) || [];
     } catch (e: any) {
-      console.error('Failed to check for updates:', e);
-      return [];
+      throw new Error(String(e || 'Could not reach the extension registry'));
     }
   }
 
   async function checkForUpdates() {
     if (checkingUpdates) return;
     checkingUpdates = true;
-    updates = await fetchUpdates();
-    if (updates.length === 0) toast.info('No updates available.');
-    checkingUpdates = false;
+    try {
+      updates = await fetchUpdates();
+      if (updates.length === 0) toast.info('No updates available.');
+    } catch (e: any) {
+      updates = [];
+      console.error('Failed to check for updates:', e);
+      toast.error('Could not check for updates: ' + (e?.message || e));
+    } finally {
+      checkingUpdates = false;
+    }
   }
 
   async function handleUpdate(ext: any) {
@@ -72,7 +78,9 @@
     try {
       const updated = await UpdateExtension(ext.id);
       await loadInstalled();
-      updates = await fetchUpdates();
+      try {
+        updates = await fetchUpdates();
+      } catch { /* registry unreachable — keep current list */ }
       toast.success(`Updated ${updated.name} to v${updated.newVersion}`);
     } catch (e: any) {
       console.error('Update failed:', e);
@@ -88,7 +96,9 @@
     try {
       await ReloadExtensions();
       await loadInstalled();
-      updates = await fetchUpdates();
+      try {
+        updates = await fetchUpdates();
+      } catch { /* registry unreachable — keep current list */ }
       toast.success('Extensions reloaded.');
     } catch (e: any) {
       console.error('Reload failed:', e);

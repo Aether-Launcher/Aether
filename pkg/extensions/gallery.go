@@ -35,7 +35,7 @@ var (
 )
 
 // GetGalleryExtensions returns the live registry from GitHub, with a 5-minute in-memory cache.
-// Gracefully falls back to an empty slice if the user is offline or GitHub is unreachable.
+// Gracefully falls back to the cached copy if the user is offline or GitHub is unreachable.
 func GetGalleryExtensions() []GalleryExtension {
 	galleryCacheMu.Lock()
 	defer galleryCacheMu.Unlock()
@@ -44,29 +44,54 @@ func GetGalleryExtensions() []GalleryExtension {
 		return galleryCache
 	}
 
+	cached, err := fetchGalleryIndexLocked()
+	if err != nil {
+		return cached
+	}
+	return galleryCache
+}
+
+// RefreshGallery bypasses the cache and fetches the registry right now. It is
+// used when the user explicitly asks to check for updates, so a stale index
+// cannot hide a new release. On failure the previous cache is kept and the
+// error is returned so callers can tell the user the check did not run.
+func RefreshGallery() ([]GalleryExtension, error) {
+	galleryCacheMu.Lock()
+	defer galleryCacheMu.Unlock()
+
+	cached, err := fetchGalleryIndexLocked()
+	if err != nil {
+		return cached, err
+	}
+	return galleryCache, nil
+}
+
+// fetchGalleryIndexLocked fetches the registry index and updates the cache.
+// Callers must hold galleryCacheMu. Returns the previous cache on failure.
+func fetchGalleryIndexLocked() ([]GalleryExtension, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(galleryIndexURL)
 	if err != nil {
 		fmt.Printf("[Gallery] Could not fetch registry (offline?): %v\n", err)
-		return galleryCache // return stale cache rather than nothing
+		return galleryCache, fmt.Errorf("could not reach the extension registry: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("[Gallery] Registry returned HTTP %d\n", resp.StatusCode)
-		return galleryCache
+		return galleryCache, fmt.Errorf("extension registry returned HTTP %d", resp.StatusCode)
 	}
 
 	var entries []GalleryExtension
 	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
 		fmt.Printf("[Gallery] Failed to parse registry: %v\n", err)
-		return galleryCache
+		return galleryCache, fmt.Errorf("could not parse the extension registry: %w", err)
 	}
 
 	galleryCache = entries
 	galleryCacheAt = time.Now()
 	fmt.Printf("[Gallery] Fetched %d extensions from registry\n", len(entries))
-	return galleryCache
+	return galleryCache, nil
 }
 
 // DownloadAndInstallExtension downloads an extension package from a trusted Registry URL and installs it.

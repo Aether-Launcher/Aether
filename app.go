@@ -320,18 +320,27 @@ func (a *App) UninstallExtension(id string) error {
 	return extensions.GlobalManager.Uninstall(id)
 }
 
-// GetExtensionUpdates returns available updates for installed extensions.
-func (a *App) GetExtensionUpdates() []extensions.ExtensionUpdate {
+// GetExtensionUpdates force-refreshes the registry and returns available
+// updates for installed extensions. An error is returned when the registry
+// cannot be reached, so the UI can tell the user the check actually failed
+// instead of reporting "no updates".
+func (a *App) GetExtensionUpdates() ([]extensions.ExtensionUpdate, error) {
 	if extensions.GlobalManager == nil {
-		return nil
+		return nil, fmt.Errorf("extensions are disabled")
 	}
-	return extensions.CheckForUpdates()
+	if _, err := extensions.RefreshGallery(); err != nil {
+		return nil, err
+	}
+	return extensions.CheckForUpdates(), nil
 }
 
 // UpdateExtension updates an installed extension to its newest registry version.
 func (a *App) UpdateExtension(id string) (extensions.ExtensionUpdate, error) {
 	if extensions.GlobalManager == nil {
 		return extensions.ExtensionUpdate{}, fmt.Errorf("extensions are disabled")
+	}
+	if _, err := extensions.RefreshGallery(); err != nil {
+		return extensions.ExtensionUpdate{}, err
 	}
 	return extensions.UpdateExtension(id)
 }
