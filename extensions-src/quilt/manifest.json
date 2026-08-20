@@ -1,7 +1,7 @@
 {
   "id": "quilt",
   "name": "Quilt",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Aether",
   "description": "Adds support for launching the Quilt mod loader.",
   "icon": "icon.png",
