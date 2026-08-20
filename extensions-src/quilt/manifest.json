@@ -1,0 +1,19 @@
+{
+  "id": "quilt",
+  "name": "Quilt",
+  "version": "1.0.0",
+  "author": "Aether",
+  "description": "Adds support for launching the Quilt mod loader.",
+  "icon": "icon.png",
+  "main": "main.js",
+  "api": "1.0",
+  "permissions": [
+    "launcher:modloader",
+    "network:http",
+    "fs:download"
+  ],
+  "hosts": [
+    "meta.quiltmc.org",
+    "maven.quiltmc.org"
+  ]
+}

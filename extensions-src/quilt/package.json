@@ -1,0 +1,9 @@
+{
+  "name": "quilt",
+  "version": "1.0.0",
+  "description": "Quilt Mod Loader",
+  "main": "main.js",
+  "devDependencies": {
+    "@aether/sdk": "file:../../../Aether-SDK"
+  }
+}
