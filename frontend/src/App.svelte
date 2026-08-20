@@ -153,7 +153,9 @@
       {:else if activePage === 'settings'}
         <Settings />
       {:else if extensionRoutes[activePage]}
-        <ExtensionView url={extensionRoutes[activePage].url} extID={extensionRoutes[activePage].extensionId} />
+        {#key extensionRoutes[activePage].extensionId}
+          <ExtensionView url={extensionRoutes[activePage].url} extID={extensionRoutes[activePage].extensionId} />
+        {/key}
       {:else}
         <div class="placeholder">
           <h2>{activePage.charAt(0).toUpperCase() + activePage.slice(1)}</h2>
