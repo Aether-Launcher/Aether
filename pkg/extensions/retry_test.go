@@ -67,13 +67,35 @@ func TestHTTPGetWithRetryConnectionErrors(t *testing.T) {
 	}
 }
 
-// TestHTTPGetWithRetryNonTransient verifies permanent failures (NXDOMAIN)
-// are not retried.
+// TestHTTPGetWithRetryNoSuchHost verifies that DNS lookup failures ("no such
+// host" — the text Windows uses for both transient and permanent DNS errors)
+// are retried.
+func TestHTTPGetWithRetryNoSuchHost(t *testing.T) {
+	var calls int32
+	http.DefaultClient.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		atomic.AddInt32(&calls, 1)
+		return nil, fmt.Errorf("Get %q: dial tcp: lookup meta.quiltmc.org: no such host", r.URL.String())
+	})
+	defer func() { http.DefaultClient.Transport = http.DefaultTransport }()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://meta.quiltmc.org/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := httpGetWithRetry(context.Background(), req); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("expected 3 retry attempts for DNS failures, got %d", got)
+	}
+}
+
+// TestHTTPGetWithRetryNonTransient verifies permanent failures are not retried.
 func TestHTTPGetWithRetryNonTransient(t *testing.T) {
 	var calls int32
 	http.DefaultClient.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		atomic.AddInt32(&calls, 1)
-		return nil, fmt.Errorf("Get %q: lookup example.invalid: no such host", r.URL.String())
+		return nil, fmt.Errorf("Get %q: tls: failed to verify certificate", r.URL.String())
 	})
 	defer func() { http.DefaultClient.Transport = http.DefaultTransport }()
 

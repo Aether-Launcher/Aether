@@ -1,7 +1,7 @@
 {
   "id": "quilt",
   "name": "Quilt",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Aether",
   "description": "Adds support for launching the Quilt mod loader.",
   "icon": "icon.png",
@@ -14,6 +14,7 @@
   ],
   "hosts": [
     "meta.quiltmc.org",
-    "maven.quiltmc.org"
+    "maven.quiltmc.org",
+    "maven.fabricmc.net"
   ]
 }

@@ -18,6 +18,8 @@ func IsTransientNetworkError(err error) bool {
 	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "temporary failure in name resolution") ||
+		strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "nodename nor servname provided") ||
 		strings.Contains(msg, "connection reset") ||
 		strings.Contains(msg, "connection refused") ||
 		strings.Contains(msg, "actively refused") ||
