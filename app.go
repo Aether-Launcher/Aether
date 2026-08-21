@@ -346,14 +346,14 @@ func (a *App) UpdateExtension(id string) (extensions.ExtensionUpdate, error) {
 }
 
 // ReloadExtensions re-scans the extensions directory and reloads all
-// extensions, refreshing the sidebar and mod loader registrations.
+// extensions asynchronously, refreshing the sidebar and mod loader registrations.
 func (a *App) ReloadExtensions() error {
 	if extensions.GlobalManager == nil {
 		return fmt.Errorf("extensions are disabled")
 	}
 	// Clear the sidebar first so removed extensions don't leave stale tabs.
 	runtime.EventsEmit(a.ctx, "extension:sidebar:reset")
-	return extensions.GlobalManager.LoadAll()
+	return extensions.GlobalManager.ReloadAsync()
 }
 
 // SelectAndImportInstance imports an existing instance folder from Aether,

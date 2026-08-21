@@ -90,7 +90,7 @@ func CheckForUpdates() []ExtensionUpdate {
 }
 
 // UpdateExtension downloads and installs the newest registry version of the
-// given extension, replacing the installed copy, then reloads all extensions.
+// given extension, replacing the installed copy, then triggers an async reload.
 func UpdateExtension(id string) (ExtensionUpdate, error) {
 	for _, update := range CheckForUpdates() {
 		if update.ID == id {
@@ -98,7 +98,7 @@ func UpdateExtension(id string) (ExtensionUpdate, error) {
 				return ExtensionUpdate{}, fmt.Errorf("failed to download update for '%s': %w", id, err)
 			}
 			if GlobalManager != nil {
-				GlobalManager.LoadAll()
+				GlobalManager.ReloadAsync()
 			}
 			return update, nil
 		}

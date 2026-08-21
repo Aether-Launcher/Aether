@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { GetExtensions, SelectAndInstallExtension, DownloadAndInstallExtension, GetSettings, UninstallExtension, GetExtensionUpdates, UpdateExtension, ReloadExtensions } from '../../wailsjs/go/main/App.js';
   import EmptyState from '../components/EmptyState.svelte';
   import ConfirmDialog from '../lib/components/ConfirmDialog.svelte';
@@ -196,6 +197,22 @@
   onMount(async () => {
     await loadInstalled();
     checkForUpdates();
+
+    const unsubStart = EventsOn('extension:reload:start', () => {
+      reloading = true;
+    });
+    const unsubComplete = EventsOn('extension:reload:complete', async () => {
+      reloading = false;
+      await loadInstalled();
+      try {
+        updates = await fetchUpdates();
+      } catch { /* ignore */ }
+    });
+
+    return () => {
+      if (unsubStart) unsubStart();
+      if (unsubComplete) unsubComplete();
+    };
   });
 
   function setTab(tab: string) {
@@ -248,10 +265,10 @@
       <button class="btn btn-secondary" on:click={handleReload} disabled={reloading || installedExtensions.length === 0}>
         {reloading ? 'Reloading...' : 'Reload'}
       </button>
-      <button class="btn btn-secondary" on:click={checkForUpdates} disabled={checkingUpdates || installedExtensions.length === 0}>
+      <button class="btn btn-secondary" on:click={checkForUpdates} disabled={checkingUpdates || reloading || installedExtensions.length === 0}>
         {checkingUpdates ? 'Checking...' : 'Check for Updates'}
       </button>
-      <button class="btn btn-secondary" on:click={handleLocalInstall} disabled={isInstalling}>
+      <button class="btn btn-secondary" on:click={handleLocalInstall} disabled={isInstalling || reloading}>
         {isInstalling ? 'Installing...' : 'Install from .aex'}
       </button>
     </div>
@@ -319,11 +336,11 @@
                   </div>
                   <div class="ext-footer-actions">
                     {#if updateFor(ext)}
-                      <button class="btn btn-primary" on:click={() => handleUpdate(ext)} disabled={!!updatingId}>
-                        {updatingId === ext.id ? 'Updating...' : `Update to v${updateFor(ext).newVersion}`}
+                      <button class="btn btn-primary" on:click={() => handleUpdate(ext)} disabled={!!updatingId || reloading || ext.reloading}>
+                        {updatingId === ext.id ? 'Updating...' : ext.reloading ? 'Reloading...' : `Update to v${updateFor(ext).newVersion}`}
                       </button>
                     {/if}
-                    <button class="btn btn-secondary" on:click={() => handleUninstall(ext)}>Uninstall</button>
+                    <button class="btn btn-secondary" on:click={() => handleUninstall(ext)} disabled={reloading}>Uninstall</button>
                   </div>
                 </div>
             </div>

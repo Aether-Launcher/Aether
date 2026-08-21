@@ -38,6 +38,7 @@ export namespace extensions {
 	    cpu: string;
 	    trust: string;
 	    iconUrl?: string;
+	    reloading: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Extension(source);
@@ -55,6 +56,7 @@ export namespace extensions {
 	        this.cpu = source["cpu"];
 	        this.trust = source["trust"];
 	        this.iconUrl = source["iconUrl"];
+	        this.reloading = source["reloading"];
 	    }
 	}
 	export class ExtensionUpdate {

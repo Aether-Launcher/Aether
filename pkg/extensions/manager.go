@@ -21,6 +21,7 @@ import (
 // Manager handles the lifecycle of all extensions
 type Manager struct {
 	ctx              context.Context
+	server           *Server
 	serverURL        string
 	LoadedExtensions map[string]Extension
 	sandboxes        map[string]*Sandbox
@@ -29,6 +30,9 @@ type Manager struct {
 	pending          map[string]chan bool
 	pendingMu        sync.Mutex
 	auditMu          sync.Mutex
+	reloadMu         sync.Mutex
+	reloading        bool
+	reloadDone       chan error
 }
 
 // ModLoaderConfig holds info about a registered mod loader
@@ -49,6 +53,7 @@ var GlobalManager *Manager
 func NewManager(ctx context.Context) *Manager {
 	return &Manager{
 		ctx:              ctx,
+		server:           NewServer(),
 		LoadedExtensions: make(map[string]Extension),
 		sandboxes:        make(map[string]*Sandbox),
 		SidebarPages:     make([]map[string]interface{}, 0),
@@ -57,22 +62,24 @@ func NewManager(ctx context.Context) *Manager {
 	}
 }
 
-// LoadAll scans the directory, parses manifests, and executes the JS isolate
+// LoadAll scans the directory, parses manifests, and updates metadata quickly without blocking.
+// Sandboxes are reloaded in the background via ReloadAsync.
 func (m *Manager) LoadAll() error {
-	// Reloading replaces the in-memory view so removed extensions do not linger.
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+
 	clearModLoaderCallbackCache("")
 	m.LoadedExtensions = make(map[string]Extension)
-	m.sandboxes = make(map[string]*Sandbox)
 	m.SidebarPages = make([]map[string]interface{}, 0)
 	m.ModLoaders = make(map[string]ModLoaderConfig)
 
-	// Start the local extension server
-	server := NewServer()
-	url, err := server.Start()
+	// Ensure local extension server is running (reuses port if already started)
+	url, err := m.server.Start()
 	if err != nil {
 		fmt.Printf("[Extensions] Warning: Failed to start UI server: %v\n", err)
 	}
 	m.serverURL = url
+
 	extDir := filepath.Join(fs.GetDataDir(), "extensions")
 	entries, err := os.ReadDir(extDir)
 	if err != nil {
@@ -96,7 +103,6 @@ func (m *Manager) LoadAll() error {
 				manifest.ID = entry.Name()
 			}
 
-			// Determine trust level: Check against gallery API mock
 			trust := "local"
 			for _, ge := range GetGalleryExtensions() {
 				if ge.ID == manifest.ID {
@@ -110,7 +116,7 @@ func (m *Manager) LoadAll() error {
 				iconUrl = fmt.Sprintf("%s/%s/%s", m.serverURL, manifest.ID, manifest.Icon)
 			}
 
-			ext := Extension{
+			m.LoadedExtensions[manifest.ID] = Extension{
 				ID:          manifest.ID,
 				Name:        manifest.Name,
 				Version:     manifest.Version,
@@ -121,161 +127,214 @@ func (m *Manager) LoadAll() error {
 				CPU:         "0%",
 				Trust:       trust,
 				IconURL:     iconUrl,
+				Reloading:   true, // Mark as loading until sandboxes complete
 			}
-
-			sandbox := NewSandbox(
-				m.ctx, manifest, m.serverURL,
-				func(payload map[string]interface{}) {
-					m.SidebarPages = append(m.SidebarPages, payload)
-				},
-				func(config ModLoaderConfig) {
-					m.ModLoaders[config.ID] = config
-				},
-				func() []InstanceInfo {
-					all := instance.GetInstances()
-					var out []InstanceInfo
-					for _, inst := range all {
-						out = append(out, InstanceInfo{
-							ID:      inst.ID,
-							Name:    inst.Name,
-							Version: inst.Version,
-							Loader:  inst.Loader,
-						})
-					}
-					return out
-				},
-				func(instanceID, jarName, downloadURL string) (string, error) {
-					jarName = filepath.Base(jarName)
-					if strings.ToLower(filepath.Ext(jarName)) != ".jar" {
-						return "", fmt.Errorf("mod file must have a .jar extension")
-					}
-					parsedURL, err := neturl.Parse(downloadURL)
-					if err != nil || parsedURL.Scheme != "https" || parsedURL.Hostname() == "" {
-						return "", fmt.Errorf("mod downloads require an HTTPS URL")
-					}
-					instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
-					if err != nil {
-						return "", err
-					}
-					modsDir := filepath.Join(instanceDir, "mods")
-					if err := os.MkdirAll(modsDir, 0755); err != nil {
-						return "", err
-					}
-					destPath := filepath.Join(modsDir, jarName)
-					req, err := http.NewRequestWithContext(m.ctx, http.MethodGet, downloadURL, nil)
-					if err != nil {
-						return "", err
-					}
-					resp, err := http.DefaultClient.Do(req)
-					if err != nil {
-						return "", err
-					}
-					defer resp.Body.Close()
-					if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-						return "", fmt.Errorf("mod download failed with status %s", resp.Status)
-					}
-					if resp.ContentLength > maxExtensionModSize {
-						return "", fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
-					}
-					out, err := os.Create(destPath)
-					if err != nil {
-						return "", err
-					}
-					defer out.Close()
-					written, err := io.Copy(out, io.LimitReader(resp.Body, maxExtensionModSize+1))
-					if err != nil {
-						_ = os.Remove(destPath)
-						return "", err
-					}
-					if written > maxExtensionModSize {
-						_ = os.Remove(destPath)
-						return "", fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
-					}
-					return destPath, nil
-				},
-				func(instanceID string) ([]string, error) {
-					instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
-					if err != nil {
-						return nil, err
-					}
-					modsDir := filepath.Join(instanceDir, "mods")
-					entries, err := os.ReadDir(modsDir)
-					if err != nil {
-						if os.IsNotExist(err) {
-							return []string{}, nil
-						}
-						return nil, err
-					}
-					var mods []string
-					for _, e := range entries {
-						if !e.IsDir() {
-							mods = append(mods, e.Name())
-						}
-					}
-					return mods, nil
-				},
-				func(instanceID, jarName string) error {
-					jarName = filepath.Base(jarName)
-					instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
-					if err != nil {
-						return err
-					}
-					modPath := filepath.Join(instanceDir, "mods", jarName)
-					return os.Remove(modPath)
-				},
-				func(instanceID, jarName string, enable bool) error {
-					jarName = filepath.Base(jarName)
-					instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
-					if err != nil {
-						return err
-					}
-					modsDir := filepath.Join(instanceDir, "mods")
-
-					currentPath := filepath.Join(modsDir, jarName)
-
-					if enable {
-						// We want to enable it. It must currently end in .disabled
-						if strings.HasSuffix(jarName, ".disabled") {
-							newPath := filepath.Join(modsDir, strings.TrimSuffix(jarName, ".disabled"))
-							return os.Rename(currentPath, newPath)
-						}
-						// Already enabled
-						return nil
-					} else {
-						// We want to disable it.
-						if !strings.HasSuffix(jarName, ".disabled") {
-							newPath := filepath.Join(modsDir, jarName+".disabled")
-							return os.Rename(currentPath, newPath)
-						}
-						// Already disabled
-						return nil
-					}
-				},
-				runtime.EventsEmit,
-				m.requestConfirmation,
-			)
-			m.sandboxes[manifest.ID] = sandbox
-
-			if manifest.Main != "" {
-				scriptPath := filepath.Join(extDir, entry.Name(), manifest.Main)
-				scriptData, err := os.ReadFile(scriptPath)
-				if err == nil {
-					if err := sandbox.Execute(string(scriptData)); err != nil {
-						fmt.Printf("[Manager] Failed to execute %s for %s: %v\n", manifest.Main, manifest.ID, err)
-						ext.Status = "Error"
-					} else {
-						fmt.Printf("[Manager] Successfully loaded extension isolate: %s\n", manifest.ID)
-					}
-				} else {
-					fmt.Printf("[Manager] Missing main script %s for %s\n", manifest.Main, manifest.ID)
-					ext.Status = "Error (Missing Main)"
-				}
-			}
-
-			m.LoadedExtensions[manifest.ID] = ext
 		}
 	}
+
+	// Trigger background sandbox reload
+	go m.reloadSandboxes()
+
 	return nil
+}
+
+// ReloadAsync triggers a non-blocking full reload of all extensions and sandboxes.
+func (m *Manager) ReloadAsync() error {
+	if !m.reloadMu.TryLock() {
+		return fmt.Errorf("extension reload already in progress")
+	}
+	m.reloadMu.Unlock()
+
+	runtime.EventsEmit(m.ctx, "extension:reload:start", nil)
+	return m.LoadAll()
+}
+
+// reloadSandboxes creates sandboxes and executes main scripts in the background
+func (m *Manager) reloadSandboxes() {
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+
+	m.reloading = true
+	defer func() {
+		m.reloading = false
+		runtime.EventsEmit(m.ctx, "extension:reload:complete", nil)
+	}()
+
+	newSandboxes := make(map[string]*Sandbox)
+	newSidebarPages := make([]map[string]interface{}, 0)
+	newModLoaders := make(map[string]ModLoaderConfig)
+	extDir := filepath.Join(fs.GetDataDir(), "extensions")
+
+	for id, ext := range m.LoadedExtensions {
+		manifestPath := filepath.Join(extDir, id, "manifest.json")
+		data, err := os.ReadFile(manifestPath)
+		if err != nil {
+			continue
+		}
+		var manifest Manifest
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			continue
+		}
+		if manifest.ID == "" {
+			manifest.ID = id
+		}
+
+		// Add timeout for sandbox creation/execution
+		ctx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
+		
+		sandbox := NewSandbox(
+			ctx, manifest, m.serverURL,
+			func(payload map[string]interface{}) {
+				newSidebarPages = append(newSidebarPages, payload)
+			},
+			func(config ModLoaderConfig) {
+				newModLoaders[config.ID] = config
+			},
+			func() []InstanceInfo {
+				all := instance.GetInstances()
+				var out []InstanceInfo
+				for _, inst := range all {
+					out = append(out, InstanceInfo{
+						ID:      inst.ID,
+						Name:    inst.Name,
+						Version: inst.Version,
+						Loader:  inst.Loader,
+					})
+				}
+				return out
+			},
+			func(instanceID, jarName, downloadURL string) (string, error) {
+				jarName = filepath.Base(jarName)
+				if strings.ToLower(filepath.Ext(jarName)) != ".jar" {
+					return "", fmt.Errorf("mod file must have a .jar extension")
+				}
+				parsedURL, err := neturl.Parse(downloadURL)
+				if err != nil || parsedURL.Scheme != "https" || parsedURL.Hostname() == "" {
+					return "", fmt.Errorf("mod downloads require an HTTPS URL")
+				}
+				instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+				if err != nil {
+					return "", err
+				}
+				modsDir := filepath.Join(instanceDir, "mods")
+				if err := os.MkdirAll(modsDir, 0755); err != nil {
+					return "", err
+				}
+				destPath := filepath.Join(modsDir, jarName)
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+				if err != nil {
+					return "", err
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					return "", err
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+					return "", fmt.Errorf("mod download failed with status %s", resp.Status)
+				}
+				if resp.ContentLength > maxExtensionModSize {
+					return "", fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
+				}
+				out, err := os.Create(destPath)
+				if err != nil {
+					return "", err
+				}
+				defer out.Close()
+				written, err := io.Copy(out, io.LimitReader(resp.Body, maxExtensionModSize+1))
+				if err != nil {
+					_ = os.Remove(destPath)
+					return "", err
+				}
+				if written > maxExtensionModSize {
+					_ = os.Remove(destPath)
+					return "", fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
+				}
+				return destPath, nil
+			},
+			func(instanceID string) ([]string, error) {
+				instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+				if err != nil {
+					return nil, err
+				}
+				modsDir := filepath.Join(instanceDir, "mods")
+				entries, err := os.ReadDir(modsDir)
+				if err != nil {
+					if os.IsNotExist(err) {
+						return []string{}, nil
+					}
+					return nil, err
+				}
+				var mods []string
+				for _, e := range entries {
+					if !e.IsDir() {
+						mods = append(mods, e.Name())
+					}
+				}
+				return mods, nil
+			},
+			func(instanceID, jarName string) error {
+				jarName = filepath.Base(jarName)
+				instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+				if err != nil {
+					return err
+				}
+				modPath := filepath.Join(instanceDir, "mods", jarName)
+				return os.Remove(modPath)
+			},
+			func(instanceID, jarName string, enable bool) error {
+				jarName = filepath.Base(jarName)
+				instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+				if err != nil {
+					return err
+				}
+				modsDir := filepath.Join(instanceDir, "mods")
+
+				currentPath := filepath.Join(modsDir, jarName)
+
+				if enable {
+					if strings.HasSuffix(jarName, ".disabled") {
+						newPath := filepath.Join(modsDir, strings.TrimSuffix(jarName, ".disabled"))
+						return os.Rename(currentPath, newPath)
+					}
+					return nil
+				} else {
+					if !strings.HasSuffix(jarName, ".disabled") {
+						newPath := filepath.Join(modsDir, jarName+".disabled")
+						return os.Rename(currentPath, newPath)
+					}
+					return nil
+				}
+			},
+			runtime.EventsEmit,
+			m.requestConfirmation,
+		)
+		newSandboxes[id] = sandbox
+
+		if manifest.Main != "" {
+			scriptPath := filepath.Join(extDir, id, manifest.Main)
+			scriptData, err := os.ReadFile(scriptPath)
+			if err == nil {
+				if err := sandbox.Execute(string(scriptData)); err != nil {
+					fmt.Printf("[Manager] Failed to execute %s for %s: %v\n", manifest.Main, id, err)
+					ext.Status = "Error"
+				} else {
+					fmt.Printf("[Manager] Successfully loaded extension isolate: %s\n", id)
+				}
+			} else {
+				fmt.Printf("[Manager] Missing main script %s for %s\n", manifest.Main, id)
+				ext.Status = "Error (Missing Main)"
+			}
+		}
+
+		ext.Reloading = false
+		m.LoadedExtensions[id] = ext
+		cancel()
+	}
+
+	m.sandboxes = newSandboxes
+	m.SidebarPages = newSidebarPages
+	m.ModLoaders = newModLoaders
 }
 
 // requestConfirmation pauses a sensitive extension operation until the UI

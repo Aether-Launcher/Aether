@@ -15,6 +15,7 @@ type Extension struct {
 	CPU         string `json:"cpu"`
 	Trust       string `json:"trust"`
 	IconURL     string `json:"iconUrl,omitempty"`
+	Reloading   bool   `json:"reloading"`
 }
 
 // GetExtensions returns all installed extensions
