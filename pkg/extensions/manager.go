@@ -379,16 +379,23 @@ func (m *Manager) HandleIPCMessage(extID string, payload map[string]interface{})
 		return
 	}
 
-	// If the sandbox has a registered listener, call it
-	if sandbox.onMessageCallback != nil {
-		result, err := sandbox.onMessageCallback(payload)
-		if err != nil {
-			fmt.Printf("[Manager] IPC callback error for %s: %v\n", extID, err)
-			return
+	// Sandbox invocations are serialized per extension and panic-recovered so
+	// a busy or broken extension cannot leave the UI hanging forever.
+	result, err := sandbox.InvokeMessage(payload)
+	if err != nil {
+		fmt.Printf("[Manager] IPC callback error for %s: %v\n", extID, err)
+		// Reply with an error carrying the requestId so the iframe's pending
+		// promise resolves instead of showing "Loading..." indefinitely.
+		response := map[string]interface{}{"error": err.Error()}
+		if requestID, ok := payload["requestId"]; ok {
+			response["requestId"] = requestID
 		}
-		// Emit the response back to the frontend as a Wails event
-		runtime.EventsEmit(m.ctx, "extension:message:"+extID, result)
+		runtime.EventsEmit(m.ctx, "extension:message:"+extID, response)
+		return
 	}
+
+	// Emit the response back to the frontend as a Wails event
+	runtime.EventsEmit(m.ctx, "extension:message:"+extID, result)
 }
 
 // GetSidebarPages returns all registered sidebar pages

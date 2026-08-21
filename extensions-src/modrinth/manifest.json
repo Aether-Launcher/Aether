@@ -1,7 +1,7 @@
 {
   "id": "modrinth",
   "name": "Modrinth Browser",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "Aether",
   "description": "Browse and install mods from Modrinth directly into your instances.",
   "icon": "icon.png",

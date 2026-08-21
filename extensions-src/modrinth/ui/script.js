@@ -92,12 +92,21 @@ function initCustomSelect(containerEl) {
 const pending = {};
 let reqCounter = 0;
 
-function sendMessage(payload) {
+function sendMessage(payload, timeoutMs) {
+    const ms = timeoutMs || 15000;
     return new Promise((resolve) => {
         const id = ++reqCounter;
         payload.requestId = id;
         pending[id] = resolve;
         window.parent.postMessage(payload, '*');
+        // Never leave the UI hanging: resolve with an error if the sandbox
+        // does not answer in time.
+        setTimeout(() => {
+            if (pending[id]) {
+                delete pending[id];
+                resolve({ requestId: id, error: 'Request timed out' });
+            }
+        }, ms);
     });
 }
 
@@ -285,14 +294,29 @@ async function openInstallModal(mod) {
     modal.classList.remove('hidden');
 
     // Fetch versions and instances in parallel
-    const [versionsRes, instancesMsg] = await Promise.all([
-        fetch(`https://api.modrinth.com/v2/project/${mod.id}/version`).then(r => r.json()),
-        sendMessage({ type: 'get_instances' })
-    ]);
+    let versionsRes, instancesMsg;
+    try {
+        [versionsRes, instancesMsg] = await Promise.all([
+            fetch(`https://api.modrinth.com/v2/project/${mod.id}/version`).then(r => r.json()),
+            sendMessage({ type: 'get_instances' })
+        ]);
+    } catch (err) {
+        instanceSelect.setOptions([{ label: 'Failed to load instances', value: '' }]);
+        versionSelect.setOptions([{ label: 'Failed to load versions', value: '' }]);
+        showStatus(`Failed to load: ${err.message}`, 'error');
+        return;
+    }
 
     // Store state
     currentVersions = versionsRes;
     currentInstances = instancesMsg.instances || [];
+
+    if (instancesMsg.error) {
+        instanceSelect.setOptions([{ label: 'Failed to load instances', value: '' }]);
+        versionSelect.setOptions([{ label: 'No instances available', value: '' }]);
+        showStatus(`Failed to load instances: ${instancesMsg.error}`, 'error');
+        return;
+    }
 
     // Populate instances dropdown
     instanceSelect.setOptions(currentInstances.length

@@ -24,6 +24,7 @@ type Sandbox struct {
 	vm                *goja.Runtime
 	manifest          Manifest
 	onMessageCallback func(map[string]interface{}) (map[string]interface{}, error)
+	callbackMu        sync.Mutex
 }
 
 // InstanceInfo is a minimal view of an instance passed into the sandbox
@@ -525,4 +526,26 @@ func (s *Sandbox) Execute(script string) error {
 		return fmt.Errorf("sandbox execution error: %w", err)
 	}
 	return nil
+}
+
+// InvokeMessage runs the registered onMessage handler for an IPC message.
+// goja runtimes are not thread-safe and extension callbacks may block for a
+// long time (mod downloads, confirmation dialogs), so invocations are
+// serialized per sandbox and panics are recovered so a broken extension can
+// never leave an iframe waiting on a response forever.
+func (s *Sandbox) InvokeMessage(payload map[string]interface{}) (result map[string]interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = nil
+			err = fmt.Errorf("sandbox %s panicked handling IPC message: %v", s.manifest.ID, r)
+		}
+	}()
+
+	s.callbackMu.Lock()
+	defer s.callbackMu.Unlock()
+
+	if s.onMessageCallback == nil {
+		return nil, fmt.Errorf("extension %s has no onMessage handler registered", s.manifest.ID)
+	}
+	return s.onMessageCallback(payload)
 }
