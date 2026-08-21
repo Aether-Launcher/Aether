@@ -42,7 +42,7 @@ func (a *App) startup(ctx context.Context) {
 
 	if !globalSettings.DisableExtensions {
 		// Initialize and load all extensions into their isolates
-		extensions.GlobalManager = extensions.NewManager(ctx)
+		extensions.GlobalManager = extensions.NewManager(ctx, runtime.EventsEmit)
 		extensions.GlobalManager.LoadAll()
 
 		// Wire the mod loader hook so launcher.go can call extension mod loaders

@@ -15,7 +15,6 @@ import (
 
 	"Aether/pkg/fs"
 	"Aether/pkg/instance"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Manager handles the lifecycle of all extensions
@@ -33,6 +32,7 @@ type Manager struct {
 	reloadMu         sync.Mutex
 	reloading        bool
 	reloadDone       chan error
+	emit             func(context.Context, string, ...interface{})
 }
 
 // ModLoaderConfig holds info about a registered mod loader
@@ -50,7 +50,8 @@ const maxExtensionModSize int64 = 100 * 1024 * 1024
 var GlobalManager *Manager
 
 // NewManager creates a new extension manager
-func NewManager(ctx context.Context) *Manager {
+// If emit is nil, event broadcasting is disabled (useful for tests).
+func NewManager(ctx context.Context, emit func(context.Context, string, ...interface{})) *Manager {
 	return &Manager{
 		ctx:              ctx,
 		server:           NewServer(),
@@ -59,6 +60,7 @@ func NewManager(ctx context.Context) *Manager {
 		SidebarPages:     make([]map[string]interface{}, 0),
 		ModLoaders:       make(map[string]ModLoaderConfig),
 		pending:          make(map[string]chan bool),
+		emit:             emit,
 	}
 }
 
@@ -145,7 +147,9 @@ func (m *Manager) ReloadAsync() error {
 	}
 	m.reloadMu.Unlock()
 
-	runtime.EventsEmit(m.ctx, "extension:reload:start", nil)
+	if m.emit != nil {
+		m.emit(m.ctx, "extension:reload:start", nil)
+	}
 	return m.LoadAll()
 }
 
@@ -157,7 +161,9 @@ func (m *Manager) reloadSandboxes() {
 	m.reloading = true
 	defer func() {
 		m.reloading = false
-		runtime.EventsEmit(m.ctx, "extension:reload:complete", nil)
+		if m.emit != nil {
+		m.emit(m.ctx, "extension:reload:complete", nil)
+	}
 	}()
 
 	newSandboxes := make(map[string]*Sandbox)
@@ -306,7 +312,7 @@ func (m *Manager) reloadSandboxes() {
 					return nil
 				}
 			},
-			runtime.EventsEmit,
+			m.emit,
 			m.requestConfirmation,
 		)
 		newSandboxes[id] = sandbox
@@ -348,7 +354,9 @@ func (m *Manager) requestConfirmation(action map[string]interface{}) bool {
 
 	action["requestId"] = id
 	m.audit("confirmation_requested", action)
-	runtime.EventsEmit(m.ctx, "extension:confirmation", action)
+	if m.emit != nil {
+		m.emit(m.ctx, "extension:confirmation", action)
+	}
 
 	select {
 	case approved := <-response:
@@ -449,12 +457,16 @@ func (m *Manager) HandleIPCMessage(extID string, payload map[string]interface{})
 		if requestID, ok := payload["requestId"]; ok {
 			response["requestId"] = requestID
 		}
-		runtime.EventsEmit(m.ctx, "extension:message:"+extID, response)
+		if m.emit != nil {
+			m.emit(m.ctx, "extension:message:"+extID, response)
+		}
 		return
 	}
 
 	// Emit the response back to the frontend as a Wails event
-	runtime.EventsEmit(m.ctx, "extension:message:"+extID, result)
+	if m.emit != nil {
+		m.emit(m.ctx, "extension:message:"+extID, result)
+	}
 }
 
 // GetSidebarPages returns all registered sidebar pages

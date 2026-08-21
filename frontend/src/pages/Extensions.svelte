@@ -262,6 +262,12 @@
         <button class="tab-btn {activeTab === 'installed' ? 'active' : ''}" on:click={() => setTab('installed')}>Installed</button>
         <button class="tab-btn {activeTab === 'gallery' ? 'active' : ''}" on:click={() => setTab('gallery')}>Gallery</button>
       </div>
+      {#if reloading}
+        <div class="reload-indicator">
+          <span class="spinner"></span>
+          <span>Reloading extensions...</span>
+        </div>
+      {/if}
       <button class="btn btn-secondary" on:click={handleReload} disabled={reloading || installedExtensions.length === 0}>
         {reloading ? 'Reloading...' : 'Reload'}
       </button>
@@ -305,6 +311,9 @@
                   <div class="ext-title-row">
                     <h3 class="ext-title">{ext.name} <span class="ext-version">v{ext.version}</span></h3>
                     <div class="ext-badges">
+                      {#if ext.reloading}
+                        <span class="badge badge-reloading" title="Reloading...">Reloading</span>
+                      {/if}
                       {#if updateFor(ext)}
                         <span class="badge badge-update" title="Update available">Update</span>
                       {/if}
@@ -526,6 +535,19 @@
     to { transform: rotate(360deg); }
   }
 
+  .reload-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    border-radius: 8px;
+    color: #60a5fa;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
   .ext-card {
     position: relative;
     padding: 0;
@@ -663,6 +685,7 @@
   .badge-community { background: rgba(168, 85, 247, 0.12);  color: #c084fc;  border: 1px solid rgba(168, 85, 247, 0.3);   }
   .badge-local     { background: rgba(245, 158, 11, 0.12);  color: #fbbf24;  border: 1px solid rgba(245, 158, 11, 0.3);   }
   .badge-update    { background: rgba(34, 197, 94, 0.15);   color: #4ade80;  border: 1px solid rgba(34, 197, 94, 0.35);   }
+  .badge-reloading { background: rgba(59, 130, 246, 0.15);  color: #60a5fa;  border: 1px solid rgba(59, 130, 246, 0.35);  }
 
   .ext-badges {
     display: flex;
