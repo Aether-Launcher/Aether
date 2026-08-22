@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://discord.gg/pQc9NnGhpG">
-    <img src="https://img.shields.io/discord/1276219898393333761?label=Join%20our%20Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge" alt="Discord">
+    <img src="https://img.shields.io/badge/discord-Join%20our%20Discord-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Discord">
   </a>
   <a href="https://github.com/wayback09/Aether/releases">
     <img src="https://img.shields.io/github/v/release/wayback09/Aether?style=for-the-badge&label=Latest%20Release&color=2ea44f" alt="Latest Release">
