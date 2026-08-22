@@ -8,6 +8,18 @@
   <em>A minimal, extensible, lightning-fast Minecraft launcher.</em>
 </p>
 
+<p align="center">
+  <a href="https://discord.gg/pQc9NnGhpG">
+    <img src="https://img.shields.io/discord/1276219898393333761?label=Join%20our%20Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge" alt="Discord">
+  </a>
+  <a href="https://github.com/wayback09/Aether/releases">
+    <img src="https://img.shields.io/github/v/release/wayback09/Aether?style=for-the-badge&label=Latest%20Release&color=2ea44f" alt="Latest Release">
+  </a>
+  <a href="https://github.com/wayback09/Aether/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/wayback09/Aether?style=for-the-badge&color=1f6feb" alt="License">
+  </a>
+</p>
+
 ## Overview
 
 Aether is designed with a single core principle: **This launcher exists to launch Minecraft, and nothing more.**
