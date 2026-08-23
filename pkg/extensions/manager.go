@@ -175,21 +175,24 @@ func (m *Manager) reloadSandboxes() {
 		manifestPath := filepath.Join(extDir, id, "manifest.json")
 		data, err := os.ReadFile(manifestPath)
 		if err != nil {
+			ext.Status = "Error"
+			ext.Reloading = false
+			m.LoadedExtensions[id] = ext
 			continue
 		}
 		var manifest Manifest
 		if err := json.Unmarshal(data, &manifest); err != nil {
+			ext.Status = "Error"
+			ext.Reloading = false
+			m.LoadedExtensions[id] = ext
 			continue
 		}
 		if manifest.ID == "" {
 			manifest.ID = id
 		}
 
-		// Add timeout for sandbox creation/execution
-		ctx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
-		
 		sandbox := NewSandbox(
-			ctx, manifest, m.serverURL,
+			m.ctx, manifest, m.serverURL,
 			func(payload map[string]interface{}) {
 				newSidebarPages = append(newSidebarPages, payload)
 			},
@@ -227,7 +230,8 @@ func (m *Manager) reloadSandboxes() {
 					return "", err
 				}
 				destPath := filepath.Join(modsDir, jarName)
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+				// Use background context for mod downloads – the per-extension timeout is only for Execute, not launch-time operations
+				req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, downloadURL, nil)
 				if err != nil {
 					return "", err
 				}
@@ -321,8 +325,23 @@ func (m *Manager) reloadSandboxes() {
 			scriptPath := filepath.Join(extDir, id, manifest.Main)
 			scriptData, err := os.ReadFile(scriptPath)
 			if err == nil {
-				if err := sandbox.Execute(string(scriptData)); err != nil {
-					fmt.Printf("[Manager] Failed to execute %s for %s: %v\n", manifest.Main, id, err)
+				// Execute with 10s timeout – prevents a hung extension from blocking the whole reload
+				timeoutCtx, cancel := context.WithTimeout(m.ctx, 10*time.Second)
+				done := make(chan error, 1)
+				go func() { done <- sandbox.Execute(string(scriptData)) }()
+				var execErr error
+				select {
+				case execErr = <-done:
+				case <-timeoutCtx.Done():
+					sandbox.vm.Interrupt(fmt.Errorf("extension %s timed out after 10s", id))
+					execErr = <-done
+					if execErr == nil {
+						execErr = fmt.Errorf("timeout")
+					}
+				}
+				cancel()
+				if execErr != nil {
+					fmt.Printf("[Manager] Failed to execute %s for %s: %v\n", manifest.Main, id, execErr)
 					ext.Status = "Error"
 				} else {
 					fmt.Printf("[Manager] Successfully loaded extension isolate: %s\n", id)
@@ -335,7 +354,6 @@ func (m *Manager) reloadSandboxes() {
 
 		ext.Reloading = false
 		m.LoadedExtensions[id] = ext
-		cancel()
 	}
 
 	m.sandboxes = newSandboxes
