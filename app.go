@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	stdruntime "runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"Aether/pkg/auth"
+	"Aether/pkg/discord"
 	"Aether/pkg/extensions"
 	"Aether/pkg/fs"
 	"Aether/pkg/instance"
@@ -63,6 +65,48 @@ func (a *App) startup(ctx context.Context) {
 			if extensions.GlobalManager != nil {
 				extensions.GlobalManager.BroadcastEvent("instance:state", map[string]interface{}{"id": id, "state": state})
 			}
+			// Direct Go fallback for Discord presence – ensures vanilla and early
+			// launches work even if the JS extension hasn't registered yet
+			go func() {
+				defer func() { _ = recover() }()
+				if state == "Running" {
+					var target *instance.Instance
+					for _, inst := range instance.GetInstances() {
+						if inst.ID == id {
+							c := inst
+							target = &c
+							break
+						}
+					}
+					start := time.Now()
+					if target != nil {
+						loader := target.Loader
+						if loader == "" {
+							loader = "vanilla"
+						}
+						stateText := target.Version
+						if loader != "" {
+							stateText = target.Version + " \u2022 " + loader
+						}
+						small := "grass-block"
+						l := strings.ToLower(loader)
+						if strings.Contains(l, "fabric") {
+							small = "fabric"
+						} else if strings.Contains(l, "forge") {
+							small = "forge"
+						} else if strings.Contains(l, "neoforge") {
+							small = "neoforge"
+						} else if strings.Contains(l, "quilt") {
+							small = "quilt"
+						}
+						_ = discord.SetActivity(target.Name, stateText, "grass-block", target.Name, small, loader, &start)
+					} else {
+						_ = discord.SetActivity("Playing Minecraft", state, "grass-block", "", "", "", &start)
+					}
+				} else if state == "Stopped" || state == "Crashed" {
+					_ = discord.SetActivity("Idle in Launcher", "Aether", "aether-logo", "Aether Launcher", "", "", nil)
+				}
+			}()
 		}
 	}
 
