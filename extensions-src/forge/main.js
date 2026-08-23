@@ -17,9 +17,9 @@ Aether.launcher.registerModLoader({
         var mavenUrl = "https://maven.minecraftforge.net/";
         var basePath = "net/minecraftforge/forge/" + fullVer + "/forge-" + fullVer;
 
-        // 2. Determine which jar to download (client for modern, universal for legacy)
-        var jarType = "client";
-        var mainClass = "cpw.mods.modlauncher.Launcher";
+        var mainClass = "cpw.mods.bootstraplauncher.BootstrapLauncher";
+        // Fallback for very old Forge that still uses modlauncher
+        // will be overwritten if versionInfo provides its own
         var jvmArgs = [];
         var gameArgs = [];
 
@@ -28,13 +28,26 @@ Aether.launcher.registerModLoader({
             cp.push(ctx.classpath[idx]);
         }
 
-        // 3. Try to fetch the Forge version JSON for library listing
+        // 2. Try to fetch the Forge version JSON for library listing
+        // Maven no longer publishes a standalone .json for modern Forge
+        // (it lives inside the installer jar), so we try Maven first and
+        // fall back to Prism's upstream mirror, then continue with defaults.
+        var versionInfo = null;
         var jsonUrl = mavenUrl + basePath + ".json";
+        var prismUrl = "https://raw.githubusercontent.com/PrismLauncher/meta-upstream/master/forge/version_manifests/" + fullVer + ".json";
         try {
             var jsonStr = Aether.http.get(jsonUrl);
-            var versionInfo = JSON.parse(jsonStr);
+            versionInfo = JSON.parse(jsonStr);
+        } catch (mavenErr) {
+            try {
+                var prismStr = Aether.http.get(prismUrl);
+                versionInfo = JSON.parse(prismStr);
+            } catch (prismErr) {
+                // No version JSON available – proceed with defaults, do not fatal
+            }
+        }
 
-            // Download all libraries from the version JSON
+        if (versionInfo) {
             function collectArgs(args) {
                 var out = [];
                 if (!args) return out;
@@ -79,34 +92,45 @@ Aether.launcher.registerModLoader({
                             var localPath = Aether.fs.download(lib.downloads.artifact.url, lib.downloads.artifact.path);
                             cp.push(localPath);
                         } catch (libErr) {
-                            // Log the failure but continue — a missing optional lib shouldn't abort the launch
                             throw new Error("[Forge] Failed to download library " + lib.name + ": " + libErr);
                         }
                     }
                 }
             }
 
-            // Use mainClass from version JSON
             var mc = versionInfo.mainClass;
             if (typeof mc === "string") {
                 mainClass = mc;
             } else if (mc && mc.client) {
                 mainClass = mc.client;
             }
-        } catch (jsonErr) {
-            // Version JSON not available for this Forge build — proceed with client jar only
-            throw new Error("[Forge] Could not fetch version JSON: " + jsonErr);
         }
 
-        // 4. Download the Forge client jar, fall back to universal for legacy versions
-        var jarPath;
-        var jarUrl = mavenUrl + basePath + "-" + jarType + ".jar";
-        try {
-            jarPath = Aether.fs.download(jarUrl, basePath + "-" + jarType + ".jar");
-        } catch (e) {
-            // Fallback to universal jar for older Forge versions
-            jarUrl = mavenUrl + basePath + "-universal.jar";
-            jarPath = Aether.fs.download(jarUrl, basePath + "-universal.jar");
+        // 3. Download the Forge jar – modern Forge publishes -client, legacy only -universal
+        var jarPath = null;
+        var jarCandidates = [
+            mavenUrl + basePath + "-client.jar",
+            mavenUrl + basePath + "-universal.jar",
+            mavenUrl + basePath + "-installer.jar",
+            mavenUrl + basePath + ".jar",
+            "https://files.minecraftforge.net/maven/" + basePath + "-client.jar",
+            "https://files.minecraftforge.net/maven/" + basePath + "-universal.jar"
+        ];
+        var lastErr = null;
+        for (var c = 0; c < jarCandidates.length; c++) {
+            var jarUrl = jarCandidates[c];
+            var jarRel = basePath + "-" + jarUrl.substring(jarUrl.lastIndexOf("-") + 1);
+            // keep the filename segment as-is for download cache key
+            var rel = basePath + jarUrl.substring(jarUrl.lastIndexOf("/"));
+            try {
+                jarPath = Aether.fs.download(jarUrl, rel.substring(1));
+                break;
+            } catch (e) {
+                lastErr = e;
+            }
+        }
+        if (!jarPath) {
+            throw new Error("[Forge] Could not download Forge jar: " + lastErr);
         }
         cp.push(jarPath);
 

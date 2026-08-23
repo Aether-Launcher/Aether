@@ -1,7 +1,7 @@
 {
   "id": "forge",
   "name": "Forge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Aether",
   "description": "Adds support for launching the Forge mod loader.",
   "icon": "icon.png",
@@ -14,6 +14,8 @@
   ],
   "hosts": [
     "files.minecraftforge.net",
-    "maven.minecraftforge.net"
+    "maven.minecraftforge.net",
+    "raw.githubusercontent.com",
+    "libraries.minecraft.net"
   ]
 }

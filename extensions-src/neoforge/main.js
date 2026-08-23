@@ -46,7 +46,7 @@ Aether.launcher.registerModLoader({
 
         var mavenUrl = "https://maven.neoforged.net/releases/";
         var basePath = "net/neoforged/neoforge/" + neoforgeVer + "/neoforge-" + neoforgeVer;
-        var mainClass = "cpw.mods.modlauncher.Launcher";
+        var mainClass = "cpw.mods.bootstraplauncher.BootstrapLauncher";
         var jvmArgs = [];
         var gameArgs = [];
 
@@ -56,11 +56,25 @@ Aether.launcher.registerModLoader({
         }
 
         // 2. Fetch the NeoForge version JSON for library listing
+        // Maven no longer publishes a standalone .json for NeoForge; Prism's
+        // upstream mirror does. Try Maven first, then Prism, then continue
+        // with defaults so we don't fatal on 404 (the 1.21.1 bug).
+        var versionInfo = null;
         var jsonUrl = mavenUrl + basePath + ".json";
+        var prismUrl = "https://raw.githubusercontent.com/PrismLauncher/meta-upstream/master/neoforge/version_manifests/" + neoforgeVer + ".json";
         try {
             var jsonStr = Aether.http.get(jsonUrl);
-            var versionInfo = JSON.parse(jsonStr);
+            versionInfo = JSON.parse(jsonStr);
+        } catch (mavenErr) {
+            try {
+                var prismStr = Aether.http.get(prismUrl);
+                versionInfo = JSON.parse(prismStr);
+            } catch (prismErr) {
+                // No version JSON available – proceed with main jar only (non-fatal)
+            }
+        }
 
+        if (versionInfo) {
             function collectArgs(args) {
                 var out = [];
                 if (!args) return out;
@@ -105,7 +119,6 @@ Aether.launcher.registerModLoader({
                             var localPath = Aether.fs.download(lib.downloads.artifact.url, lib.downloads.artifact.path);
                             cp.push(localPath);
                         } catch (libErr) {
-                            // Log the failure but continue — a missing optional lib shouldn't abort the launch
                             throw new Error("[NeoForge] Failed to download library " + lib.name + ": " + libErr);
                         }
                     }
@@ -118,20 +131,29 @@ Aether.launcher.registerModLoader({
             } else if (mc && mc.client) {
                 mainClass = mc.client;
             }
-        } catch (jsonErr) {
-            // Version JSON not available — proceed with main jar only
-            throw new Error("[NeoForge] Could not fetch version JSON: " + jsonErr);
         }
 
-        // 3. Download the NeoForge client jar, fall back to the bundled main jar
-        var jarPath;
-        var jarUrl = mavenUrl + basePath + "-client.jar";
-        try {
-            jarPath = Aether.fs.download(jarUrl, basePath + "-client.jar");
-        } catch (e) {
-            // Fallback for versions that bundle the client into the main jar
-            jarUrl = mavenUrl + basePath + ".jar";
-            jarPath = Aether.fs.download(jarUrl, basePath + ".jar");
+        // 3. Download the NeoForge jar – modern NeoForge only publishes universal/installer
+        var jarPath = null;
+        var jarCandidates = [
+            mavenUrl + basePath + "-universal.jar",
+            mavenUrl + basePath + "-installer.jar",
+            mavenUrl + basePath + "-client.jar",
+            mavenUrl + basePath + ".jar"
+        ];
+        var lastErr = null;
+        for (var c = 0; c < jarCandidates.length; c++) {
+            var jarUrl = jarCandidates[c];
+            var rel = jarUrl.substring(jarUrl.indexOf("net/neoforged"));
+            try {
+                jarPath = Aether.fs.download(jarUrl, rel);
+                break;
+            } catch (e) {
+                lastErr = e;
+            }
+        }
+        if (!jarPath) {
+            throw new Error("[NeoForge] Could not download NeoForge jar: " + lastErr);
         }
         cp.push(jarPath);
 
