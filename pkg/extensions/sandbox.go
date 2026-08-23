@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"Aether/pkg/discord"
 	"Aether/pkg/fs"
 	"Aether/pkg/netutil"
 	"github.com/dop251/goja"
@@ -25,6 +26,8 @@ type Sandbox struct {
 	manifest          Manifest
 	onMessageCallback func(map[string]interface{}) (map[string]interface{}, error)
 	callbackMu        sync.Mutex
+	eventsMu          sync.Mutex
+	eventHandlers     map[string][]goja.Callable
 }
 
 // InstanceInfo is a minimal view of an instance passed into the sandbox
@@ -103,6 +106,12 @@ func NewSandbox(
 		emit = func(_ context.Context, _ string, _ ...interface{}) {}
 	}
 	vm := goja.New()
+	sb := &Sandbox{
+		ctx:           ctx,
+		vm:            vm,
+		manifest:      manifest,
+		eventHandlers: make(map[string][]goja.Callable),
+	}
 
 	// Create the secure Aether bridge object
 	aetherObj := vm.NewObject()
@@ -416,6 +425,89 @@ func NewSandbox(
 		aetherObj.Set("launcher", launcherObj)
 	}
 
+	// Capability: discord:presence
+	if manifest.HasPermission("discord:presence") {
+		discordObj := vm.NewObject()
+		discordObj.Set("setActivity", func(call goja.FunctionCall) goja.Value {
+			details := ""
+			state := ""
+			largeImage := "aether-logo"
+			smallImage := ""
+			largeText := ""
+			smallText := ""
+			var startPtr *time.Time
+			if len(call.Arguments) > 0 {
+				if arg, ok := call.Argument(0).Export().(map[string]interface{}); ok {
+					if v, ok := arg["details"].(string); ok {
+						details = v
+					}
+					if v, ok := arg["state"].(string); ok {
+						state = v
+					}
+					if v, ok := arg["largeImageKey"].(string); ok && v != "" {
+						largeImage = v
+					}
+					if v, ok := arg["largeText"].(string); ok {
+						largeText = v
+					}
+					if v, ok := arg["smallImageKey"].(string); ok {
+						smallImage = v
+					}
+					if v, ok := arg["smallText"].(string); ok {
+						smallText = v
+					}
+					if v, ok := arg["startTimestamp"]; ok {
+						switch ts := v.(type) {
+						case float64:
+							t := time.UnixMilli(int64(ts))
+							startPtr = &t
+						case int64:
+							t := time.UnixMilli(ts)
+							startPtr = &t
+						}
+					}
+				}
+			}
+			// Call discord in background so JS is never blocked
+			go func(d, s, li, lt, si, st string, sp *time.Time) {
+				defer func() { _ = recover() }()
+				_ = discord.SetActivity(d, s, li, lt, si, st, sp)
+			}(details, state, largeImage, largeText, smallImage, smallText, startPtr)
+			return goja.Undefined()
+		})
+		discordObj.Set("clearActivity", func(call goja.FunctionCall) goja.Value {
+			go func() {
+				defer func() { _ = recover() }()
+				_ = discord.Clear()
+			}()
+			return goja.Undefined()
+		})
+		aetherObj.Set("discord", discordObj)
+	}
+
+	// Capability: events (for discord presence and future)
+	if manifest.HasPermission("discord:presence") || manifest.HasPermission("instances:list") {
+		eventsObj := vm.NewObject()
+		eventsObj.Set("on", func(call goja.FunctionCall) goja.Value {
+			event := call.Argument(0).String()
+			if fn, ok := goja.AssertFunction(call.Argument(1)); ok {
+				sb.eventsMu.Lock()
+				sb.eventHandlers[event] = append(sb.eventHandlers[event], fn)
+				sb.eventsMu.Unlock()
+			}
+			return goja.Undefined()
+		})
+		eventsObj.Set("off", func(call goja.FunctionCall) goja.Value {
+			// simple off – clears all handlers for the event
+			event := call.Argument(0).String()
+			sb.eventsMu.Lock()
+			delete(sb.eventHandlers, event)
+			sb.eventsMu.Unlock()
+			return goja.Undefined()
+		})
+		aetherObj.Set("events", eventsObj)
+	}
+
 	// Capability: skin:export
 	if manifest.HasPermission("skin:export") {
 		skinsObj := vm.NewObject()
@@ -486,11 +578,6 @@ func NewSandbox(
 		// Inject the bridge into the global scope
 		vm.Set("Aether", aetherObj)
 
-		sb := &Sandbox{
-			ctx:      ctx,
-			vm:       vm,
-			manifest: manifest,
-		}
 		sb.onMessageCallback = func(payload map[string]interface{}) (map[string]interface{}, error) {
 			if jsMessageHandler == nil {
 				return nil, fmt.Errorf("no onMessage handler registered")
@@ -512,11 +599,7 @@ func NewSandbox(
 	// Inject the bridge into the global scope
 	vm.Set("Aether", aetherObj)
 
-	return &Sandbox{
-		ctx:      ctx,
-		vm:       vm,
-		manifest: manifest,
-	}
+	return sb
 }
 
 // Execute runs a JS script inside the sandbox
@@ -548,4 +631,23 @@ func (s *Sandbox) InvokeMessage(payload map[string]interface{}) (result map[stri
 		return nil, fmt.Errorf("extension %s has no onMessage handler registered", s.manifest.ID)
 	}
 	return s.onMessageCallback(payload)
+}
+
+// EmitEvent dispatches a JS event to all handlers registered via Aether.events.on.
+// It is safe to call from any goroutine.
+func (s *Sandbox) EmitEvent(event string, payload map[string]interface{}) {
+	s.eventsMu.Lock()
+	handlers := append([]goja.Callable(nil), s.eventHandlers[event]...)
+	s.eventsMu.Unlock()
+	if len(handlers) == 0 {
+		return
+	}
+	s.callbackMu.Lock()
+	defer s.callbackMu.Unlock()
+	for _, h := range handlers {
+		func() {
+			defer func() { _ = recover() }()
+			_, _ = h(goja.Undefined(), s.vm.ToValue(payload))
+		}()
+	}
 }

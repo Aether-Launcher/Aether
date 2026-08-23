@@ -94,6 +94,7 @@ Extensions operate under a principle of least privilege. You must explicitly req
 - `fs:download`: Download files to the shared `libraries` directory.
 - `launcher:modloader`: Register a launch-time mod-loader callback.
 - `skin:export`: Write base64 data below the shared `skins` directory.
+- `discord:presence`: Update Discord Rich Presence via `Aether.discord.setActivity` / `clearActivity` and subscribe to `Aether.events.on('instance:state')`.
 
 The legacy `instances:patch` permission remains supported for migration and grants the current instance/mod capabilities. New extensions should use the granular permissions above.
 

@@ -469,6 +469,20 @@ func (m *Manager) HandleIPCMessage(extID string, payload map[string]interface{})
 	}
 }
 
+// BroadcastEvent dispatches an event to all sandboxes that registered via Aether.events.on
+func (m *Manager) BroadcastEvent(event string, payload map[string]interface{}) {
+	// Copy sandboxes to avoid holding lock while invoking JS
+	m.reloadMu.Lock()
+	sandboxes := make([]*Sandbox, 0, len(m.sandboxes))
+	for _, sb := range m.sandboxes {
+		sandboxes = append(sandboxes, sb)
+	}
+	m.reloadMu.Unlock()
+	for _, sb := range sandboxes {
+		sb.EmitEvent(event, payload)
+	}
+}
+
 // GetSidebarPages returns all registered sidebar pages
 func (m *Manager) GetSidebarPages() []map[string]interface{} {
 	return m.SidebarPages

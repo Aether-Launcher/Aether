@@ -1,0 +1,9 @@
+{
+  "name": "discord-presence",
+  "version": "1.0.0",
+  "description": "Discord Rich Presence for Aether",
+  "main": "main.js",
+  "devDependencies": {
+    "@aether/sdk": "file:../../../Aether-SDK"
+  }
+}

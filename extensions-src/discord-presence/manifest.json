@@ -1,0 +1,11 @@
+{
+  "id": "aether.discord-presence",
+  "name": "Discord Rich Presence",
+  "version": "1.0.0",
+  "author": "Aether",
+  "description": "Shows your Minecraft instance in Discord — Idle in launcher or Playing with timer.",
+  "icon": "icon.png",
+  "main": "main.js",
+  "api": "1.0",
+  "permissions": ["discord:presence", "instances:list"]
+}

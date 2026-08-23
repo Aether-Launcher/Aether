@@ -59,6 +59,11 @@ func (a *App) startup(ctx context.Context) {
 			defer modLoaderLaunchMu.Unlock()
 			return loader.Callback(hookCtx)
 		}
+		instance.StateChangeHook = func(id, state string) {
+			if extensions.GlobalManager != nil {
+				extensions.GlobalManager.BroadcastEvent("instance:state", map[string]interface{}{"id": id, "state": state})
+			}
+		}
 	}
 
 	go checkForUpdatesDelayed(ctx)

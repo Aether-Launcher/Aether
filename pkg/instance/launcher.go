@@ -326,6 +326,9 @@ func Launch(ctx context.Context, inst *Instance) error {
 		"id":    inst.ID,
 		"state": "Running",
 	})
+	if StateChangeHook != nil {
+		StateChangeHook(inst.ID, "Running")
+	}
 
 	if globalSettings.CloseOnLaunch {
 		runtime.WindowHide(ctx)
@@ -365,6 +368,9 @@ func Launch(ctx context.Context, inst *Instance) error {
 			"id":    inst.ID,
 			"state": state,
 		})
+		if StateChangeHook != nil {
+			StateChangeHook(inst.ID, state)
+		}
 	}()
 
 	return nil

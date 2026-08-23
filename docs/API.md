@@ -137,10 +137,39 @@ Future API versions will introduce explicit lifecycle callbacks so your extensio
 - `onUnload()`
 - `onUpdate()`
 
-## Events (Planned)
-Future API versions will allow extensions to subscribe to core launcher events:
-- `Aether.events.on('instance:launch', (id) => { ... })`
-- `Aether.events.on('instance:stop', (id) => { ... })`
+## Events
+Extensions can subscribe to core launcher events (requires `discord:presence` or `instances:list`):
+
+- `Aether.events.on('instance:state', (evt) => { ... })`
+  - `evt` is `{ id: string, state: "Running" | "Stopped" | "Crashed" }` – fired when a game process starts/stops.
+  - Example for Rich Presence:
+    ```js
+    Aether.events.on('instance:state', (e) => {
+      if (e.state === 'Running') {
+        const inst = Aether.instances.list().find(i => i.id === e.id);
+        Aether.discord.setActivity({
+          details: inst.name,
+          state: `${inst.version} \u2022 ${inst.loader}`,
+          largeImageKey: "aether-logo",
+          smallImageKey: inst.loader,
+          startTimestamp: Date.now()
+        });
+      } else {
+        Aether.discord.clearActivity();
+      }
+    });
+    ```
+  - `Aether.events.off('instance:state')` removes all handlers for the event.
+
+### Discord Rich Presence (`discord:presence`)
+Requires `discord:presence` permission. Works only if Discord desktop is running.
+
+- `Aether.discord.setActivity(opts)`
+  - `opts`: `{ details, state, largeImageKey, largeText, smallImageKey, smallText, startTimestamp }`
+  - `startTimestamp` is milliseconds since epoch (`Date.now()`).
+- `Aether.discord.clearActivity()` – back to Idle.
+
+Legacy planned names `instance:launch`/`instance:stop` remain supported as aliases for `instance:state` with `Running`/`Stopped`.
 
 ## API Version Negotiation
 Extensions may declare an `api` version in their manifest. The current launcher does not negotiate API versions or enforce `minApi` and `maxApi` ranges; those fields are planned compatibility metadata.
@@ -159,6 +188,7 @@ Current permissions recognized by the runtime:
 - `fs:download`
 - `launcher:modloader`
 - `skin:export`
+- `discord:presence`
 
 The legacy `instances:patch` permission is still recognized for migration and grants the current instance/mod capabilities. New extensions should use the granular permissions above.
 

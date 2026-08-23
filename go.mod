@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/dop251/goja v0.0.0-20260701091749-b07b74453ea9
+	github.com/hugolgst/rich-go v0.0.0-20240715122152-74618cc1ace2
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.8
@@ -41,6 +42,7 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
+	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 )
 
 // replace github.com/wailsapp/wails/v2 v2.12.0 => C:\Users\temit\go\pkg\mod
