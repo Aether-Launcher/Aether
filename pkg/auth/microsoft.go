@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"Aether/pkg/netutil"
 	"github.com/pkg/browser"
 	"github.com/zalando/go-keyring"
 )
@@ -37,6 +38,33 @@ func (e *AuthError) Error() string {
 		return fmt.Sprintf("%s: %s (%v)", e.Code, e.Message, e.Err)
 	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+// doWithRetry executes an HTTP request with retries for transient network failures.
+func doWithRetry(ctx context.Context, newReq func() (*http.Request, error)) (*http.Response, error) {
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if attempt > 1 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(attempt-1) * 500 * time.Millisecond):
+			}
+		}
+		req, err := newReq()
+		if err != nil {
+			return nil, err
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if !netutil.IsTransientNetworkError(err) {
+			break
+		}
+	}
+	return nil, lastErr
 }
 
 // PKCE Helper Functions
@@ -193,14 +221,15 @@ func exchangeCodeAndLogin(ctx context.Context, code, verifier, redirectURI strin
 		"code_verifier": {verifier},
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://login.microsoftonline.com/consumers/oauth2/v2.0/token", strings.NewReader(formData.Encode()))
+	resp, err := doWithRetry(ctx, func() (*http.Request, error) {
+		r, _ := http.NewRequestWithContext(ctx, "POST", "https://login.microsoftonline.com/consumers/oauth2/v2.0/token", strings.NewReader(formData.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return r, nil
+	})
 	if err != nil {
-		return nil, &AuthError{Code: "ERR_HTTP_REQ", Message: "Failed to create token request", Err: err}
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
+		if netutil.IsTransientNetworkError(err) {
+			return nil, &AuthError{Code: "ERR_NET", Message: "No internet connection. Please check your network and try again, or use Offline Login.", Err: err}
+		}
 		return nil, &AuthError{Code: "ERR_NET", Message: "Failed to connect to Microsoft token server", Err: err}
 	}
 	defer resp.Body.Close()
@@ -231,12 +260,16 @@ func authenticateXboxAndMinecraft(ctx context.Context, msAccessToken, msRefreshT
 	}
 
 	xblJSON, _ := json.Marshal(xblReqBody)
-	req, _ := http.NewRequestWithContext(ctx, "POST", "https://user.auth.xboxlive.com/user/authenticate", bytes.NewBuffer(xblJSON))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := doWithRetry(ctx, func() (*http.Request, error) {
+		r, _ := http.NewRequestWithContext(ctx, "POST", "https://user.auth.xboxlive.com/user/authenticate", bytes.NewBuffer(xblJSON))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Accept", "application/json")
+		return r, nil
+	})
 	if err != nil {
+		if netutil.IsTransientNetworkError(err) {
+			return nil, &AuthError{Code: "ERR_NET", Message: "No internet connection. Please check your network and try again.", Err: err}
+		}
 		return nil, &AuthError{Code: "ERR_NET", Message: "Failed to reach Xbox Live auth endpoint", Err: err}
 	}
 	defer resp.Body.Close()
@@ -264,12 +297,16 @@ func authenticateXboxAndMinecraft(ctx context.Context, msAccessToken, msRefreshT
 	}
 
 	xstsJSON, _ := json.Marshal(xstsReqBody)
-	req, _ = http.NewRequestWithContext(ctx, "POST", "https://xsts.auth.xboxlive.com/xsts/authorize", bytes.NewBuffer(xstsJSON))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = doWithRetry(ctx, func() (*http.Request, error) {
+		r, _ := http.NewRequestWithContext(ctx, "POST", "https://xsts.auth.xboxlive.com/xsts/authorize", bytes.NewBuffer(xstsJSON))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Accept", "application/json")
+		return r, nil
+	})
 	if err != nil {
+		if netutil.IsTransientNetworkError(err) {
+			return nil, &AuthError{Code: "ERR_NET", Message: "No internet connection. Please check your network and try again.", Err: err}
+		}
 		return nil, &AuthError{Code: "ERR_NET", Message: "Failed to reach XSTS authorize endpoint", Err: err}
 	}
 	defer resp.Body.Close()
@@ -296,11 +333,15 @@ func authenticateXboxAndMinecraft(ctx context.Context, msAccessToken, msRefreshT
 	mcReqBody := map[string]string{"identityToken": identityToken}
 	mcJSON, _ := json.Marshal(mcReqBody)
 
-	req, _ = http.NewRequestWithContext(ctx, "POST", "https://api.minecraftservices.com/authentication/login_with_xbox", bytes.NewBuffer(mcJSON))
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = doWithRetry(ctx, func() (*http.Request, error) {
+		r, _ := http.NewRequestWithContext(ctx, "POST", "https://api.minecraftservices.com/authentication/login_with_xbox", bytes.NewBuffer(mcJSON))
+		r.Header.Set("Content-Type", "application/json")
+		return r, nil
+	})
 	if err != nil {
+		if netutil.IsTransientNetworkError(err) {
+			return nil, &AuthError{Code: "ERR_NET", Message: "No internet connection. Please check your network and try again.", Err: err}
+		}
 		return nil, &AuthError{Code: "ERR_NET", Message: "Failed to reach Minecraft auth endpoint", Err: err}
 	}
 	defer resp.Body.Close()
@@ -312,11 +353,15 @@ func authenticateXboxAndMinecraft(ctx context.Context, msAccessToken, msRefreshT
 	}
 
 	// 4. Verify Minecraft Game Ownership
-	req, _ = http.NewRequestWithContext(ctx, "GET", "https://api.minecraftservices.com/entitlements/mcstore", nil)
-	req.Header.Set("Authorization", "Bearer "+mcAuth.AccessToken)
-
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = doWithRetry(ctx, func() (*http.Request, error) {
+		r, _ := http.NewRequestWithContext(ctx, "GET", "https://api.minecraftservices.com/entitlements/mcstore", nil)
+		r.Header.Set("Authorization", "Bearer "+mcAuth.AccessToken)
+		return r, nil
+	})
 	if err != nil {
+		if netutil.IsTransientNetworkError(err) {
+			return nil, &AuthError{Code: "ERR_NET", Message: "No internet connection. Please check your network and try again.", Err: err}
+		}
 		return nil, &AuthError{Code: "ERR_NET", Message: "Failed to verify Minecraft entitlements", Err: err}
 	}
 	defer resp.Body.Close()
@@ -338,11 +383,15 @@ func authenticateXboxAndMinecraft(ctx context.Context, msAccessToken, msRefreshT
 	}
 
 	// 5. Fetch Profile
-	req, _ = http.NewRequestWithContext(ctx, "GET", "https://api.minecraftservices.com/minecraft/profile", nil)
-	req.Header.Set("Authorization", "Bearer "+mcAuth.AccessToken)
-
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = doWithRetry(ctx, func() (*http.Request, error) {
+		r, _ := http.NewRequestWithContext(ctx, "GET", "https://api.minecraftservices.com/minecraft/profile", nil)
+		r.Header.Set("Authorization", "Bearer "+mcAuth.AccessToken)
+		return r, nil
+	})
 	if err != nil {
+		if netutil.IsTransientNetworkError(err) {
+			return nil, &AuthError{Code: "ERR_NET", Message: "No internet connection. Please check your network and try again.", Err: err}
+		}
 		return nil, &AuthError{Code: "ERR_NET", Message: "Failed to fetch Minecraft profile", Err: err}
 	}
 	defer resp.Body.Close()
@@ -394,14 +443,15 @@ func RefreshMicrosoftToken(ctx context.Context, acc *Account) (*Account, error) 
 		"refresh_token": {refreshToken},
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://login.microsoftonline.com/consumers/oauth2/v2.0/token", strings.NewReader(formData.Encode()))
+	resp, err := doWithRetry(ctx, func() (*http.Request, error) {
+		r, _ := http.NewRequestWithContext(ctx, "POST", "https://login.microsoftonline.com/consumers/oauth2/v2.0/token", strings.NewReader(formData.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return r, nil
+	})
 	if err != nil {
-		return nil, &AuthError{Code: "ERR_HTTP_REQ", Message: "Failed to build refresh request", Err: err}
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
+		if netutil.IsTransientNetworkError(err) {
+			return nil, &AuthError{Code: "ERR_NET", Message: "No internet connection. Please check your network and try again.", Err: err}
+		}
 		return nil, &AuthError{Code: "ERR_NET", Message: "Failed to reach Microsoft refresh endpoint", Err: err}
 	}
 	defer resp.Body.Close()

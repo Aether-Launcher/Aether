@@ -19,7 +19,18 @@
       dispatch('login', account);
       showModal = false;
     } catch (err: any) {
-      errorMsg = err?.toString() || 'Microsoft login failed';
+      const raw = err?.toString() || 'Microsoft login failed';
+      if (raw.includes('No internet') || raw.includes('no such host') || raw.includes('ERR_NET') || raw.includes('ERR_NET_LISTEN')) {
+        errorMsg = 'No internet connection. Please check your network and try again, or use Offline Login below.';
+      } else if (raw.includes('ERR_NO_GAME')) {
+        errorMsg = 'This Microsoft account does not own Minecraft Java Edition.';
+      } else if (raw.includes('ERR_NO_XBOX')) {
+        errorMsg = 'This Microsoft account has no Xbox profile. Create one at xbox.com first.';
+      } else {
+        // Strip Go prefix like "ERR_NET: ..." for cleaner display
+        errorMsg = raw.replace(/^[A-Z_]+:\s*/, '');
+        if (errorMsg.length > 180) errorMsg = errorMsg.slice(0, 180) + '…';
+      }
     } finally {
       isMsLoading = false;
     }
