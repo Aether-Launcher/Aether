@@ -1,7 +1,7 @@
 {
   "id": "aether.discord-presence",
   "name": "Discord Rich Presence",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Aether",
   "description": "Shows your Minecraft instance in Discord — Idle in launcher or Playing with timer.",
   "icon": "icon.png",

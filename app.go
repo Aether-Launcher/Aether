@@ -62,6 +62,7 @@ func (a *App) startup(ctx context.Context) {
 			return loader.Callback(hookCtx)
 		}
 		instance.StateChangeHook = func(id, state string) {
+			fmt.Printf("[StateChangeHook] id=%s state=%s\n", id, state)
 			if extensions.GlobalManager != nil {
 				extensions.GlobalManager.BroadcastEvent("instance:state", map[string]interface{}{"id": id, "state": state})
 			}
@@ -69,6 +70,7 @@ func (a *App) startup(ctx context.Context) {
 			// launches work even if the JS extension hasn't registered yet
 			go func() {
 				defer func() { _ = recover() }()
+				fmt.Printf("[Discord-Go] StateChangeHook state=%s id=%s\n", state, id)
 				if state == "Running" {
 					var target *instance.Instance
 					for _, inst := range instance.GetInstances() {
@@ -88,7 +90,14 @@ func (a *App) startup(ctx context.Context) {
 						if loader != "" {
 							stateText = target.Version + " \u2022 " + loader
 						}
-						small := "grass-block"
+						if len(stateText) < 2 {
+							stateText = "Playing Minecraft"
+						}
+						details := target.Name
+						if len(details) < 2 {
+							details = "Playing Minecraft"
+						}
+						small := ""
 						l := strings.ToLower(loader)
 						if strings.Contains(l, "fabric") {
 							small = "fabric"
@@ -99,11 +108,18 @@ func (a *App) startup(ctx context.Context) {
 						} else if strings.Contains(l, "quilt") {
 							small = "quilt"
 						}
-						_ = discord.SetActivity(target.Name, stateText, "grass-block", target.Name, small, loader, &start)
+						fmt.Printf("[Discord-Go] SetActivity details=%q state=%q small=%q\n", details, stateText, small)
+						if err := discord.SetActivity(details, stateText, "grass-block", target.Name, small, loader, &start); err != nil {
+							fmt.Printf("[Discord-Go] SetActivity failed: %v\n", err)
+						}
 					} else {
-						_ = discord.SetActivity("Playing Minecraft", state, "grass-block", "", "", "", &start)
+						fmt.Printf("[Discord-Go] SetActivity fallback for id=%s\n", id)
+						if err := discord.SetActivity("Playing Minecraft", state, "grass-block", "", "", "", &start); err != nil {
+							fmt.Printf("[Discord-Go] SetActivity fallback failed: %v\n", err)
+						}
 					}
 				} else if state == "Stopped" || state == "Crashed" {
+					fmt.Printf("[Discord-Go] Clear to Idle\n")
 					_ = discord.SetActivity("Idle in Launcher", "Aether", "aether-logo", "Aether Launcher", "", "", nil)
 				}
 			}()

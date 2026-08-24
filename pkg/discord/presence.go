@@ -31,11 +31,14 @@ func ensureConnected() error {
 // SetActivity updates the Rich Presence.
 // details: instance name, state: "1.21.1 • fabric", start: when launch began.
 func SetActivity(details, state, largeImage, largeText, smallImage, smallText string, start *time.Time) error {
+	fmt.Printf("[Discord] SetActivity details=%q state=%q large=%q small=%q\n", details, state, largeImage, smallImage)
 	// placeholder ID means build hasn't been configured yet — no-op
 	if ClientID == "000000000000000000" {
+		fmt.Printf("[Discord] skipped - placeholder ClientID\n")
 		return nil
 	}
 	if err := ensureConnected(); err != nil {
+		fmt.Printf("[Discord] ensureConnected failed: %v\n", err)
 		return err
 	}
 

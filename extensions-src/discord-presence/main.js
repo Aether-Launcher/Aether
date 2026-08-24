@@ -21,7 +21,12 @@ function loaderSmallKey(loader) {
     if (l.indexOf("forge") !== -1) return "forge";
     if (l.indexOf("neoforge") !== -1) return "neoforge";
     if (l.indexOf("quilt") !== -1) return "quilt";
-    return "grass-block";
+    return "";
+}
+
+function ensureDetails(name) {
+    if (!name || name.length < 2) return "Playing Minecraft";
+    return name;
 }
 
 Aether.events.on("instance:state", function(evt) {
@@ -45,8 +50,8 @@ Aether.events.on("instance:state", function(evt) {
             runningInstanceId = id;
 
             Aether.discord.setActivity({
-                details: name,
-                state: stateText,
+                details: ensureDetails(name),
+                state: stateText.length < 2 ? "Playing Minecraft" : stateText,
                 largeImageKey: "grass-block",
                 largeText: name,
                 smallImageKey: loaderSmallKey(loader),

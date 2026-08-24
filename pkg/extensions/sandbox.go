@@ -639,6 +639,7 @@ func (s *Sandbox) EmitEvent(event string, payload map[string]interface{}) {
 	s.eventsMu.Lock()
 	handlers := append([]goja.Callable(nil), s.eventHandlers[event]...)
 	s.eventsMu.Unlock()
+	fmt.Printf("[Sandbox:%s] EmitEvent %q -> %d handlers payload=%v\n", s.manifest.ID, event, len(handlers), payload)
 	if len(handlers) == 0 {
 		return
 	}
