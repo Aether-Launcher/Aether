@@ -21,8 +21,9 @@ An updater is described in the longer-term architecture but is not implemented i
 1. **Resolution**: Determine the Minecraft version, loader (Fabric, Forge, etc.), and required libraries.
 2. **Verification**: Check if all assets, libraries, and the Java runtime are present. Download missing files.
 3. **Authentication**: Load the selected offline account and deterministic UUID.
-4. **Execution**: Construct the massive Java command line and spawn the child process.
-5. **Monitoring**: Emit process state and log events to the Wails frontend.
+4. **Extension Load**: `LoadAll()` performs fast metadata scan; sandbox creation deferred via `reloadSandboxes()` background goroutine. `UpdateExtension`/`ReloadExtensions` calls `ReloadAsync()` which returns immediately, triggers sandbox script reload with 10s timeout.
+5. **Execution**: Construct the massive Java command line and spawn the child process.
+6. **Monitoring**: Emit process state and log events to the Wails frontend.
 
 ## Diagrams
 

@@ -101,15 +101,20 @@ Because the frontend runs in an isolated `<iframe>`, you use standard Web APIs (
 
 ```javascript
 // Send a message to your backend script
+// Uses computed target origin instead of '*' to prevent message spoofing
+const targetOrigin = window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
 window.parent.postMessage({
     action: 'download_mod',
     instanceId: 'fabric-1.20',
     jarName: 'my-mod.jar',
-    url: 'https://example.com/mod.jar'
-}, '*');
+    url: 'https://example.com/mod.jar',
+    __aether: true // Marker so the backend only responds to our messages
+}, targetOrigin);
 
 // Listen for responses or pushed messages from the backend script
+// Only accept messages from the launcher parent with our __aether marker
 window.addEventListener('message', (event) => {
+    if (event.source !== window.parent || event.data.__aether !== true) return;
     if (event.data.status === 'success') {
         console.log("Mod downloaded to: ", event.data.path);
     }

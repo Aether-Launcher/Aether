@@ -28,6 +28,8 @@ The extension gallery can assign trust labels such as Official, Verified, Commun
 - Extensions attempting to read arbitrary files on the user's system (e.g., SSH keys, browser cookies).
 - Extensions attempting to execute arbitrary shell commands.
 - Extensions attempting to escape the Goja Sandbox.
+- Malicious Modrinth mods injecting XSS via `title`, `author`, `description`, or `icon_url` fields (now sanitized via `createElement` + allowlisted URLs).
+- Frontend iframe message spoofing via wildcard `postMessage('*')` (now validated against `event.source` and `__aether` marker).
 
 **Mitigation:**
 Every privileged operation is strictly mediated by the launcher. Extensions explicitly **CANNOT**:
@@ -39,7 +41,8 @@ Every privileged operation is strictly mediated by the launcher. Extensions expl
 
 - Authentication supports offline accounts and Microsoft account sign-in. Extensions are not given account credentials, access tokens, or refresh tokens through the `Aether` API.
 - File access is abstracted through scoped APIs, but the permitted locations are shared launcher directories such as instance `mods`, `libraries`, and `skins`; they are not isolated per extension.
-- Network access is HTTPS-only and host-allow-listed. Requests are not currently rate-limited or security-logged, but backend responses and mod downloads have size limits.
+- Network access is HTTPS-only and host-allow-listed. Requests are not currently rate-limited or security-logged, but backend responses and mod downloads have size limits. Modrinth icon URLs are validated to only allow `https://cdn.modrinth.com` and subdomains; all user-controlled text is rendered via `textContent` (no `innerHTML` with attacker-controlled data).
+- Frontend `postMessage` now validates `event.source !== window.parent || msg.__aether !== true` and uses a computed target origin instead of `*`.
 
 Sensitive extension confirmation requests and their decisions are recorded as JSON lines in `logs/extension-security.log`.
 
