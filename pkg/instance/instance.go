@@ -81,7 +81,7 @@ func GetActiveInstance() *Instance {
 	return nil
 }
 
-// UpdateInstance saves the modified instance data to disk
+// UpdateInstance saves the modified instance data to disk atomically
 func UpdateInstance(inst *Instance) error {
 	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), inst.ID)
 	if err != nil {
@@ -92,7 +92,11 @@ func UpdateInstance(inst *Instance) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(manifestPath, data, 0644)
+	tmp := manifestPath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, manifestPath)
 }
 
 // DeleteInstance permanently removes an instance directory from disk

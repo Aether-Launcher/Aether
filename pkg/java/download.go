@@ -176,6 +176,10 @@ func extractZip(zipPath, destDir string) error {
 		}
 	}
 
+	var totalExtracted int64
+	const maxTotalBytes = 500 * 1024 * 1024 // 500MB zip bomb limit
+	const maxFileBytes = 100 * 1024 * 1024  // 100MB per file
+
 	for _, f := range r.File {
 		// Strip the top-level directory
 		relPath := strings.TrimPrefix(f.Name, prefix)
@@ -183,10 +187,19 @@ func extractZip(zipPath, destDir string) error {
 			continue
 		}
 
-		target := filepath.Join(destDir, filepath.FromSlash(relPath))
+		cleanRel := filepath.Clean(filepath.FromSlash(relPath))
+		if filepath.IsAbs(cleanRel) || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) || cleanRel == ".." {
+			continue
+		}
+		target, err := fs.ContainedPath(destDir, cleanRel)
+		if err != nil {
+			continue
+		}
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(target, 0755)
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return err
+			}
 			continue
 		}
 
@@ -194,7 +207,7 @@ func extractZip(zipPath, destDir string) error {
 			return err
 		}
 
-		outFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
+		outFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			return err
 		}
@@ -205,11 +218,19 @@ func extractZip(zipPath, destDir string) error {
 			return err
 		}
 
-		_, err = io.Copy(outFile, rc)
+		n, err := io.Copy(outFile, io.LimitReader(rc, maxFileBytes+1))
 		rc.Close()
 		outFile.Close()
 		if err != nil {
 			return err
+		}
+		if n > maxFileBytes {
+			_ = os.Remove(target)
+			return fmt.Errorf("file %s exceeds maximum size", relPath)
+		}
+		totalExtracted += n
+		if totalExtracted > maxTotalBytes {
+			return fmt.Errorf("archive exceeds maximum total size")
 		}
 	}
 	return nil
