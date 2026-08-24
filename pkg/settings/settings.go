@@ -61,7 +61,7 @@ func Load() GlobalSettings {
 	return s
 }
 
-// Save writes the settings to disk
+// Save writes the settings to disk atomically
 func Save(s GlobalSettings) error {
 	path := getSettingsPath()
 	
@@ -75,5 +75,9 @@ func Save(s GlobalSettings) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }

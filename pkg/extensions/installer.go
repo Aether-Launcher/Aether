@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"Aether/pkg/fs"
@@ -32,25 +33,32 @@ func InstallFromArchive(archivePath string) error {
 	}
 	defer r.Close()
 
-	// Extract all files
+	// Extract all files with ZipSlip protection and size limits
+	var totalExtracted int64
+	const maxTotalBytes = 50 * 1024 * 1024
+	const maxFileBytes = 20 * 1024 * 1024
 	for _, f := range r.File {
-		// Prevent ZipSlip vulnerability
-		if strings.Contains(f.Name, "..") {
+		cleanName := filepath.Clean(filepath.FromSlash(f.Name))
+		if filepath.IsAbs(cleanName) || strings.HasPrefix(cleanName, ".."+string(filepath.Separator)) || cleanName == ".." {
 			continue
 		}
-
-		fpath := filepath.Join(tempDir, f.Name)
+		fpath, err := fs.ContainedPath(tempDir, cleanName)
+		if err != nil {
+			continue
+		}
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(fpath, os.ModePerm)
+			if err := os.MkdirAll(fpath, 0755); err != nil {
+				return err
+			}
 			continue
 		}
 
-		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err = os.MkdirAll(filepath.Dir(fpath), 0755); err != nil {
 			return err
 		}
 
-		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			return err
 		}
@@ -61,11 +69,19 @@ func InstallFromArchive(archivePath string) error {
 			return err
 		}
 
-		_, err = io.Copy(outFile, rc)
+		n, err := io.Copy(outFile, io.LimitReader(rc, maxFileBytes+1))
 		outFile.Close()
 		rc.Close()
 		if err != nil {
 			return err
+		}
+		if n > maxFileBytes {
+			_ = os.Remove(fpath)
+			return fmt.Errorf("file %s exceeds maximum size", f.Name)
+		}
+		totalExtracted += n
+		if totalExtracted > maxTotalBytes {
+			return fmt.Errorf("archive exceeds maximum total size")
 		}
 	}
 
@@ -108,9 +124,15 @@ func InstallFromArchive(archivePath string) error {
 	if manifest.ID == "" {
 		return fmt.Errorf("invalid manifest: missing 'id'")
 	}
+	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9._-]+$`, manifest.ID); !matched {
+		return fmt.Errorf("invalid manifest id %q", manifest.ID)
+	}
 
-	// Target directory
-	targetDir := filepath.Join(extDir, manifest.ID)
+	// Target directory with containment check
+	targetDir, err := fs.ContainedPath(extDir, manifest.ID)
+	if err != nil {
+		return fmt.Errorf("invalid manifest id: %w", err)
+	}
 	
 	// Remove old version if it exists
 	os.RemoveAll(targetDir)

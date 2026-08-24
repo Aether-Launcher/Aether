@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"sync"
+	"time"
 )
 
 const ManifestURL = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
 
 var versionManifestURL = ManifestURL
+var manifestClient = &http.Client{Timeout: 15 * time.Second}
 
 type VersionManifest struct {
 	Latest struct {
@@ -206,13 +209,56 @@ func ResolveArguments(rawArgs []json.RawMessage) []string {
 	return result
 }
 
-// GetVersionManifest fetches the master manifest
+var versionManifestCache = struct {
+	mu       sync.Mutex
+	cached   *VersionManifest
+	expiredAt time.Time
+}{}
+
+// GetVersionManifest fetches the master manifest with cache and timeout
 func GetVersionManifest() (*VersionManifest, error) {
-	resp, err := http.Get(versionManifestURL)
+	versionManifestCache.mu.Lock()
+	if versionManifestCache.cached != nil && time.Since(versionManifestCache.expiredAt) < 5*time.Minute {
+		c := versionManifestCache.cached
+		versionManifestCache.mu.Unlock()
+		return c, nil
+	}
+	versionManifestCache.mu.Unlock()
+
+	resp, err := manifestClient.Get(versionManifestURL)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("manifest request failed with status %d", resp.StatusCode)
+	}
+
+	var manifest VersionManifest
+	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
+		return nil, err
+	}
+
+	versionManifestCache.mu.Lock()
+	versionManifestCache.cached = &manifest
+	versionManifestCache.expiredAt = time.Now().Add(5 * time.Minute)
+	c := versionManifestCache.cached
+	versionManifestCache.mu.Unlock()
+	return c, nil
+}
+
+// GetVersionManifestRaw fetches the master manifest without cache (for immediate fresh reads)
+func GetVersionManifestRaw() (*VersionManifest, error) {
+	resp, err := manifestClient.Get(versionManifestURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("manifest request failed with status %d", resp.StatusCode)
+	}
 
 	var manifest VersionManifest
 	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {

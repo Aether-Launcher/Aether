@@ -38,12 +38,20 @@ var (
 // Gracefully falls back to the cached copy if the user is offline or GitHub is unreachable.
 func GetGalleryExtensions() []GalleryExtension {
 	galleryCacheMu.Lock()
-	defer galleryCacheMu.Unlock()
+	if galleryCache != nil && time.Since(galleryCacheAt) < galleryCacheTTL {
+		c := galleryCache
+		galleryCacheMu.Unlock()
+		return c
+	}
+	galleryCacheMu.Unlock()
 
+	// Fetch outside lock to avoid blocking LoadAll
+	galleryCacheMu.Lock()
+	defer galleryCacheMu.Unlock()
+	// Re-check after re-acquiring lock (another goroutine may have filled cache)
 	if galleryCache != nil && time.Since(galleryCacheAt) < galleryCacheTTL {
 		return galleryCache
 	}
-
 	cached, err := fetchGalleryIndexLocked()
 	if err != nil {
 		return cached

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"Aether/pkg/fs"
 	"github.com/zalando/go-keyring"
@@ -36,6 +37,7 @@ type AccountStore struct {
 }
 
 var store AccountStore
+var storeMu sync.Mutex
 
 func getStorePath() string {
 	return filepath.Join(fs.GetDataDir(), "accounts.json")
@@ -52,18 +54,30 @@ func LoadAccounts() error {
 		}
 		return err
 	}
-	return json.Unmarshal(data, &store)
+	if err := json.Unmarshal(data, &store); err != nil {
+		// Backup corrupt file and reset
+		_ = os.WriteFile(path+".corrupt", data, 0600)
+		store = AccountStore{Accounts: []Account{}}
+		return nil
+	}
+	return nil
 }
 
-// SaveAccounts writes the in-memory store to accounts.json
+// SaveAccounts writes the in-memory store to accounts.json atomically
 func SaveAccounts() error {
 	path := getStorePath()
-	os.MkdirAll(filepath.Dir(path), 0755)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(store, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // GenerateOfflineUUID generates a deterministic UUID for offline mode based on username
@@ -76,6 +90,8 @@ func GenerateOfflineUUID(username string) string {
 
 // AddOfflineAccount creates a new offline account and sets it as active
 func AddOfflineAccount(username string) (Account, error) {
+	storeMu.Lock()
+	defer storeMu.Unlock()
 	if err := LoadAccounts(); err != nil {
 		return Account{}, err
 	}
@@ -85,7 +101,7 @@ func AddOfflineAccount(username string) (Account, error) {
 	for _, acc := range store.Accounts {
 		if acc.ID == id {
 			store.ActiveAccountID = id
-			SaveAccounts()
+			_ = SaveAccounts()
 			return acc, nil
 		}
 	}
@@ -104,6 +120,8 @@ func AddOfflineAccount(username string) (Account, error) {
 
 // AddMicrosoftAccount saves a Microsoft account and sets it as active
 func AddMicrosoftAccount(acc Account) error {
+	storeMu.Lock()
+	defer storeMu.Unlock()
 	if err := LoadAccounts(); err != nil {
 		return err
 	}

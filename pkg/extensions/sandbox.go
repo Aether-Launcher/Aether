@@ -220,19 +220,53 @@ func NewSandbox(
 				panic(vm.NewGoError(fmt.Errorf("access denied to URL: %s", targetURL)))
 			}
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
-			if err != nil {
-				panic(vm.NewGoError(err))
+			// Create client with redirect validation
+			client := &http.Client{
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					if !isAllowedURL(req.URL.String()) {
+						return fmt.Errorf("redirect to disallowed host: %s", req.URL.Host)
+					}
+					if len(via) >= 10 {
+						return fmt.Errorf("too many redirects")
+					}
+					return nil
+				},
+				Timeout: 30 * time.Second,
 			}
-			resp, err := httpGetWithRetry(ctx, req)
-			if err != nil {
-				if netutil.IsTransientNetworkError(err) {
+
+			var lastErr error
+			var resp *http.Response
+			for attempt := 1; attempt <= 3; attempt++ {
+				if attempt > 1 {
+					select {
+					case <-ctx.Done():
+						panic(vm.NewGoError(ctx.Err()))
+					case <-time.After(time.Duration(attempt-1) * 500 * time.Millisecond):
+					}
+				}
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				r, err := client.Do(req)
+				if err == nil {
+					resp = r
+					lastErr = nil
+					break
+				}
+				lastErr = err
+				if !netutil.IsTransientNetworkError(err) {
+					break
+				}
+			}
+			if lastErr != nil {
+				if netutil.IsTransientNetworkError(lastErr) {
 					if cached, ok := readHttpCache(targetURL); ok {
 						fmt.Printf("[Sandbox:%s] Serving cached meta for %s\n", manifest.ID, targetURL)
 						return vm.ToValue(cached)
 					}
 				}
-				panic(vm.NewGoError(err))
+				panic(vm.NewGoError(lastErr))
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
@@ -272,6 +306,11 @@ func NewSandbox(
 
 			if err := netutil.DownloadFile(ctx, targetURL, safePath, nil); err != nil {
 				panic(vm.NewGoError(err))
+			}
+			// Enforce size limit for generic downloads (installMod has its own 100MiB check)
+			if info, err := os.Stat(safePath); err == nil && info.Size() > maxExtensionHTTPResponse {
+				_ = os.Remove(safePath)
+				panic(vm.NewGoError(fmt.Errorf("downloaded file exceeds %d bytes", maxExtensionHTTPResponse)))
 			}
 			return vm.ToValue(safePath)
 		})

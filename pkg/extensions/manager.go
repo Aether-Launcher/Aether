@@ -335,11 +335,13 @@ func (m *Manager) reloadSandboxes() {
 				case <-timeoutCtx.Done():
 					sandbox.vm.Interrupt(fmt.Errorf("extension %s timed out after 10s", id))
 					execErr = <-done
+					sandbox.vm.ClearInterrupt()
 					if execErr == nil {
 						execErr = fmt.Errorf("timeout")
 					}
 				}
 				cancel()
+				sandbox.vm.ClearInterrupt()
 				if execErr != nil {
 					fmt.Printf("[Manager] Failed to execute %s for %s: %v\n", manifest.Main, id, execErr)
 					ext.Status = "Error"
