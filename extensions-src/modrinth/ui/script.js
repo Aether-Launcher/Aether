@@ -1,3 +1,24 @@
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function isModrinthIconURL(url) {
+    try {
+        const u = new URL(url);
+        return u.protocol === 'https:' && (u.hostname === 'cdn.modrinth.com' || u.hostname.endsWith('.modrinth.com'));
+    } catch {
+        return false;
+    }
+}
+
+function escHTML(s) {
+    return String(s).replace(/[&<>"']/g, m => ({
+        '&': '&',
+        '<': '<',
+        '>': '>',
+        '"': '"',
+        "'": '''
+    }[m]));
+}
+
 // ── Custom Select (replaces native <select>) ──────────────────────────────
 
 function initCustomSelect(containerEl) {
@@ -37,15 +58,22 @@ function initCustomSelect(containerEl) {
     // Click outside closes all
     document.addEventListener('click', () => close(), { once: false });
 
-    return {
+return {
         container: containerEl,
         trigger,
         optionsEl,
         textEl,
         setOptions(options) {
-            optionsEl.innerHTML = options.map((opt, i) =>
-                `<div class="custom-select-option" data-index="${i}" title="${opt.label.replace(/"/g, '&quot;')}">${opt.label}</div>`
-            ).join('');
+            // Build options DOM safely — no innerHTML with user data
+            const optionElements = options.map((opt, i) => {
+                const div = document.createElement('div');
+                div.className = 'custom-select-option';
+                div.dataset.index = i;
+                div.textContent = opt.label;
+                div.title = opt.label;
+                return div;
+            });
+            optionsEl.replaceChildren(...optionElements);
 
             // Store values as data attributes on the container
             containerEl._optionValues = options.map(o => o.value);
@@ -97,8 +125,13 @@ function sendMessage(payload, timeoutMs) {
     return new Promise((resolve) => {
         const id = ++reqCounter;
         payload.requestId = id;
+        payload.__aether = true;
         pending[id] = resolve;
-        window.parent.postMessage(payload, '*');
+        // Use specific origin reference; fallback to window.parent which is the launcher
+        const targetOrigin = typeof window !== 'undefined' && window.location
+            ? window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '')
+            : '';
+        window.parent.postMessage(payload, targetOrigin);
         // Never leave the UI hanging: resolve with an error if the sandbox
         // does not answer in time.
         setTimeout(() => {
@@ -113,6 +146,8 @@ function sendMessage(payload, timeoutMs) {
 window.addEventListener('message', (e) => {
     const msg = e.data;
     if (!msg || !msg.requestId) return;
+    // Only accept messages from the launcher parent, and only our marked payloads
+    if (e.source !== window.parent || msg.__aether !== true) return;
     const resolve = pending[msg.requestId];
     if (resolve) {
         delete pending[msg.requestId];
@@ -221,31 +256,110 @@ async function search(query) {
             return;
         }
 
-        resultsDiv.innerHTML = '<div class="grid">' + modHits.map(hit => {
-            const icon = hit.icon_url
-                ? `<img src="${hit.icon_url}" class="card-icon" alt="" />`
-                : `<div class="card-icon card-icon-placeholder">${hit.title.charAt(0)}</div>`;
+        resultsDiv.replaceChildren();
+
+        if (!modHits.length) {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'placeholder-wrap';
+            const placeholderIcon = document.createElement('div');
+            placeholderIcon.className = 'placeholder-icon';
+            placeholderIcon.textContent = '♛';
+            const placeholderText = document.createElement('p');
+            placeholderText.textContent = 'No mods found.';
+            placeholder.appendChild(placeholderIcon);
+            placeholder.appendChild(placeholderText);
+            resultsDiv.appendChild(placeholder);
+            return;
+        }
+
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+
+        modHits.forEach(hit => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.dataset.id = hit.project_id;
+            card.dataset.title = encodeURIComponent(hit.title);
+            card.dataset.author = encodeURIComponent(hit.author);
+            card.dataset.icon = encodeURIComponent(hit.icon_url || '');
+
+            // Title element (safe text)
+            const titleEl = document.createElement('div');
+            titleEl.className = 'card-title';
+            titleEl.textContent = hit.title;
+
+            // Author element (safe text)
+            const authorEl = document.createElement('div');
+            authorEl.className = 'card-author';
+            authorEl.textContent = 'by ' + hit.author;
+
+            // Icon
+            const iconContainer = document.createElement('div');
+            iconContainer.className = 'card-top';
+
+            let iconElement;
+            if (hit.icon_url && isModrinthIconURL(hit.icon_url)) {
+                iconElement = document.createElement('img');
+                iconElement.className = 'card-icon';
+                iconElement.src = hit.icon_url;
+                iconElement.alt = '';
+            } else {
+                const placeholder = document.createElement('div');
+                placeholder.className = 'card-icon card-icon-placeholder';
+                placeholder.textContent = hit.title ? hit.title.charAt(0) : '';
+                iconElement = placeholder;
+            }
+            iconContainer.appendChild(iconElement);
+
+            // Description (safe text, escaped)
+            const descEl = document.createElement('p');
+            descEl.className = 'card-desc';
+            descEl.textContent = hit.description.replace(/[&<>"']/g, m => ({
+                '&': '&',
+                '<': '<',
+                '>': '>',
+                '"': '"',
+                "'": '''
+            }[m]));
+
+            // Downloads
             const dl = hit.downloads >= 1000000
                 ? (hit.downloads / 1000000).toFixed(1) + 'M'
                 : hit.downloads >= 1000
                     ? (hit.downloads / 1000).toFixed(0) + 'K'
                     : hit.downloads;
-            return `
-            <div class="card" data-id="${hit.project_id}" data-title="${encodeURIComponent(hit.title)}" data-author="${encodeURIComponent(hit.author)}" data-icon="${encodeURIComponent(hit.icon_url || '')}">
-                <div class="card-top">
-                    ${icon}
-                    <div class="card-info">
-                        <div class="card-title">${hit.title}</div>
-                        <div class="card-author">by ${hit.author}</div>
-                    </div>
-                </div>
-                <p class="card-desc">${hit.description}</p>
-                <div class="card-footer">
-                    <span class="card-downloads">⬇ ${dl}</span>
-                    <button class="btn-install-card" data-id="${hit.project_id}">Install</button>
-                </div>
-            </div>`;
-        }).join('') + '</div>';
+            const downloadsSpan = document.createElement('span');
+            downloadsSpan.className = 'card-downloads';
+            downloadsSpan.textContent = '⬇ ' + dl;
+
+            // Install button
+            const installBtn = document.createElement('button');
+            installBtn.className = 'btn-install-card';
+            installBtn.dataset.id = hit.project_id;
+            installBtn.textContent = 'Install';
+
+            // Assemble card top
+            const cardTop = document.createElement('div');
+            cardTop.className = 'card-top';
+            cardTop.appendChild(iconElement);
+
+            // Assemble card
+            card.appendChild(cardTop);
+            card.appendChild(titleEl);
+            card.appendChild(authorEl);
+            card.appendChild(descEl);
+
+            // Append footer with downloads and button
+            const footer = document.createElement('div');
+            footer.className = 'card-footer';
+            footer.appendChild(downloadsSpan);
+            footer.appendChild(installBtn);
+            card.appendChild(footer);
+
+            grid.appendChild(card);
+        });
+
+        resultsDiv.appendChild(grid);
 
         // Attach click handlers to Install buttons
         document.querySelectorAll('.btn-install-card').forEach(btn => {
@@ -262,7 +376,12 @@ async function search(query) {
         });
 
     } catch (err) {
-        resultsDiv.innerHTML = `<div class="placeholder-wrap"><p>Error: ${err.message}</p></div>`;
+        const errEl = document.createElement('div');
+        errEl.className = 'placeholder-wrap';
+        const errP = document.createElement('p');
+        errP.textContent = 'Error: ' + err.message;
+        errEl.appendChild(errP);
+        resultsDiv.appendChild(errEl);
     }
 }
 
@@ -285,10 +404,18 @@ async function openInstallModal(mod) {
     // Populate header
     modalModName.textContent = mod.title;
     modalModAuthor.textContent = 'by ' + mod.author;
-    if (mod.icon) {
-        modalModIcon.innerHTML = `<img src="${mod.icon}" alt="" />`;
+    if (mod.icon && isModrinthIconURL(mod.icon)) {
+        const img = document.createElement('img');
+        img.src = mod.icon;
+        img.alt = '';
+        modalModIcon.innerHTML = ''; // clear first
+        modalModIcon.appendChild(img);
     } else {
-        modalModIcon.innerHTML = `<div class="icon-letter">${mod.title.charAt(0)}</div>`;
+        modalModIcon.textContent = '';
+        const letter = document.createElement('div');
+        letter.className = 'icon-letter';
+        letter.textContent = mod.title ? mod.title.charAt(0) : '';
+        modalModIcon.appendChild(letter);
     }
 
     // Reset state

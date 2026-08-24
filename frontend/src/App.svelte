@@ -45,7 +45,10 @@
   }
 
   function handleRegisterExtensionRoute(event: CustomEvent<{ id: string; url: string; extensionId: string }>) {
-    extensionRoutes[event.detail.id] = { url: event.detail.url, extensionId: event.detail.extensionId };
+    extensionRoutes = {
+      ...extensionRoutes,
+      [event.detail.id]: { url: event.detail.url, extensionId: event.detail.extensionId }
+    };
   }
 
   // ── Command Palette ──────────────────────────────────────────────────────────
@@ -121,9 +124,13 @@
     titleBarStyle = chrome === 'system' ? 'system' : 'custom';
     window.addEventListener('keydown', onGlobalKeydown);
     const unsubscribe = EventsOn('extension:confirmation', showExtensionConfirmation);
+    const resetUnsubscribe = EventsOn('extension:sidebar:reset', () => {
+      extensionRoutes = {};
+    });
     return () => {
       window.removeEventListener('keydown', onGlobalKeydown);
       unsubscribe();
+      resetUnsubscribe();
     };
   });
 </script>
@@ -152,11 +159,11 @@
         <Extensions />
       {:else if activePage === 'settings'}
         <Settings />
-      {:else if extensionRoutes[activePage]}
-        {#key extensionRoutes[activePage].extensionId}
-          <ExtensionView url={extensionRoutes[activePage].url} extID={extensionRoutes[activePage].extensionId} />
-        {/key}
-      {:else}
+{:else if extensionRoutes[activePage]}
+    {#key activePage}
+      <ExtensionView url={extensionRoutes[activePage].url} extID={extensionRoutes[activePage].extensionId} />
+    {/key}
+  {:else}
         <div class="placeholder">
           <h2>{activePage.charAt(0).toUpperCase() + activePage.slice(1)}</h2>
           <p>This page is under construction.</p>

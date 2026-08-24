@@ -7,8 +7,8 @@
   export let extID: string = '';
 
   let iframeEl: HTMLIFrameElement;
+  let unsubscribe: (() => void) | null = null;
 
-  // Listen for messages FROM the iframe → forward to Go sandbox
   function onWindowMessage(event: MessageEvent) {
     if (!iframeEl || event.source !== iframeEl.contentWindow) return;
     if (extID && event.data && typeof event.data === 'object') {
@@ -16,24 +16,27 @@
     }
   }
 
-  // Listen for responses FROM Go sandbox → forward back to iframe
-  let unsubscribe: (() => void) | null = null;
+  function subscribe(channel: string | null) {
+    if (unsubscribe) unsubscribe();
+    if (!channel) return;
+    unsubscribe = EventsOn(`extension:message:${channel}`, (payload: any) => {
+      if (iframeEl?.contentWindow) {
+        iframeEl.contentWindow.postMessage(payload, '*');
+      }
+    });
+  }
 
   onMount(() => {
     window.addEventListener('message', onWindowMessage);
-
-    if (extID) {
-      unsubscribe = EventsOn(`extension:message:${extID}`, (payload: any) => {
-        if (iframeEl?.contentWindow) {
-          iframeEl.contentWindow.postMessage(payload, '*');
-        }
-      });
-    }
+    subscribe(extID);
   });
+
+ $: if (extID) subscribe(extID);
 
   onDestroy(() => {
     window.removeEventListener('message', onWindowMessage);
     if (unsubscribe) unsubscribe();
+    if (iframeEl) iframeEl.src = 'about:blank';
   });
 </script>
 

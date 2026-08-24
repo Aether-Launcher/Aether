@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime } from '../../wailsjs/go/main/App.js';
-  import { EventsOn } from '../../wailsjs/runtime/runtime.js';
+  import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   import Dropdown from '../components/Dropdown.svelte';
 
   let settings = {
@@ -17,6 +17,7 @@
 
   let saving = false;
   let saveSuccess = false;
+  let saveTimeout: number | null = null;
   let javaStatuses: any[] = [];
   let javaDownloading: Record<number, string> = {};
 
@@ -57,7 +58,9 @@
     }
   }
 
-  onMount(async () => {
+  let javaStatusUnsub: (() => void) | null = null;
+
+onMount(async () => {
     try {
       const s = await GetSettings();
       settings = { ...settings, ...s };
@@ -66,7 +69,7 @@
       console.error("Failed to load settings:", e);
     }
 
-    EventsOn('java:status', (data: any) => {
+    javaStatusUnsub = EventsOn('java:status', (data: any) => {
       if (data && data.version) {
         if (data.phase === 'done') {
           delete javaDownloading[data.version];
@@ -80,15 +83,21 @@
     });
   });
 
+  onDestroy(() => {
+    if (javaStatusUnsub) javaStatusUnsub();
+    clearTimeout(saveTimeout);
+  });
+
   async function save() {
     saving = true;
     saveSuccess = false;
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      saveSuccess = false;
+    }, 2000);
     try {
       await SaveSettings(settings);
       saveSuccess = true;
-      setTimeout(() => {
-        saveSuccess = false;
-      }, 2000);
     } catch (e) {
       console.error("Failed to save settings:", e);
     } finally {

@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { GetInstances, UpdateInstance, DeleteInstance, LaunchInstance } from '../../wailsjs/go/main/App.js';
   import Dropdown from '../components/Dropdown.svelte';
   import ConfirmDialog from '../lib/components/ConfirmDialog.svelte';
 
   export let instanceId = '';
+
+  let loadInstanceToken = 0;
 
   const dispatch = createEventDispatcher();
   let instance: any = null;
@@ -26,6 +28,15 @@
     await loadInstance();
   });
 
+  // Reactive: reload instance when instanceId changes without remount
+  $: if (instanceId) {
+    loadInstanceToken++;
+    const token = loadInstanceToken;
+    loadInstance().then(() => {
+      if (token === loadInstanceToken) loadInstanceToken = 0;
+    });
+  }
+
   async function loadInstance() {
     const all = await GetInstances();
     instance = all.find((i: any) => i.id === instanceId);
@@ -37,8 +48,7 @@
 
   async function saveChanges() {
     if (!instance) return;
-    instance.name = editName;
-    instance.memory = editMemory;
+    instance = { ...instance, name: editName, memory: editMemory };
     
     try {
       await UpdateInstance(instance);

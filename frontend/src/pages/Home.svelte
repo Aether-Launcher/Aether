@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
-  import { EventsOn } from '../../wailsjs/runtime/runtime.js';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
+import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { gameStore } from '../stores/gameStore.js';
   import EmptyState from '../components/EmptyState.svelte';
 
@@ -30,37 +30,54 @@
 
     // instance:state and instance:log are handled globally in gameStore.
     // Install progress is page-local — only relevant while Home is mounted.
-    EventsOn("instance:progress", (data: any) => {
+    const u1 = EventsOn("instance:progress", (data: any) => {
       if (currentInstance && data.id === currentInstance.id) {
         installProgress = data.progress;
         installStatusText = data.status;
         if (data.progress >= 100) {
-          currentInstance.installed = true;
+          currentInstance = { ...currentInstance, installed: true };
           installStatusText = '';
           installError = '';
         }
       }
     });
 
-    EventsOn("instance:error", (data: any) => {
+    const u2 = EventsOn("instance:error", (data: any) => {
       if (currentInstance && data.id === currentInstance.id) {
         installError = data.message || 'Installation failed.';
         installStatusText = 'Error';
       }
     });
 
-    EventsOn("java:status", (data: any) => {
+    const u3 = EventsOn("java:status", (data: any) => {
       if (data.phase === 'done') {
         javaStatus = null;
       } else {
         javaStatus = data;
       }
     });
+
+    return () => {
+      u1();
+      u2();
+      u3();
+    };
   });
 
-  // Reactive: when activeInstanceId changes (e.g. after instance creation), reload and install
-  $: if (activeInstanceId) {
-    loadAndInstall(activeInstanceId);
+  onDestroy(() => {
+    EventsOff('instance:progress', 'instance:error', 'java:status');
+  });
+
+  let loadInstallToken = 0;
+
+// Reactive: when activeInstanceId changes (e.g. after instance creation), reload and install
+$: if (activeInstanceId) {
+    loadInstallToken++;
+    const token = loadInstallToken;
+    loadAndInstall(activeInstanceId).then(() => {
+      // Only clear token if still the current token (not superseded by a new navigation)
+      if (token === loadInstallToken) loadInstallToken = 0;
+    });
   }
 
   async function loadHome() {
