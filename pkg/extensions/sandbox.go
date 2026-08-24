@@ -2,7 +2,9 @@ package extensions
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,6 +61,36 @@ func httpGetWithRetry(ctx context.Context, req *http.Request) (*http.Response, e
 		}
 	}
 	return nil, lastErr
+}
+
+const httpCacheTTL = 24 * time.Hour
+
+func httpCachePath(target string) string {
+	h := sha256.Sum256([]byte(target))
+	name := hex.EncodeToString(h[:]) + ".cache"
+	return filepath.Join(fs.GetDataDir(), "libraries", ".cache", "http", name)
+}
+
+func writeHttpCache(target, body string) {
+	path := httpCachePath(target)
+	_ = os.MkdirAll(filepath.Dir(path), 0755)
+	_ = os.WriteFile(path, []byte(body), 0644)
+}
+
+func readHttpCache(target string) (string, bool) {
+	path := httpCachePath(target)
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", false
+	}
+	if time.Since(info.ModTime()) > httpCacheTTL {
+		return "", false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	return string(data), true
 }
 
 type modLoaderCallbackKey struct {
@@ -194,6 +226,12 @@ func NewSandbox(
 			}
 			resp, err := httpGetWithRetry(ctx, req)
 			if err != nil {
+				if netutil.IsTransientNetworkError(err) {
+					if cached, ok := readHttpCache(targetURL); ok {
+						fmt.Printf("[Sandbox:%s] Serving cached meta for %s\n", manifest.ID, targetURL)
+						return vm.ToValue(cached)
+					}
+				}
 				panic(vm.NewGoError(err))
 			}
 			defer resp.Body.Close()
@@ -208,7 +246,9 @@ func NewSandbox(
 			if len(body) > maxExtensionHTTPResponse {
 				panic(vm.NewGoError(fmt.Errorf("HTTP response exceeds %d bytes", maxExtensionHTTPResponse)))
 			}
-			return vm.ToValue(string(body))
+			bodyStr := string(body)
+			writeHttpCache(targetURL, bodyStr)
+			return vm.ToValue(bodyStr)
 		})
 		aetherObj.Set("http", httpObj)
 	}
