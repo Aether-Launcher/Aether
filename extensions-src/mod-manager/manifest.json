@@ -1,7 +1,7 @@
 {
   "id": "mod-manager",
   "name": "Mod Manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Aether",
   "description": "Manage mods for all your instances.",
   "icon": "icon.png",

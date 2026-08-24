@@ -1,6 +1,6 @@
 {
   "name": "mod-manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Mod Manager",
   "main": "main.js",
   "devDependencies": {
