@@ -44,7 +44,7 @@ function initCustomSelect(containerEl) {
         textEl,
         setOptions(options) {
             optionsEl.innerHTML = options.map((opt, i) =>
-                `<div class="custom-select-option" data-index="${i}">${opt.label}</div>`
+                `<div class="custom-select-option" data-index="${i}" title="${opt.label.replace(/"/g, '&quot;')}">${opt.label}</div>`
             ).join('');
 
             // Store values as data attributes on the container
@@ -182,8 +182,15 @@ function updateVersionDropdown(inst) {
     versionSelect.setOptions(filtered.map(v => {
         const origIdx = currentVersions.indexOf(v);
         const compatLabel = v.game_versions.includes(instVer) ? '' : '⚠️ ';
+        // Avoid redundant name when it already contains the version_number
+        const needsName = v.name && v.name !== v.version_number && !v.name.includes(v.version_number);
+        const namePart = needsName ? ` — ${v.name}` : '';
+        // Keep label concise: version + optional non-redundant name. Game version is already implied by filter.
+        let label = `${compatLabel}${v.version_number}${namePart}${warning}`;
+        // Hard truncate for UI (CSS ellipsis also applies, but keep DOM light)
+        if (label.length > 52) label = label.slice(0, 49) + '...';
         return {
-            label: `${compatLabel}${v.version_number} — ${v.name} (${v.game_versions.slice(0, 3).join(', ')})${warning}`,
+            label,
             value: String(origIdx)
         };
     }));
