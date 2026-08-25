@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { GetInstances, UpdateInstance, DeleteInstance, LaunchInstance } from '../../wailsjs/go/main/App.js';
   import Dropdown from '../components/Dropdown.svelte';
   import ConfirmDialog from '../lib/components/ConfirmDialog.svelte';

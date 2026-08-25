@@ -47,6 +47,10 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Type-check frontend
+        working-directory: frontend
+        run: npm run check
+
       - name: Linux dependencies
         if: runner.os == 'Linux'
         env:

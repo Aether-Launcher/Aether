@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime } from '../../wailsjs/go/main/App.js';
-  import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
+  import { EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { BrowserOpenURL } from '../../wailsjs/runtime/runtime.js';
   import Dropdown from '../components/Dropdown.svelte';
 
@@ -18,7 +18,7 @@
 
   let saving = false;
   let saveSuccess = false;
-  let saveTimeout: number | null = null;
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let javaStatuses: any[] = [];
   let javaDownloading: Record<number, string> = {};
 
