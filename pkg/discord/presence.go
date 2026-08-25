@@ -50,7 +50,7 @@ func SetActivity(details, state, largeImage, largeText, smallImage, smallText st
 		SmallImage: smallImage,
 		SmallText:  smallText,
 		Buttons: []*client.Button{
-			{Label: "Join Aether Discord", Url: "https://discord.gg/pQc9NnGhpG"},
+			{Label: "Join Aether Discord", Url: "https://discord.gg/hyPWTs9FfM"},
 		},
 	}
 	if start != nil {

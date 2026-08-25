@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/pQc9NnGhpG">
+  <a href="https://discord.gg/hyPWTs9FfM">
     <img src="https://img.shields.io/badge/discord-Join%20our%20Discord-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Discord">
   </a>
   <a href="https://github.com/wayback09/Aether/releases">
