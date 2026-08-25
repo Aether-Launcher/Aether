@@ -210,15 +210,20 @@ func ResolveArguments(rawArgs []json.RawMessage) []string {
 }
 
 var versionManifestCache = struct {
-	mu       sync.Mutex
-	cached   *VersionManifest
-	expiredAt time.Time
+	mu        sync.Mutex
+	url       string
+	cached    *VersionManifest
+	expiresAt time.Time
 }{}
 
-// GetVersionManifest fetches the master manifest with cache and timeout
+// GetVersionManifest fetches the master manifest with cache and timeout.
+// The cache is keyed to versionManifestURL: if the URL changes (tests swap it
+// for a mock server), the stale entry is ignored and a fresh fetch happens.
 func GetVersionManifest() (*VersionManifest, error) {
 	versionManifestCache.mu.Lock()
-	if versionManifestCache.cached != nil && time.Since(versionManifestCache.expiredAt) < 5*time.Minute {
+	if versionManifestCache.cached != nil &&
+		versionManifestCache.url == versionManifestURL &&
+		time.Now().Before(versionManifestCache.expiresAt) {
 		c := versionManifestCache.cached
 		versionManifestCache.mu.Unlock()
 		return c, nil
@@ -241,8 +246,9 @@ func GetVersionManifest() (*VersionManifest, error) {
 	}
 
 	versionManifestCache.mu.Lock()
+	versionManifestCache.url = versionManifestURL
 	versionManifestCache.cached = &manifest
-	versionManifestCache.expiredAt = time.Now().Add(5 * time.Minute)
+	versionManifestCache.expiresAt = time.Now().Add(5 * time.Minute)
 	c := versionManifestCache.cached
 	versionManifestCache.mu.Unlock()
 	return c, nil
