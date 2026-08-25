@@ -64,17 +64,31 @@ OUTPUT="build/bin/Aether-linux-amd64.AppImage"
 mkdir -p build/bin
 
 TOOL="/tmp/appimagetool-x86_64.AppImage"
-if ! command -v appimagetool >/dev/null 2>&1; then
+run_appimagetool() {
+    if command -v appimagetool >/dev/null 2>&1; then
+        appimagetool --no-appstream "$APPDIR" "$OUTPUT"
+        return $?
+    fi
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "[AppImage] curl unavailable; skipping packaging." >&2
+        return 1
+    fi
     if [ ! -f "$TOOL" ]; then
         echo "[AppImage] Downloading appimagetool..."
-        curl -fsSL -o "$TOOL" \
-            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+        if ! curl -fsSL -o "$TOOL" \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"; then
+            echo "[AppImage] Could not download appimagetool; skipping packaging." >&2
+            return 1
+        fi
     fi
     chmod +x "$TOOL"
     # APPIMAGE_EXTRACT_AND_RUN=1 works on distros without FUSE2
     APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" --no-appstream "$APPDIR" "$OUTPUT"
-else
-    appimagetool --no-appstream "$APPDIR" "$OUTPUT"
-fi
+}
 
-echo "[AppImage] Built: $OUTPUT"
+if run_appimagetool; then
+    echo "[AppImage] Built: $OUTPUT"
+else
+    echo "[AppImage] WARNING: binary built, but AppImage packaging was skipped." >&2
+    echo "[AppImage] A ready-to-package AppDir is at: $APPDIR" >&2
+fi
