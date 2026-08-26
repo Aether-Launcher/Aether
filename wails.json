@@ -7,8 +7,7 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "postBuildHooks": {
-    "darwin/*": "../../build/darwin/compile-icon.sh \"${bin}\"",
-    "linux/*": "bash ../../build/linux/appimage.sh \"${bin}\""
+    "darwin/*": "../../build/darwin/compile-icon.sh \"${bin}\""
   },
   "author": {
     "name": "CyberDroid456",

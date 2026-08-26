@@ -62,7 +62,7 @@ Download the latest release for your platform from the [Releases](../../releases
 |---|---|
 | Windows (x64) | `Aether-windows-amd64-installer.exe` |
 | macOS (Apple Silicon) | `Aether-macos-arm64.dmg` |
-| Linux (x64) | `Aether-linux-amd64` |
+| Linux (x64) | `Aether-linux-amd64.AppImage` (or `.tar.gz`) |
 
 ## Building from Source
 
@@ -70,6 +70,7 @@ If you'd like to build Aether from source, ensure you have the following install
 - [Go 1.25+](https://go.dev/doc/install)
 - [Node.js 20+](https://nodejs.org/)
 - [Wails CLI v2](https://wails.io/docs/gettingstarted/installation)
+- **Linux only:** `sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev` to build, and `sudo apt install libwebkit2gtk-4.0-37 libgtk-3-0 libayatana-appindicator3-1` to run the AppImage/binary. On newer distros where `libwebkit2gtk-4.0` is unavailable, use `libwebkit2gtk-4.1-0` / `libwebkit2gtk-4.1-dev` instead.
 
 ```bash
 # Clone the repository
