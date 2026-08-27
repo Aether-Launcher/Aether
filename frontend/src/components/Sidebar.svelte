@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
   import { GetExtensionSidebarPages, GetConnectivityStatus } from '../../wailsjs/go/main/App';
+  import { themeAssets } from '../stores/theme';
   import AccountManager from './AccountManager.svelte';
   import Icon from './Icon.svelte';
   import UpdateBanner from './UpdateBanner.svelte';
@@ -106,7 +107,7 @@
 
 <aside class="sidebar">
   <div class="logo">
-    <img src="/logo.png" alt="Logo" class="sidebar-logo" />
+    <img src={$themeAssets['sidebar-logo'] || '/logo.png'} alt="Logo" class="sidebar-logo" />
     Aether
   </div>
 

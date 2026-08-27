@@ -1,6 +1,8 @@
 # Extensions Guide
 
 > **Current status:** `.aex` extensions and the Goja backend API described below are implemented. An `.aex` file is a zip-format package with an Aether-specific file extension; standard `.zip` packages are not the supported user-facing install format. The Aether CLI and SDK are published as sibling projects. Install the CLI with `go install github.com/wayback09/aether-cli@latest` and the SDK with `npm install --save-dev @aethermc/sdk`.
+>
+> Looking to change how Aether *looks* rather than what it *does*? That's a much smaller, code-free package format — see [`docs/THEMES.md`](THEMES.md).
 
 ## Architecture Overview
 Aether extensions operate in two distinct, isolated layers:

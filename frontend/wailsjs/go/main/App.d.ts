@@ -7,6 +7,7 @@ import {mojang} from '../models';
 import {extensions} from '../models';
 import {main} from '../models';
 import {settings} from '../models';
+import {theme} from '../models';
 
 export function CheckForUpdates():Promise<update.Info>;
 
@@ -26,6 +27,10 @@ export function GetActiveAccount():Promise<auth.Account>;
 
 export function GetActiveInstance():Promise<instance.Instance>;
 
+export function GetActiveThemeAssets():Promise<Record<string, string>>;
+
+export function GetActiveThemeCSS():Promise<string>;
+
 export function GetAvailableVersions(arg1:boolean):Promise<Array<string>>;
 
 export function GetConnectivityStatus():Promise<mojang.ConnectivityStatus>;
@@ -43,6 +48,8 @@ export function GetJavaStatus():Promise<Array<main.JavaRuntimeStatus>>;
 export function GetModLoaders():Promise<Array<main.ModLoaderInfo>>;
 
 export function GetSettings():Promise<settings.GlobalSettings>;
+
+export function GetThemes():Promise<Array<theme.Info>>;
 
 export function InstallInstance(arg1:string):Promise<void>;
 
@@ -62,13 +69,19 @@ export function SelectAndImportInstance():Promise<string>;
 
 export function SelectAndInstallExtension():Promise<boolean>;
 
+export function SelectAndInstallTheme():Promise<theme.InstallResult>;
+
 export function SendExtensionMessage(arg1:string,arg2:Record<string, any>):Promise<void>;
 
 export function SetActiveAccount(arg1:string):Promise<void>;
 
+export function SetActiveTheme(arg1:string):Promise<void>;
+
 export function StartMicrosoftAuth():Promise<auth.Account>;
 
 export function UninstallExtension(arg1:string):Promise<void>;
+
+export function UninstallTheme(arg1:string):Promise<void>;
 
 export function UpdateExtension(arg1:string):Promise<extensions.ExtensionUpdate>;
 

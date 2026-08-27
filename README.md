@@ -43,6 +43,7 @@ All project documentation is located in the `docs/` directory. If you are lookin
 - **[API & Interoperability](docs/API.md)** - Details on the extension API and permission model.
 - **[Extensions Guide](docs/EXTENSIONS.md)** - How to build, package, and publish extensions for Aether.
   - *Looking for the official extension registry? Visit the [Aether-Extensions](https://github.com/wayback09/Aether-Extensions) repository.*
+- **[Themes Guide](docs/THEMES.md)** - How to build and package `.theme` CSS/asset overwrites for Aether.
 - **[Security & Sandboxing](docs/SECURITY.md)** - Threat models, capability isolation, and review guidelines.
 - **[UI Specifications](docs/UI.md)** - Layout rules, components, and empty states.
 - **[Styleguide](docs/STYLEGUIDE.md)** - Visual language, typography, colors, and animations.
