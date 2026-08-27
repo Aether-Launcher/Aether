@@ -36,6 +36,18 @@ cat > "$APPDIR/AppRun" <<'APPRUN_EOF'
 SELF="$(readlink -f "$0")"
 HERE="$(dirname "$SELF")"
 export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# Arch has webkit at /usr/lib/webkit2gtk-4.0, Debian/Ubuntu at /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0.
+# The Ubuntu-built libwebkit expects the Debian path.
+if [ ! -e /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitNetworkProcess ] && [ -e /usr/lib/webkit2gtk-4.0/WebKitNetworkProcess ]; then
+  echo "[Aether] Detected Arch webkit layout; Debian path missing." >&2
+  echo "[Aether] Try: sudo mkdir -p /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0 && sudo ln -sf /usr/lib/webkit2gtk-4.0/WebKitNetworkProcess /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitNetworkProcess" >&2
+fi
+if [ ! -e /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitNetworkProcess ] && [ ! -e /usr/lib/webkit2gtk-4.0/WebKitNetworkProcess ] && [ ! -e /usr/lib/webkit2gtk-4.1/WebKitNetworkProcess ]; then
+  echo "[Aether] ERROR: No WebKit found. Install:" >&2
+  echo "[Aether]   Ubuntu 22.04: sudo apt install libwebkit2gtk-4.0-37 libgtk-3-0 libayatana-appindicator3-1" >&2
+  echo "[Aether]   Ubuntu 24.04+: sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1" >&2
+  echo "[Aether]   Arch: sudo pacman -S webkit2gtk gtk3 libappindicator-gtk3" >&2
+fi
 exec "$HERE/usr/bin/Aether" "$@"
 APPRUN_EOF
 chmod +x "$APPDIR/AppRun"

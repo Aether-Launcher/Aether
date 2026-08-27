@@ -64,6 +64,37 @@ Download the latest release for your platform from the [Releases](../../releases
 | macOS (Apple Silicon) | `Aether-macos-arm64.dmg` |
 | Linux (x64) | `Aether-linux-amd64.AppImage` (or `.tar.gz`) |
 
+<details>
+<summary>Linux troubleshooting</summary>
+
+**Always run the AppImage itself**, not the extracted binary:
+
+```bash
+chmod +x Aether-linux-amd64.AppImage
+./Aether-linux-amd64.AppImage
+# do NOT do: ./Aether-linux-amd64.AppImage --appimage-extract && ./squashfs-root/usr/bin/Aether
+# (that bypasses AppRun and will always fail with libwebkit missing)
+```
+
+If you see `libwebkit2gtk-4.0.so.37: cannot open shared object file` or `Unable to spawn ... WebKitNetworkProcess (No such file or directory)`:
+
+```bash
+# Ubuntu 22.04 / Debian 12 / Mint 21
+sudo apt update && sudo apt install libwebkit2gtk-4.0-37 libgtk-3-0 libayatana-appindicator3-1
+# Ubuntu 24.04+ / Mint 22+ (4.0 → 4.1)
+sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1
+# Arch Linux — also needs Debian-path symlink for the Ubuntu-built AppImage:
+sudo pacman -S webkit2gtk gtk3 libappindicator-gtk3
+sudo mkdir -p /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0
+sudo ln -sf /usr/lib/webkit2gtk-4.0/WebKitNetworkProcess /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitNetworkProcess 2>/dev/null || true
+sudo ln -sf /usr/lib/webkit2gtk-4.0/WebKitWebProcess /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitWebProcess 2>/dev/null || true
+# Fedora
+sudo dnf install webkit2gtk4.0 gtk3 libappindicator-gtk3
+```
+
+The AppImage does not bundle WebKit itself — it uses your host's WebKit, like Chrome/Electron do.
+</details>
+
 ## Building from Source
 
 If you'd like to build Aether from source, ensure you have the following installed:
