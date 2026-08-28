@@ -27,5 +27,5 @@ go.work
 
 # Aether Local Dev Data
 .aether/
-website/  
- 
+website/
+dist-themes/

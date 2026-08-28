@@ -6,7 +6,7 @@ require (
 	github.com/dop251/goja v0.0.0-20260701091749-b07b74453ea9
 	github.com/hugolgst/rich-go v0.0.0-20240715122152-74618cc1ace2
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/wailsapp/wails/v2 v2.15.0
+	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.8
 )
 

@@ -278,6 +278,7 @@ export namespace theme {
 	    icon?: string;
 	    css?: string;
 	    overwrite?: string;
+	    minAetherVersion?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Manifest(source);
@@ -293,6 +294,7 @@ export namespace theme {
 	        this.icon = source["icon"];
 	        this.css = source["css"];
 	        this.overwrite = source["overwrite"];
+	        this.minAetherVersion = source["minAetherVersion"];
 	    }
 	}
 	export class InstallResult {

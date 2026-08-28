@@ -18,6 +18,12 @@ type Manifest struct {
 	// Overwrite is the path to the JSON file mapping asset keys to PNG
 	// filenames within the package. Defaults to "overwrite.json".
 	Overwrite string `json:"overwrite,omitempty"`
+
+	// MinAetherVersion specifies the minimum launcher version required for
+	// this theme. If set and the running launcher is older, the installer
+	// will emit a warning but will not block installation. Format: semver
+	// (e.g., "1.2.0"). Optional.
+	MinAetherVersion string `json:"minAetherVersion,omitempty"`
 }
 
 // applyDefaults fills in optional fields with their conventional filenames.
