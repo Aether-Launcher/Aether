@@ -38,6 +38,14 @@ export function GetActiveInstance() {
   return window['go']['main']['App']['GetActiveInstance']();
 }
 
+export function GetActiveThemeAssets() {
+  return window['go']['main']['App']['GetActiveThemeAssets']();
+}
+
+export function GetActiveThemeCSS() {
+  return window['go']['main']['App']['GetActiveThemeCSS']();
+}
+
 export function GetAvailableVersions(arg1) {
   return window['go']['main']['App']['GetAvailableVersions'](arg1);
 }
@@ -72,6 +80,10 @@ export function GetModLoaders() {
 
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
+}
+
+export function GetThemes() {
+  return window['go']['main']['App']['GetThemes']();
 }
 
 export function InstallInstance(arg1) {
@@ -110,6 +122,10 @@ export function SelectAndInstallExtension() {
   return window['go']['main']['App']['SelectAndInstallExtension']();
 }
 
+export function SelectAndInstallTheme() {
+  return window['go']['main']['App']['SelectAndInstallTheme']();
+}
+
 export function SendExtensionMessage(arg1, arg2) {
   return window['go']['main']['App']['SendExtensionMessage'](arg1, arg2);
 }
@@ -118,12 +134,20 @@ export function SetActiveAccount(arg1) {
   return window['go']['main']['App']['SetActiveAccount'](arg1);
 }
 
+export function SetActiveTheme(arg1) {
+  return window['go']['main']['App']['SetActiveTheme'](arg1);
+}
+
 export function StartMicrosoftAuth() {
   return window['go']['main']['App']['StartMicrosoftAuth']();
 }
 
 export function UninstallExtension(arg1) {
   return window['go']['main']['App']['UninstallExtension'](arg1);
+}
+
+export function UninstallTheme(arg1) {
+  return window['go']['main']['App']['UninstallTheme'](arg1);
 }
 
 export function UpdateExtension(arg1) {

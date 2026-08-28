@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime } from '../../wailsjs/go/main/App.js';
+  import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime, GetThemes, SelectAndInstallTheme, SetActiveTheme, UninstallTheme } from '../../wailsjs/go/main/App.js';
   import { EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { BrowserOpenURL } from '../../wailsjs/runtime/runtime.js';
   import Dropdown from '../components/Dropdown.svelte';
+  import { applyActiveTheme } from '../stores/theme';
+  import { toast } from '../stores/toast';
 
   let settings = {
     defaultMemory: '4096',
@@ -21,6 +23,10 @@
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let javaStatuses: any[] = [];
   let javaDownloading: Record<number, string> = {};
+
+  let themes: any[] = [];
+  let installingTheme = false;
+  let themeBusyId = '';
 
   const memoryOptions = [
     { label: '2 GB', value: '2048' },
@@ -66,6 +72,7 @@ onMount(async () => {
       const s = await GetSettings();
       settings = { ...settings, ...s };
       await loadJavaStatuses();
+      await loadThemes();
     } catch (e) {
       console.error("Failed to load settings:", e);
     }
@@ -88,6 +95,66 @@ onMount(async () => {
     if (javaStatusUnsub) javaStatusUnsub();
     clearTimeout(saveTimeout);
   });
+
+  async function loadThemes() {
+    try {
+      themes = (await GetThemes()) || [];
+    } catch (e) {
+      console.error('Failed to load themes:', e);
+    }
+  }
+
+  async function installTheme() {
+    if (installingTheme) return;
+    installingTheme = true;
+    try {
+      const result = await SelectAndInstallTheme();
+      if (result && result.Manifest) {
+        toast.success(`Installed theme "${result.Manifest.name}"`);
+        if (result.Warnings && result.Warnings.length) {
+          for (const w of result.Warnings) toast.info(w, 6000);
+        }
+        await loadThemes();
+      }
+    } catch (e: any) {
+      console.error('Failed to install theme:', e);
+      toast.error('Could not install theme: ' + (e?.message || e));
+    } finally {
+      installingTheme = false;
+    }
+  }
+
+  async function activateTheme(id: string) {
+    if (themeBusyId) return;
+    themeBusyId = id;
+    try {
+      await SetActiveTheme(id);
+      await loadThemes();
+      await applyActiveTheme();
+      toast.success(id ? 'Theme applied.' : 'Reverted to the default look.');
+    } catch (e: any) {
+      console.error('Failed to activate theme:', e);
+      toast.error('Could not apply theme: ' + (e?.message || e));
+    } finally {
+      themeBusyId = '';
+    }
+  }
+
+  async function removeTheme(id: string) {
+    if (themeBusyId) return;
+    themeBusyId = id;
+    try {
+      await UninstallTheme(id);
+      await loadThemes();
+      await applyActiveTheme();
+      toast.success('Theme removed.');
+    } catch (e: any) {
+      console.error('Failed to remove theme:', e);
+      toast.error('Could not remove theme: ' + (e?.message || e));
+    } finally {
+      themeBusyId = '';
+    }
+  }
 
   async function save() {
     saving = true;
@@ -137,6 +204,62 @@ onMount(async () => {
             <div class="label-desc">Aether will hide itself when Minecraft opens and reappear when it closes.</div>
           </div>
         </label>
+      </div>
+    </div>
+
+    <!-- Appearance Section -->
+    <div class="settings-card card">
+      <h2>Appearance</h2>
+
+      <div class="form-group vertical">
+        <div class="field-label">
+          <div class="label-title">Themes</div>
+          <div class="label-desc">
+            Install a <code>.theme</code> package to restyle Aether. Themes are a CSS overwrite plus optional
+            logo/background images — they can't touch the launcher's app icon or its name.
+          </div>
+        </div>
+
+        <div class="theme-list">
+          {#if themes.length === 0}
+            <p class="theme-empty">No themes installed yet.</p>
+          {/if}
+          {#each themes as t (t.id)}
+            <div class="theme-item">
+              <div class="theme-item-info">
+                {#if t.iconUrl}
+                  <img src={t.iconUrl} alt="" class="theme-icon" />
+                {/if}
+                <div>
+                  <div class="theme-name">
+                    {t.name}
+                    <span class="theme-version">v{t.version}</span>
+                  </div>
+                  {#if t.description}<div class="theme-desc">{t.description}</div>{/if}
+                </div>
+              </div>
+              <div class="theme-item-actions">
+                {#if t.active}
+                  <span class="badge badge-verified">Active</span>
+                  <button class="btn btn-secondary btn-sm" disabled={themeBusyId === t.id} on:click={() => activateTheme('')}>
+                    Disable
+                  </button>
+                {:else}
+                  <button class="btn btn-secondary btn-sm" disabled={!!themeBusyId} on:click={() => activateTheme(t.id)}>
+                    Apply
+                  </button>
+                {/if}
+                <button class="btn btn-danger btn-sm" disabled={themeBusyId === t.id} on:click={() => removeTheme(t.id)}>
+                  Remove
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <button class="btn btn-secondary" disabled={installingTheme} on:click={installTheme}>
+          {installingTheme ? 'Installing…' : 'Install Theme (.theme)'}
+        </button>
       </div>
     </div>
 
@@ -514,6 +637,74 @@ onMount(async () => {
   .java-progress {
     font-size: 12px;
     color: #60a5fa;
+  }
+
+  .theme-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    width: 100%;
+  }
+
+  .theme-empty {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .theme-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--border-radius-md);
+  }
+
+  .theme-item-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .theme-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .theme-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .theme-version {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .theme-desc {
+    font-size: 12px;
+    color: var(--text-meta);
+    max-width: 42ch;
+  }
+
+  .theme-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   .btn-sm {

@@ -33,6 +33,7 @@ func EnsureDirectories() error {
 	dirs := []string{
 		filepath.Join(base, "instances"),
 		filepath.Join(base, "extensions"),
+		filepath.Join(base, "themes"),
 		filepath.Join(base, "assets"),
 		filepath.Join(base, "logs"),
 	}

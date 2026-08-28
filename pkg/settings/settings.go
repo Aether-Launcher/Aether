@@ -18,6 +18,7 @@ type GlobalSettings struct {
 	CustomJVMArgs      string `json:"customJvmArgs,omitempty"`
 	AutoCheckUpdates   bool   `json:"autoCheckUpdates"`
 	IncludeBetaUpdates bool   `json:"includeBetaUpdates"`
+	ActiveTheme        string `json:"activeTheme,omitempty"`
 }
 
 // GetDefaultSettings returns the default configuration
@@ -42,7 +43,7 @@ func getSettingsPath() string {
 // Load reads the settings from disk or returns defaults if not found/invalid
 func Load() GlobalSettings {
 	path := getSettingsPath()
-	
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return GetDefaultSettings()
@@ -64,7 +65,7 @@ func Load() GlobalSettings {
 // Save writes the settings to disk atomically
 func Save(s GlobalSettings) error {
 	path := getSettingsPath()
-	
+
 	// Ensure the parent directory exists
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { EventsOn } from '../wailsjs/runtime/runtime.js';
   import { ResolveExtensionConfirmation, WindowChrome } from '../wailsjs/go/main/App.js';
+  import { applyActiveTheme, themeAssets } from './stores/theme';
   import TitleBar from './components/TitleBar.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
@@ -123,6 +124,7 @@
     const chrome = await WindowChrome().catch(() => 'custom');
     titleBarStyle = chrome === 'system' ? 'system' : 'custom';
     window.addEventListener('keydown', onGlobalKeydown);
+    applyActiveTheme();
     const unsubscribe = EventsOn('extension:confirmation', showExtensionConfirmation);
     const resetUnsubscribe = EventsOn('extension:sidebar:reset', () => {
       extensionRoutes = {};
@@ -135,7 +137,10 @@
   });
 </script>
 
-<div class="app-container">
+<div
+  class="app-container"
+  style={$themeAssets['background'] ? `background-image: url('${$themeAssets['background']}'); background-size: cover; background-position: center;` : ''}
+>
   {#if titleBarStyle === 'custom'}
     <TitleBar />
   {:else if titleBarStyle === 'system' && isMacOS}

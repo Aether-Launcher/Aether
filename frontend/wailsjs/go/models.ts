@@ -221,6 +221,7 @@ export namespace settings {
 	    customJvmArgs?: string;
 	    autoCheckUpdates: boolean;
 	    includeBetaUpdates: boolean;
+	    activeTheme?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GlobalSettings(source);
@@ -236,7 +237,95 @@ export namespace settings {
 	        this.customJvmArgs = source["customJvmArgs"];
 	        this.autoCheckUpdates = source["autoCheckUpdates"];
 	        this.includeBetaUpdates = source["includeBetaUpdates"];
+	        this.activeTheme = source["activeTheme"];
 	    }
+	}
+
+}
+
+export namespace theme {
+	
+	export class Info {
+	    id: string;
+	    name: string;
+	    version: string;
+	    author?: string;
+	    description?: string;
+	    iconUrl?: string;
+	    active: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Info(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.author = source["author"];
+	        this.description = source["description"];
+	        this.iconUrl = source["iconUrl"];
+	        this.active = source["active"];
+	    }
+	}
+	export class Manifest {
+	    id: string;
+	    name: string;
+	    version: string;
+	    author?: string;
+	    description?: string;
+	    icon?: string;
+	    css?: string;
+	    overwrite?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Manifest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.author = source["author"];
+	        this.description = source["description"];
+	        this.icon = source["icon"];
+	        this.css = source["css"];
+	        this.overwrite = source["overwrite"];
+	    }
+	}
+	export class InstallResult {
+	    Manifest: Manifest;
+	    Warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new InstallResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Manifest = this.convertValues(source["Manifest"], Manifest);
+	        this.Warnings = source["Warnings"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

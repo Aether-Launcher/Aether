@@ -1,5 +1,6 @@
 <script lang="ts">
   import { WindowMinimise, WindowToggleMaximise, Quit } from '../../wailsjs/runtime/runtime.js';
+  import { themeAssets } from '../stores/theme';
 
   let isMaximized = false;
 
@@ -19,7 +20,7 @@
 
 <div class="titlebar" style="--wails-draggable: drag">
   <div class="title">
-    <img src="/logo.png" alt="Logo" class="logo-img" />
+    <img src={$themeAssets['titlebar-logo'] || '/logo.png'} alt="Logo" class="logo-img" />
     <span>Aether</span>
   </div>
 
