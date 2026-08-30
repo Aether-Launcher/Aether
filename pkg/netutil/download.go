@@ -57,6 +57,18 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 		if attemptErr == nil {
 			// Success — rename temp file to final destination
 			if err := os.Rename(tempDest, dest); err != nil {
+				// On Windows another goroutine may have already renamed the same
+				// .tmp file to dest (concurrent download of identical libs).
+				// If the destination now exists and its checksum is valid, we're done.
+				if len(expectedSha1) > 0 && expectedSha1[0] != "" {
+					if ok, _ := verifySha1(dest, expectedSha1[0]); ok {
+						_ = os.Remove(tempDest) // best-effort cleanup of our .tmp
+						return nil
+					}
+				} else if _, statErr := os.Stat(dest); statErr == nil {
+					_ = os.Remove(tempDest)
+					return nil
+				}
 				_ = os.Remove(tempDest)
 				return fmt.Errorf("failed to rename temp file: %w", err)
 			}

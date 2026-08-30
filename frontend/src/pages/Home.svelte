@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy, beforeUpdate } from 'svelte';
 import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
 import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { gameStore } from '../stores/gameStore.js';
@@ -68,17 +68,17 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     EventsOff('instance:progress', 'instance:error', 'java:status');
   });
 
-  let loadInstallToken = 0;
-
-// Reactive: when activeInstanceId changes (e.g. after instance creation), reload and install
-$: if (activeInstanceId) {
-    loadInstallToken++;
-    const token = loadInstallToken;
-    loadAndInstall(activeInstanceId).then(() => {
-      // Only clear token if still the current token (not superseded by a new navigation)
-      if (token === loadInstallToken) loadInstallToken = 0;
-    });
-  }
+  // Safe one-shot watcher: fires loadAndInstall exactly once per new activeInstanceId.
+  // A $: reactive block that mutates its own state (loadInstallToken++) re-triggers
+  // itself on every Svelte update cycle, creating an infinite install loop.
+  // beforeUpdate only runs before actual DOM updates and doesn't trigger itself.
+  let prevActiveInstanceId = '';
+  beforeUpdate(() => {
+    if (activeInstanceId && activeInstanceId !== prevActiveInstanceId) {
+      prevActiveInstanceId = activeInstanceId;
+      loadAndInstall(activeInstanceId);
+    }
+  });
 
   async function loadHome() {
     const all = await GetInstances();
