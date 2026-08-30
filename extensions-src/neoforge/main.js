@@ -57,8 +57,8 @@ Aether.launcher.registerModLoader({
 
         // 2. Fetch the NeoForge version JSON for library listing
         // Maven no longer publishes a standalone .json for NeoForge; Prism's
-        // upstream mirror does. Try Maven first, then Prism, then continue
-        // with defaults so we don't fatal on 404 (the 1.21.1 bug).
+        // upstream mirror does. Tries Maven first, then Prism, then continues
+        // with defaults to avoid fatal error on 404 (the 1.21.1 bug).
         var versionInfo = null;
         var jsonUrl = mavenUrl + basePath + ".json";
         var prismUrl = "https://raw.githubusercontent.com/PrismLauncher/meta-upstream/master/neoforge/version_manifests/" + neoforgeVer + ".json";

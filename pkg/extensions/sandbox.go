@@ -461,10 +461,10 @@ func NewSandbox(
 					ExtensionID: manifest.ID,
 				}
 
-				// Extract onLaunch from the original (un-exported) goja value so we
-				// don't rely on goja.Value.ToObject. If a previously registered
-				// mod loader with the same ID exists we keep its callback unless
-				// this registration provides a new one.
+				// Extract onLaunch from the original goja value without relying on
+				// goja.Value.ToObject. If a previously registered mod loader with
+				// the same ID exists, its callback is retained unless the new
+				// registration provides one.
 				callbackKey := modLoaderCallbackKey{extensionID: manifest.ID, loaderID: config.ID}
 				modLoaderCallbackMu.Lock()
 				prev, hadPrev := lastRegisteredModLoaderCallbacks[callbackKey]

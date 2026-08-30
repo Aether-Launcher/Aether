@@ -58,7 +58,7 @@ const (
 // hide or disable entirely: the native window controls. Letting a theme make
 // the close/minimize/maximize buttons unclickable or invisible would leave a
 // user with no way to control the window.
-// We now target stable data-aether attributes instead of fragile class names.
+// Targets stable data-aether attributes.
 var blockedSelectorSubstrings = []string{
 	"win-btn",
 	"close-btn",
@@ -147,8 +147,7 @@ func normalizeCSS(css string) string {
 		}
 
 		if c == '\\' && !inString && i+1 < len(css) {
-			// Potential unicode escape \XXXX or \XXXXXX
-			// We'll handle full decoding later
+			// Potential unicode escape \XXXX or \XXXXXX - handled in next pass.
 		}
 
 		sb.WriteByte(c)

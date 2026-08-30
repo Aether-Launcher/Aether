@@ -45,7 +45,7 @@ func GetManagedJavaPath(majorVersion int) string {
 	return filepath.Join(base, "bin", "java")
 }
 
-// IsManagedJavaInstalled returns true if we already have a managed JRE for this version.
+// IsManagedJavaInstalled reports whether a managed JRE for the given major version exists.
 func IsManagedJavaInstalled(majorVersion int) bool {
 	path := GetManagedJavaPath(majorVersion)
 	_, err := os.Stat(path)

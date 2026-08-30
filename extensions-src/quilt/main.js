@@ -4,8 +4,8 @@ Aether.launcher.registerModLoader({
     description: "Modern, community-driven mod loader with Fabric mod support",
     onLaunch: function(ctx) {
         // Fetch the Quilt loader metadata for this MC version (v3 API, same
-        // shape as Fabric's launcherMeta). The array is NOT sorted, so we
-        // pick the newest loader by semantic version.
+        // shape as Fabric's launcherMeta). The array is NOT sorted; the newest
+        // loader is selected by semantic version.
         var metaUrl = "https://meta.quiltmc.org/v3/versions/loader/" + ctx.mcVersion;
         var metaStr = Aether.http.get(metaUrl);
         var metaJson = JSON.parse(metaStr);
