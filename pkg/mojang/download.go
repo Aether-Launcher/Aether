@@ -83,7 +83,10 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 
 	// Download Libraries concurrently
 	e.log("Downloading %d required libraries...", len(allowedLibs))
-	sem := make(chan struct{}, 10)
+	// 4 concurrent downloads — enough to be fast without triggering Mojang's
+	// CDN rate-limiting (which sends GOAWAY / connection resets at higher concurrency).
+	sem := make(chan struct{}, 4)
+
 
 	for _, lib := range allowedLibs {
 		wg.Add(1)

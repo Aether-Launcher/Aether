@@ -9,6 +9,11 @@
   let showDropdown = false;
   let showLoginModal = false;
   let dropdownEl: HTMLElement;
+  let avatarError = false;
+
+  $: if (activeAccount?.username) {
+    avatarError = false;
+  }
 
   async function loadData() {
     try {
@@ -29,7 +34,8 @@
   });
 
   function handleClickOutside(event: MouseEvent) {
-    if (showDropdown && dropdownEl && !dropdownEl.contains(event.target as Node) && !(event.target as Element).closest('.switch-btn')) {
+    const target = event.target as Element;
+    if (showDropdown && dropdownEl && !dropdownEl.contains(target) && !target.closest('.account-card')) {
       showDropdown = false;
     }
   }
@@ -57,6 +63,11 @@
   function handleLogin() {
     loadData();
   }
+
+  function handleImageError(e: Event) {
+    const el = e.currentTarget as HTMLElement;
+    if (el) el.style.display = 'none';
+  }
 </script>
 
 <div class="account-manager-wrapper">
@@ -79,7 +90,15 @@
               tabindex="0"
             >
               <div class="avatar-small">
-                {acc.username.charAt(0).toUpperCase()}
+                {#if acc.type === 'microsoft'}
+                  <img 
+                    src={`https://mc-heads.net/avatar/${encodeURIComponent(acc.username)}/24`} 
+                    alt={acc.username} 
+                    class="avatar-img"
+                    on:error={handleImageError}
+                  />
+                {/if}
+                <span class="avatar-fallback">{acc.username.charAt(0).toUpperCase()}</span>
               </div>
               <div class="acc-details">
                 <span class="acc-username">{acc.username}</span>
@@ -115,11 +134,32 @@
     </div>
   {/if}
 
-  <div class="account-manager">
+  <div class="account-section-header">Playing as</div>
+
+  <button 
+    class="account-card {showDropdown ? 'open' : ''}" 
+    on:click={() => {
+      if (activeAccount) {
+        showDropdown = !showDropdown;
+      } else {
+        showLoginModal = true;
+      }
+    }}
+    type="button"
+  >
     <div class="account-info">
       <div class="avatar">
         {#if activeAccount}
-          {activeAccount.username.charAt(0).toUpperCase()}
+          {#if activeAccount.type === 'microsoft' && !avatarError}
+            <img 
+              src={`https://mc-heads.net/avatar/${encodeURIComponent(activeAccount.username)}/36`} 
+              alt={activeAccount.username} 
+              class="avatar-img"
+              on:error={() => { avatarError = true; }}
+            />
+          {:else}
+            <span class="avatar-fallback">{activeAccount.username.charAt(0).toUpperCase()}</span>
+          {/if}
         {:else}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -133,24 +173,17 @@
           <span class="status">{activeAccount.type === 'microsoft' ? 'Microsoft Account' : 'Offline Account'}</span>
         {:else}
           <span class="username">Guest</span>
-          <span class="status">Offline</span>
+          <span class="status">Click to login</span>
         {/if}
       </div>
     </div>
-    
-    <button 
-      class="switch-btn" 
-      on:click={() => {
-        if (activeAccount) {
-          showDropdown = !showDropdown;
-        } else {
-          showLoginModal = true;
-        }
-      }}
-    >
-      {activeAccount ? 'Switch' : 'Login'}
-    </button>
-  </div>
+
+    <div class="chevron-icon {showDropdown ? 'rotated' : ''}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </div>
+  </button>
 </div>
 
 <LoginModal bind:showModal={showLoginModal} on:login={handleLogin} />
@@ -158,44 +191,85 @@
 <style>
   .account-manager-wrapper {
     position: relative;
-    margin-top: 16px;
+    margin-top: 12px;
   }
 
-  .account-manager {
+  .account-section-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    padding-left: 2px;
+    letter-spacing: -0.2px;
+  }
+
+  .account-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    width: 100%;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--border-radius);
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+    box-sizing: border-box;
+    gap: 8px;
+  }
+
+  .account-card:hover, .account-card.open {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
   }
 
   .account-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     overflow: hidden;
     flex: 1;
+    min-width: 0;
   }
 
   .avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: var(--accent-color);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--text-primary);
     font-weight: 600;
-    font-size: 16px;
+    font-size: 14px;
     flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: pixelated;
+    display: block;
+  }
+
+  .avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
   }
 
   .avatar svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
 
   .details {
@@ -203,6 +277,8 @@
     flex-direction: column;
     gap: 2px;
     overflow: hidden;
+    flex: 1;
+    min-width: 0;
   }
 
   .username {
@@ -212,6 +288,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.2;
   }
 
   .status {
@@ -220,25 +297,29 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.2;
   }
 
-  .switch-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    color: var(--text-primary);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 500;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all var(--transition-fast);
+  .chevron-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
     flex-shrink: 0;
+    transition: transform var(--transition-fast), color var(--transition-fast);
   }
 
-  .switch-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.1);
+  .account-card:hover .chevron-icon {
+    color: var(--text-primary);
+  }
+
+  .chevron-icon.rotated {
+    transform: rotate(180deg);
+  }
+
+  .chevron-icon svg {
+    width: 16px;
+    height: 16px;
   }
 
   /* Dropdown Styles */
@@ -316,15 +397,18 @@
   .avatar-small {
     width: 24px;
     height: 24px;
-    border-radius: 6px;
-    background: var(--accent-color);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--text-primary);
     font-weight: 600;
-    font-size: 12px;
+    font-size: 11px;
     flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
   }
 
   .acc-details {

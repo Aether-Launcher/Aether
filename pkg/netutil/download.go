@@ -3,6 +3,7 @@ package netutil
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -14,10 +15,18 @@ import (
 
 // Shared client. No global timeout so large downloads can take as long as needed.
 // Timeout is enforced by the ResponseHeaderTimeout and Context.
+//
+// HTTP/2 is explicitly disabled (ForceAttemptHTTP2: false, TLSNextProto: empty map)
+// because libraries.minecraft.net sends GOAWAY frames and drops connections under
+// concurrent HTTP/2 load, causing "timeout awaiting response headers" and
+// "server sent GOAWAY" errors. HTTP/1.1 is more reliable for this CDN.
 var defaultClient = &http.Client{
 	Transport: &http.Transport{
 		ResponseHeaderTimeout: 30 * time.Second,
-		IdleConnTimeout:       30 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		MaxIdleConnsPerHost:   8,
+		ForceAttemptHTTP2:     false,
+		TLSNextProto:          make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
 	},
 }
 
