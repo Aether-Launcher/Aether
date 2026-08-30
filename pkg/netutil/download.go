@@ -162,12 +162,22 @@ func downloadAttempt(ctx context.Context, url, tempDest string, onProgress Progr
 		totalBytes += startBytes // True total size including already-downloaded bytes
 	}
 
+	// Hard limit: refuse downloads claiming to be larger than 300MB
+	const maxDownloadBytes = 300 * 1024 * 1024
+	if totalBytes > maxDownloadBytes {
+		return fmt.Errorf("download too large: %d bytes exceeds %d", totalBytes, maxDownloadBytes)
+	}
+
+	limitedBody := io.LimitReader(resp.Body, maxDownloadBytes+1)
 	buf := make([]byte, 32*1024)
 	written := startBytes
 
 	for {
-		nr, readErr := resp.Body.Read(buf)
+		nr, readErr := limitedBody.Read(buf)
 		if nr > 0 {
+			if written+int64(nr) > maxDownloadBytes {
+				return fmt.Errorf("download exceeded size limit (%d bytes)", maxDownloadBytes)
+			}
 			nw, writeErr := out.Write(buf[:nr])
 			if nw > 0 {
 				written += int64(nw)

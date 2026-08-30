@@ -66,17 +66,18 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
   onDestroy(() => {
     EventsOff('instance:progress', 'instance:error', 'java:status');
+    if (loadDebounce) clearTimeout(loadDebounce);
   });
 
   // Safe one-shot watcher: fires loadAndInstall exactly once per new activeInstanceId.
-  // A $: reactive block that mutates its own state (loadInstallToken++) re-triggers
-  // itself on every Svelte update cycle, creating an infinite install loop.
-  // beforeUpdate only runs before actual DOM updates and doesn't trigger itself.
+  // Add debounce to prevent rapid re-triggering if activeInstanceId is set twice quickly.
   let prevActiveInstanceId = '';
+  let loadDebounce: ReturnType<typeof setTimeout> | null = null;
   beforeUpdate(() => {
     if (activeInstanceId && activeInstanceId !== prevActiveInstanceId) {
       prevActiveInstanceId = activeInstanceId;
-      loadAndInstall(activeInstanceId);
+      if (loadDebounce) clearTimeout(loadDebounce);
+      loadDebounce = setTimeout(() => { loadDebounce = null; loadAndInstall(activeInstanceId); }, 200);
     }
   });
 

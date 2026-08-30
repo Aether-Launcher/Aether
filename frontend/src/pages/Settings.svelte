@@ -437,20 +437,6 @@ onMount(async () => {
     padding-bottom: var(--spacing-xl);
   }
 
-  .grid-top {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-md);
-    align-items: start;
-  }
-
-  .java-bottom-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-xl);
-    margin-top: var(--spacing-md);
-  }
-
   .settings-card {
     display: flex;
     flex-direction: column;
@@ -574,7 +560,7 @@ onMount(async () => {
   .custom-args-input {
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--border-radius-md);
+    border-radius: var(--border-radius);
     padding: 10px 12px;
     color: var(--text-primary);
     font-family: monospace;
@@ -604,7 +590,7 @@ onMount(async () => {
     padding: 10px 14px;
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: var(--border-radius-md);
+    border-radius: var(--border-radius);
   }
 
   .java-item-info {
@@ -661,7 +647,7 @@ onMount(async () => {
     padding: 10px 14px;
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: var(--border-radius-md);
+    border-radius: var(--border-radius);
   }
 
   .theme-item-info {

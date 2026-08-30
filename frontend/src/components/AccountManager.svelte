@@ -365,6 +365,7 @@
   .accounts-list {
     max-height: 200px;
     overflow-y: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
   }

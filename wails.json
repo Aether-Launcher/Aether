@@ -12,5 +12,12 @@
   "author": {
     "name": "CyberDroid456",
     "email": "158224073+CyberDroid456@users.noreply.github.com"
+  },
+  "info": {
+    "companyName": "Aether",
+    "productName": "Aether",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright (c) 2024 Aether",
+    "comments": "Minimal extensible Minecraft launcher"
   }
 }

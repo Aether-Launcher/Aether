@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 const ManifestURL = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
@@ -216,7 +218,9 @@ var versionManifestCache = struct {
 	expiresAt time.Time
 }{}
 
-// GetVersionManifest fetches the master manifest with cache and timeout.
+var manifestGroup singleflight.Group
+
+// GetVersionManifest fetches the master manifest with cache, singleflight and timeout.
 // The cache is keyed to versionManifestURL: if the URL changes (tests swap it
 // for a mock server), the stale entry is ignored and a fresh fetch happens.
 func GetVersionManifest() (*VersionManifest, error) {
@@ -230,28 +234,46 @@ func GetVersionManifest() (*VersionManifest, error) {
 	}
 	versionManifestCache.mu.Unlock()
 
-	resp, err := manifestClient.Get(versionManifestURL)
+	// Singleflight prevents thundering herd when many goroutines request manifest simultaneously
+	v, err, _ := manifestGroup.Do(versionManifestURL, func() (interface{}, error) {
+		// Double-check cache inside singleflight
+		versionManifestCache.mu.Lock()
+		if versionManifestCache.cached != nil &&
+			versionManifestCache.url == versionManifestURL &&
+			time.Now().Before(versionManifestCache.expiresAt) {
+			c := versionManifestCache.cached
+			versionManifestCache.mu.Unlock()
+			return c, nil
+		}
+		versionManifestCache.mu.Unlock()
+
+		resp, err := manifestClient.Get(versionManifestURL)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("manifest request failed with status %d", resp.StatusCode)
+		}
+
+		var manifest VersionManifest
+		if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
+			return nil, err
+		}
+
+		versionManifestCache.mu.Lock()
+		versionManifestCache.url = versionManifestURL
+		versionManifestCache.cached = &manifest
+		versionManifestCache.expiresAt = time.Now().Add(5 * time.Minute)
+		c := versionManifestCache.cached
+		versionManifestCache.mu.Unlock()
+		return c, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("manifest request failed with status %d", resp.StatusCode)
-	}
-
-	var manifest VersionManifest
-	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
-		return nil, err
-	}
-
-	versionManifestCache.mu.Lock()
-	versionManifestCache.url = versionManifestURL
-	versionManifestCache.cached = &manifest
-	versionManifestCache.expiresAt = time.Now().Add(5 * time.Minute)
-	c := versionManifestCache.cached
-	versionManifestCache.mu.Unlock()
-	return c, nil
+	return v.(*VersionManifest), nil
 }
 
 // GetVersionManifestRaw fetches the master manifest without cache (for immediate fresh reads)
