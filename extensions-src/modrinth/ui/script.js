@@ -99,12 +99,8 @@ function switchTab(type) {
   tabMods.classList.toggle("active", type === "mod");
   tabModpacks.classList.toggle("active", type === "modpack");
 
-  const q = searchInput.value.trim();
-  if (q.length >= 2) {
-    search(q);
-  } else {
-    showPlaceholder(type === "modpack" ? "Search for modpacks above" : "Search for mods above");
-  }
+  // Always fetch (empty query → popular by downloads, typed query → re-search)
+  search(searchInput.value.trim());
 }
 
 tabMods.addEventListener("click", () => switchTab("mod"));
@@ -167,18 +163,19 @@ searchInput.addEventListener("keydown", (e) => {
 
 async function search(query) {
   lastQuery = query;
-  if (!query) {
-    showPlaceholder(currentType === "modpack" ? "Search for modpacks above" : "Search for mods above");
-    pagination.classList.add("hidden");
-    return;
-  }
-
   showLoading();
   const offset = (currentPage - 1) * PAGE_SIZE;
 
-  // Build facets for project type
+  // Sort by downloads when browsing (empty query), by relevance when searching
+  const index = query ? "relevance" : "downloads";
   const facets = `[["project_type:${currentType}"]]`;
-  const url = `https://api.modrinth.com/v2/search?query=${encodeURIComponent(query)}&facets=${encodeURIComponent(facets)}&limit=${PAGE_SIZE}&offset=${offset}`;
+  const url =
+    `https://api.modrinth.com/v2/search` +
+    `?query=${encodeURIComponent(query)}` +
+    `&facets=${encodeURIComponent(facets)}` +
+    `&index=${index}` +
+    `&limit=${PAGE_SIZE}` +
+    `&offset=${offset}`;
 
   try {
     const resp = await fetch(url);
@@ -197,6 +194,9 @@ async function search(query) {
     showError("Search failed: " + err.message);
   }
 }
+
+// Auto-load popular content on startup
+document.addEventListener("DOMContentLoaded", () => search(""));
 
 // ────────────────────────────────────────────────────────────────────────────
 // Rendering
