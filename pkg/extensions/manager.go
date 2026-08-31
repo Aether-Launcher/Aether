@@ -318,6 +318,18 @@ func (m *Manager) reloadSandboxes() {
 			},
 			m.emit,
 			m.requestConfirmation,
+			func(packURL, packName string) (string, error) {
+				parsedURL, err := neturl.Parse(packURL)
+				if err != nil || parsedURL.Scheme != "https" || parsedURL.Hostname() == "" {
+					return "", fmt.Errorf("modpack downloads require an HTTPS URL")
+				}
+				targetRoot := filepath.Join(fs.GetDataDir(), "instances")
+				inst, err := instance.InstallMrpack(context.Background(), packURL, packName, targetRoot, nil)
+				if err != nil {
+					return "", fmt.Errorf("modpack install failed: %w", err)
+				}
+				return inst.ID, nil
+			},
 		)
 		newSandboxes[id] = sandbox
 

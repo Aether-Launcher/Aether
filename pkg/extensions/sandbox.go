@@ -133,6 +133,7 @@ func NewSandbox(
 	toggleMod func(instanceID, jarName string, enable bool) error,
 	emit func(ctx context.Context, event string, data ...interface{}),
 	confirm func(action map[string]interface{}) bool,
+	installModpack func(packURL, packName string) (string, error),
 ) *Sandbox {
 	if emit == nil {
 		emit = func(_ context.Context, _ string, _ ...interface{}) {}
@@ -319,7 +320,7 @@ func NewSandbox(
 
 	// Instance and mod capabilities are independently controlled. The legacy
 	// instances:patch permission is accepted by HasAnyPermission for migration.
-	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle") {
+	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install") {
 		instancesObj := vm.NewObject()
 
 		if manifest.HasAnyPermission("instances:list") {
@@ -432,6 +433,35 @@ func NewSandbox(
 					panic(vm.NewGoError(err))
 				}
 				return goja.Undefined()
+			})
+		}
+
+		// Capability: modpacks:install — downloads a .mrpack and creates a new instance
+		if manifest.HasAnyPermission("modpacks:install") {
+			instancesObj.Set("installModpack", func(call goja.FunctionCall) goja.Value {
+				packURL := call.Argument(0).String()
+				packName := call.Argument(1).String()
+
+				if !isAllowedURL(packURL) {
+					panic(vm.NewGoError(fmt.Errorf("access denied to URL: %s", packURL)))
+				}
+				if installModpack == nil {
+					panic(vm.NewGoError(fmt.Errorf("installModpack not available")))
+				}
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "install modpack",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"packName":      packName,
+					"url":           packURL,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied modpack installation")))
+				}
+				instanceID, err := installModpack(packURL, packName)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(instanceID)
 			})
 		}
 

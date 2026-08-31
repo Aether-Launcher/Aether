@@ -1,16 +1,17 @@
 {
   "id": "modrinth",
   "name": "Modrinth Browser",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "author": "Aether",
-  "description": "Browse and install mods from Modrinth directly into your instances.",
+  "description": "Browse and install mods and modpacks from Modrinth directly into your instances.",
   "icon": "icon.png",
   "main": "main.js",
   "api": "1.0",
   "permissions": [
     "ui:sidebar",
     "instances:list",
-    "mods:install"
+    "mods:install",
+    "modpacks:install"
   ],
   "hosts": [
     "api.modrinth.com",

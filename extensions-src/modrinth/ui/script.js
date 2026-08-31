@@ -1,526 +1,523 @@
-// ── Helpers ───────────────────────────────────────────────────────────────
+/**
+ * Modrinth Browser – UI script
+ * Supports: Mods + Modpacks tabs, paginated search, mod install, modpack install.
+ */
 
-function isModrinthIconURL(url) {
-    try {
-        const u = new URL(url);
-        return u.protocol === 'https:' && (u.hostname === 'cdn.modrinth.com' || u.hostname.endsWith('.modrinth.com'));
-    } catch {
-        return false;
-    }
-}
-
-function escHTML(s) {
-    return String(s).replace(/[&<>"']/g, m => ({
-        '&': '&',
-        '<': '<',
-        '>': '>',
-        '"': '"',
-        "'": '''
-    }[m]));
-}
-
-// ── Custom Select (replaces native <select>) ──────────────────────────────
-
-function initCustomSelect(containerEl) {
-    const trigger = containerEl.querySelector('.custom-select-trigger');
-    const optionsEl = containerEl.querySelector('.custom-select-options');
-    const textEl = containerEl.querySelector('.custom-select-text');
-    const chevron = containerEl.querySelector('.custom-select-chevron');
-
-    function close() {
-        optionsEl.classList.add('hidden');
-        trigger.classList.remove('open');
-        chevron.classList.remove('open');
-    }
-
-    trigger.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isOpening = optionsEl.classList.contains('hidden');
-        // Close all other open dropdowns
-        document.querySelectorAll('.custom-select-options').forEach(o => {
-            if (o !== optionsEl) o.classList.add('hidden');
-        });
-        document.querySelectorAll('.custom-select-trigger').forEach(t => {
-            if (t !== trigger) t.classList.remove('open');
-        });
-        document.querySelectorAll('.custom-select-chevron').forEach(c => {
-            if (c !== chevron) c.classList.remove('open');
-        });
-        if (isOpening) {
-            optionsEl.classList.remove('hidden');
-            trigger.classList.add('open');
-            chevron.classList.add('open');
-        } else {
-            close();
-        }
-    });
-
-    // Click outside closes all
-    document.addEventListener('click', () => close(), { once: false });
-
-return {
-        container: containerEl,
-        trigger,
-        optionsEl,
-        textEl,
-        setOptions(options) {
-            // Build options DOM safely — no innerHTML with user data
-            const optionElements = options.map((opt, i) => {
-                const div = document.createElement('div');
-                div.className = 'custom-select-option';
-                div.dataset.index = i;
-                div.textContent = opt.label;
-                div.title = opt.label;
-                return div;
-            });
-            optionsEl.replaceChildren(...optionElements);
-
-            // Store values as data attributes on the container
-            containerEl._optionValues = options.map(o => o.value);
-            containerEl._selectedIndex = -1;
-
-            // Attach click handlers
-            optionsEl.querySelectorAll('.custom-select-option').forEach(el => {
-                el.addEventListener('click', () => {
-                    const idx = parseInt(el.dataset.index, 10);
-                    containerEl._selectedIndex = idx;
-                    textEl.textContent = options[idx].label;
-                    textEl.classList.add('selected');
-                    // Highlight selected
-                    optionsEl.querySelectorAll('.custom-select-option').forEach(o => o.classList.remove('selected'));
-                    el.classList.add('selected');
-                    close();
-                    // Trigger change event
-                    containerEl.dispatchEvent(new CustomEvent('change', { detail: { value: options[idx].value, index: idx } }));
-                });
-            });
-
-            // Auto-select first
-            if (options.length > 0) {
-                containerEl._selectedIndex = 0;
-                textEl.textContent = options[0].label;
-                textEl.classList.add('selected');
-                optionsEl.querySelector('.custom-select-option')?.classList.add('selected');
-            } else {
-                textEl.textContent = 'No options';
-                textEl.classList.remove('selected');
-            }
-        },
-        getValue() {
-            if (containerEl._selectedIndex >= 0 && containerEl._optionValues) {
-                return containerEl._optionValues[containerEl._selectedIndex];
-            }
-            return null;
-        },
-        close
-    };
-}
-
-// ── IPC Bridge ────────────────────────────────────────────────────────────
-const pending = {};
-let reqCounter = 0;
+// ────────────────────────────────────────────────────────────────────────────
+// IPC bridge (postMessage ↔ parent sandbox)
+// ────────────────────────────────────────────────────────────────────────────
+let _reqId = 0;
+const _pending = {};
 
 function sendMessage(payload, timeoutMs) {
-    const ms = timeoutMs || 15000;
-    return new Promise((resolve) => {
-        const id = ++reqCounter;
-        payload.requestId = id;
-        payload.__aether = true;
-        pending[id] = resolve;
-        // Use specific origin reference; fallback to window.parent which is the launcher
-        const targetOrigin = typeof window !== 'undefined' && window.location
-            ? window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '')
-            : '';
-        window.parent.postMessage(payload, targetOrigin);
-        // Never leave the UI hanging: resolve with an error if the sandbox
-        // does not answer in time.
-        setTimeout(() => {
-            if (pending[id]) {
-                delete pending[id];
-                resolve({ requestId: id, error: 'Request timed out' });
-            }
-        }, ms);
-    });
+  return new Promise((resolve, reject) => {
+    const id = ++_reqId;
+    payload.requestId = id;
+    const timer = setTimeout(() => {
+      delete _pending[id];
+      reject(new Error("IPC timeout after " + (timeoutMs || 15000) + "ms"));
+    }, timeoutMs || 15000);
+    _pending[id] = { resolve, reject, timer };
+    window.parent.postMessage(payload, "*");
+  });
 }
 
-window.addEventListener('message', (e) => {
-    const msg = e.data;
-    if (!msg || !msg.requestId) return;
-    // Only accept messages from the launcher parent, and only our marked payloads
-    if (e.source !== window.parent || msg.__aether !== true) return;
-    const resolve = pending[msg.requestId];
-    if (resolve) {
-        delete pending[msg.requestId];
-        resolve(msg);
-    }
+window.addEventListener("message", (e) => {
+  const msg = e.data;
+  if (!msg || msg.requestId == null) return;
+  const pend = _pending[msg.requestId];
+  if (!pend) return;
+  clearTimeout(pend.timer);
+  delete _pending[msg.requestId];
+  if (msg.success === false || msg.error) {
+    pend.reject(new Error(msg.error || "Unknown error"));
+  } else {
+    pend.resolve(msg);
+  }
 });
 
-// ── State ─────────────────────────────────────────────────────────────────────
-let currentMod = null;
-let currentVersions = [];
-let currentInstances = [];
+// ────────────────────────────────────────────────────────────────────────────
+// State
+// ────────────────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 20;
+let currentType = "mod";  // "mod" | "modpack"
+let currentPage = 1;
+let totalHits = 0;
+let lastQuery = "";
+let searchTimer = null;
+let instances = [];
 
-// ── Elements ──────────────────────────────────────────────────────────────────
-const searchInput    = document.getElementById('searchInput');
-const resultsDiv     = document.getElementById('resultsContainer');
-const modal          = document.getElementById('installModal');
-const modalModName   = document.getElementById('modalModName');
-const modalModAuthor = document.getElementById('modalModAuthor');
-const modalModIcon   = document.getElementById('modalModIcon');
-const versionSelect  = initCustomSelect(document.getElementById('versionSelect'));
-const instanceSelect = initCustomSelect(document.getElementById('instanceSelect'));
-const installBtn     = document.getElementById('installBtn');
-const installBtnText = document.getElementById('installBtnText');
-const cancelBtn      = document.getElementById('cancelBtn');
-const modalClose     = document.getElementById('modalClose');
-const installStatus  = document.getElementById('installStatus');
+// ────────────────────────────────────────────────────────────────────────────
+// DOM references
+// ────────────────────────────────────────────────────────────────────────────
+const searchInput     = document.getElementById("searchInput");
+const searchBtn       = document.getElementById("searchBtn");
+const resultsContainer = document.getElementById("resultsContainer");
+const pagination      = document.getElementById("pagination");
+const prevBtn         = document.getElementById("prevBtn");
+const nextBtn         = document.getElementById("nextBtn");
+const pageInfo        = document.getElementById("pageInfo");
 
-// ── Version Filtering ─────────────────────────────────────────────────────────
-function updateVersionDropdown(inst) {
-    if (!inst) {
-        versionSelect.setOptions([{ label: 'No instance selected', value: '' }]);
-        return;
-    }
+// Tab buttons
+const tabMods     = document.getElementById("tabMods");
+const tabModpacks = document.getElementById("tabModpacks");
 
-    const loaderLower = inst.loader.toLowerCase();
-    const instVer = inst.version;
+// Mod modal
+const installModal    = document.getElementById("installModal");
+const modalClose      = document.getElementById("modalClose");
+const modalCancel     = document.getElementById("modalCancel");
+const modalInstall    = document.getElementById("modalInstall");
+const modalInstallText = document.getElementById("modalInstallText");
+const modalIcon       = document.getElementById("modalIcon");
+const modalName       = document.getElementById("modalName");
+const modalAuthor     = document.getElementById("modalAuthor");
+const versionSelect   = document.getElementById("versionSelect");
+const instanceSelect  = document.getElementById("instanceSelect");
+const installStatus   = document.getElementById("installStatus");
 
-    // Filter versions by loader and game version
-    let filtered = currentVersions.filter(v => {
-        // Game version check
-        const gameMatch = v.game_versions.includes(instVer);
-        if (!gameMatch) return false;
+// Modpack modal
+const packModal           = document.getElementById("packModal");
+const packModalClose      = document.getElementById("packModalClose");
+const packModalCancel     = document.getElementById("packModalCancel");
+const packModalInstall    = document.getElementById("packModalInstall");
+const packModalInstallText = document.getElementById("packModalInstallText");
+const packModalIcon       = document.getElementById("packModalIcon");
+const packModalName       = document.getElementById("packModalName");
+const packModalAuthor     = document.getElementById("packModalAuthor");
+const packVersionSelect   = document.getElementById("packVersionSelect");
+const packNameInput       = document.getElementById("packNameInput");
+const packInstallStatus   = document.getElementById("packInstallStatus");
 
-        // Loader check
-        const vLoaders = (v.loaders || []).map(l => l.toLowerCase());
-        if (loaderLower === 'vanilla') {
-            const hasModLoader = vLoaders.some(l => ['fabric', 'forge', 'neoforge', 'quilt'].includes(l));
-            return !hasModLoader;
-        } else {
-            return vLoaders.includes(loaderLower) || vLoaders.length === 0;
-        }
-    });
+// ────────────────────────────────────────────────────────────────────────────
+// Tab switching
+// ────────────────────────────────────────────────────────────────────────────
+function switchTab(type) {
+  currentType = type;
+  currentPage = 1;
+  totalHits = 0;
 
-    let warning = '';
-    if (filtered.length === 0) {
-        // Fallback 1: show versions matching game version only (with warning)
-        filtered = currentVersions.filter(v => v.game_versions.includes(instVer));
-        if (filtered.length > 0) {
-            warning = ' (Loader mismatch)';
-        } else {
-            // Fallback 2: show all versions
-            filtered = currentVersions;
-            warning = ' (Incompatible version)';
-        }
-    }
+  tabMods.classList.toggle("active", type === "mod");
+  tabModpacks.classList.toggle("active", type === "modpack");
 
-    versionSelect.setOptions(filtered.map(v => {
-        const origIdx = currentVersions.indexOf(v);
-        const compatLabel = v.game_versions.includes(instVer) ? '' : '⚠️ ';
-        // Avoid redundant name when it already contains the version_number
-        const needsName = v.name && v.name !== v.version_number && !v.name.includes(v.version_number);
-        const namePart = needsName ? ` — ${v.name}` : '';
-        // Keep label concise: version + optional non-redundant name. Game version is already implied by filter.
-        let label = `${compatLabel}${v.version_number}${namePart}${warning}`;
-        // Hard truncate for UI (CSS ellipsis also applies, but keep DOM light)
-        if (label.length > 52) label = label.slice(0, 49) + '...';
-        return {
-            label,
-            value: String(origIdx)
-        };
-    }));
+  const q = searchInput.value.trim();
+  if (q.length >= 2) {
+    search(q);
+  } else {
+    showPlaceholder(type === "modpack" ? "Search for modpacks above" : "Search for mods above");
+  }
 }
 
-// Listen for instance selection changes to update version filtering
-document.getElementById('instanceSelect').addEventListener('change', (e) => {
-    const instId = e.detail.value;
-    const inst = currentInstances.find(i => i.id === instId);
-    if (inst) {
-        updateVersionDropdown(inst);
-    }
+tabMods.addEventListener("click", () => switchTab("mod"));
+tabModpacks.addEventListener("click", () => switchTab("modpack"));
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pagination
+// ────────────────────────────────────────────────────────────────────────────
+function totalPages() {
+  return Math.max(1, Math.ceil(totalHits / PAGE_SIZE));
+}
+
+function updatePagination() {
+  const total = totalPages();
+  const hidden = totalHits <= PAGE_SIZE;
+  pagination.classList.toggle("hidden", hidden);
+  if (!hidden) {
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= total;
+    pageInfo.textContent = `Page ${currentPage} of ${total}`;
+  }
+}
+
+prevBtn.addEventListener("click", () => {
+  if (currentPage > 1) {
+    currentPage--;
+    search(searchInput.value.trim());
+  }
 });
 
-// ── Search ────────────────────────────────────────────────────────────────────
+nextBtn.addEventListener("click", () => {
+  if (currentPage < totalPages()) {
+    currentPage++;
+    search(searchInput.value.trim());
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Search
+// ────────────────────────────────────────────────────────────────────────────
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    currentPage = 1;
+    search(searchInput.value.trim());
+  }, 400);
+});
+
+searchBtn.addEventListener("click", () => {
+  currentPage = 1;
+  search(searchInput.value.trim());
+});
+
+searchInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    currentPage = 1;
+    search(searchInput.value.trim());
+  }
+});
+
 async function search(query) {
-    if (!query.trim()) return;
-    resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Searching Modrinth...</p></div>';
+  lastQuery = query;
+  if (!query) {
+    showPlaceholder(currentType === "modpack" ? "Search for modpacks above" : "Search for mods above");
+    pagination.classList.add("hidden");
+    return;
+  }
 
-    try {
-        const res = await fetch(`https://api.modrinth.com/v2/search?query=${encodeURIComponent(query)}&limit=20`);
-        if (!res.ok) throw new Error('API Error ' + res.status);
-        const data = await res.json();
-        const modHits = data.hits.filter(hit => hit.project_type === 'mod');
+  showLoading();
+  const offset = (currentPage - 1) * PAGE_SIZE;
 
-        if (!modHits.length) {
-            resultsDiv.innerHTML = '<div class="placeholder-wrap"><div class="placeholder-icon">&#128230;</div><p>No mods found.</p></div>';
-            return;
-        }
+  // Build facets for project type
+  const facets = `[["project_type:${currentType}"]]`;
+  const url = `https://api.modrinth.com/v2/search?query=${encodeURIComponent(query)}&facets=${encodeURIComponent(facets)}&limit=${PAGE_SIZE}&offset=${offset}`;
 
-        resultsDiv.replaceChildren();
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
 
-        if (!modHits.length) {
-            const placeholder = document.createElement('div');
-            placeholder.className = 'placeholder-wrap';
-            const placeholderIcon = document.createElement('div');
-            placeholderIcon.className = 'placeholder-icon';
-            placeholderIcon.textContent = '♛';
-            const placeholderText = document.createElement('p');
-            placeholderText.textContent = 'No mods found.';
-            placeholder.appendChild(placeholderIcon);
-            placeholder.appendChild(placeholderText);
-            resultsDiv.appendChild(placeholder);
-            return;
-        }
+    totalHits = data.total_hits || 0;
+    updatePagination();
 
-        const grid = document.createElement('div');
-        grid.className = 'grid';
-
-        modHits.forEach(hit => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.dataset.id = hit.project_id;
-            card.dataset.title = encodeURIComponent(hit.title);
-            card.dataset.author = encodeURIComponent(hit.author);
-            card.dataset.icon = encodeURIComponent(hit.icon_url || '');
-
-            // Title element (safe text)
-            const titleEl = document.createElement('div');
-            titleEl.className = 'card-title';
-            titleEl.textContent = hit.title;
-
-            // Author element (safe text)
-            const authorEl = document.createElement('div');
-            authorEl.className = 'card-author';
-            authorEl.textContent = 'by ' + hit.author;
-
-            // Icon
-            const iconContainer = document.createElement('div');
-            iconContainer.className = 'card-top';
-
-            let iconElement;
-            if (hit.icon_url && isModrinthIconURL(hit.icon_url)) {
-                iconElement = document.createElement('img');
-                iconElement.className = 'card-icon';
-                iconElement.src = hit.icon_url;
-                iconElement.alt = '';
-            } else {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'card-icon card-icon-placeholder';
-                placeholder.textContent = hit.title ? hit.title.charAt(0) : '';
-                iconElement = placeholder;
-            }
-            iconContainer.appendChild(iconElement);
-
-            // Description (safe text, escaped)
-            const descEl = document.createElement('p');
-            descEl.className = 'card-desc';
-            descEl.textContent = hit.description.replace(/[&<>"']/g, m => ({
-                '&': '&',
-                '<': '<',
-                '>': '>',
-                '"': '"',
-                "'": '''
-            }[m]));
-
-            // Downloads
-            const dl = hit.downloads >= 1000000
-                ? (hit.downloads / 1000000).toFixed(1) + 'M'
-                : hit.downloads >= 1000
-                    ? (hit.downloads / 1000).toFixed(0) + 'K'
-                    : hit.downloads;
-            const downloadsSpan = document.createElement('span');
-            downloadsSpan.className = 'card-downloads';
-            downloadsSpan.textContent = '⬇ ' + dl;
-
-            // Install button
-            const installBtn = document.createElement('button');
-            installBtn.className = 'btn-install-card';
-            installBtn.dataset.id = hit.project_id;
-            installBtn.textContent = 'Install';
-
-            // Assemble card top
-            const cardTop = document.createElement('div');
-            cardTop.className = 'card-top';
-            cardTop.appendChild(iconElement);
-
-            // Assemble card
-            card.appendChild(cardTop);
-            card.appendChild(titleEl);
-            card.appendChild(authorEl);
-            card.appendChild(descEl);
-
-            // Append footer with downloads and button
-            const footer = document.createElement('div');
-            footer.className = 'card-footer';
-            footer.appendChild(downloadsSpan);
-            footer.appendChild(installBtn);
-            card.appendChild(footer);
-
-            grid.appendChild(card);
-        });
-
-        resultsDiv.appendChild(grid);
-
-        // Attach click handlers to Install buttons
-        document.querySelectorAll('.btn-install-card').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const card = btn.closest('.card');
-                openInstallModal({
-                    id: card.dataset.id,
-                    title: decodeURIComponent(card.dataset.title),
-                    author: decodeURIComponent(card.dataset.author),
-                    icon: decodeURIComponent(card.dataset.icon)
-                });
-            });
-        });
-
-    } catch (err) {
-        const errEl = document.createElement('div');
-        errEl.className = 'placeholder-wrap';
-        const errP = document.createElement('p');
-        errP.textContent = 'Error: ' + err.message;
-        errEl.appendChild(errP);
-        resultsDiv.appendChild(errEl);
+    if (!data.hits || data.hits.length === 0) {
+      showEmpty(currentType === "modpack" ? "No modpacks found" : "No mods found");
+      return;
     }
+    renderResults(data.hits);
+  } catch (err) {
+    showError("Search failed: " + err.message);
+  }
 }
 
-// Debounce search
-let debounceTimer;
-searchInput.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => search(searchInput.value), 400);
-});
-searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { clearTimeout(debounceTimer); search(searchInput.value); }
-});
+// ────────────────────────────────────────────────────────────────────────────
+// Rendering
+// ────────────────────────────────────────────────────────────────────────────
+function renderResults(hits) {
+  resultsContainer.innerHTML = "";
+  hits.forEach((hit) => {
+    const card = document.createElement("div");
+    card.className = "mod-card";
+    card.dataset.id = hit.project_id;
+    card.dataset.slug = hit.slug;
+    card.dataset.type = hit.project_type;
 
-// ── Install Modal ─────────────────────────────────────────────────────────────
-async function openInstallModal(mod) {
-    currentMod = mod;
-    currentVersions = [];
-    currentInstances = [];
+    const isModpack = hit.project_type === "modpack";
+    const label = hit.latest_version || "";
+    const downloads = formatNum(hit.downloads);
+    const follows = formatNum(hit.follows);
 
-    // Populate header
-    modalModName.textContent = mod.title;
-    modalModAuthor.textContent = 'by ' + mod.author;
-    if (mod.icon && isModrinthIconURL(mod.icon)) {
-        const img = document.createElement('img');
-        img.src = mod.icon;
-        img.alt = '';
-        modalModIcon.innerHTML = ''; // clear first
-        modalModIcon.appendChild(img);
-    } else {
-        modalModIcon.textContent = '';
-        const letter = document.createElement('div');
-        letter.className = 'icon-letter';
-        letter.textContent = mod.title ? mod.title.charAt(0) : '';
-        modalModIcon.appendChild(letter);
-    }
+    card.innerHTML = `
+      <div class="card-top">
+        <img
+          class="card-icon"
+          src="${hit.icon_url || ""}"
+          alt="${escHtml(hit.title)}"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+        />
+        <div class="card-icon-fallback" style="display:none">${escHtml(hit.title[0] || "?")}</div>
+        <div class="card-info">
+          <h3 class="card-title">${escHtml(hit.title)}</h3>
+          <p class="card-author">by ${escHtml(hit.author)}</p>
+        </div>
+      </div>
+      <p class="card-desc">${escHtml(hit.description || "")}</p>
+      <div class="card-meta">
+        ${label ? `<span class="card-tag">${escHtml(label)}</span>` : ""}
+        <span class="card-stat">⬇ ${downloads}</span>
+        <span class="card-stat">♥ ${follows}</span>
+        ${isModpack ? `<span class="card-tag pack-tag">Modpack</span>` : ""}
+      </div>
+      <button class="btn-card-install" data-id="${hit.project_id}" data-type="${hit.project_type}">
+        ${isModpack ? "Install Pack" : "Install"}
+      </button>
+    `;
 
-    // Reset state
-    versionSelect.setOptions([{ label: 'Loading versions...', value: '' }]);
-    instanceSelect.setOptions([{ label: 'Loading instances...', value: '' }]);
-    installStatus.classList.add('hidden');
-    installStatus.textContent = '';
-    installBtnText.textContent = 'Install';
-    installBtn.disabled = false;
-    modal.classList.remove('hidden');
-
-    // Fetch versions and instances in parallel
-    let versionsRes, instancesMsg;
-    try {
-        [versionsRes, instancesMsg] = await Promise.all([
-            fetch(`https://api.modrinth.com/v2/project/${mod.id}/version`).then(r => r.json()),
-            sendMessage({ type: 'get_instances' })
-        ]);
-    } catch (err) {
-        instanceSelect.setOptions([{ label: 'Failed to load instances', value: '' }]);
-        versionSelect.setOptions([{ label: 'Failed to load versions', value: '' }]);
-        showStatus(`Failed to load: ${err.message}`, 'error');
-        return;
-    }
-
-    // Store state
-    currentVersions = versionsRes;
-    currentInstances = instancesMsg.instances || [];
-
-    if (instancesMsg.error) {
-        instanceSelect.setOptions([{ label: 'Failed to load instances', value: '' }]);
-        versionSelect.setOptions([{ label: 'No instances available', value: '' }]);
-        showStatus(`Failed to load instances: ${instancesMsg.error}`, 'error');
-        return;
-    }
-
-    // Populate instances dropdown
-    instanceSelect.setOptions(currentInstances.length
-        ? currentInstances.map(inst => ({
-            label: `${inst.name} (${inst.version} • ${inst.loader})`,
-            value: inst.id
-          }))
-        : [{ label: 'No instances found', value: '' }]
-    );
-
-    // Initial version list update based on the default selected instance
-    if (currentInstances.length > 0) {
-        updateVersionDropdown(currentInstances[0]);
-    } else {
-        versionSelect.setOptions([{ label: 'No instances available', value: '' }]);
-    }
-}
-
-function closeModal() {
-    modal.classList.add('hidden');
-    currentMod = null;
-}
-
-modalClose.addEventListener('click', closeModal);
-cancelBtn.addEventListener('click', closeModal);
-modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-
-installBtn.addEventListener('click', async () => {
-    const vIdxStr = versionSelect.getValue();
-    const instanceId = instanceSelect.getValue();
-
-    if (vIdxStr === null || !instanceId) {
-        showStatus('Please select a version and instance.', 'error');
-        return;
-    }
-
-    const vIdx = parseInt(vIdxStr, 10);
-    const version = currentVersions[vIdx];
-    // Pick the primary jar file
-    const file = version.files.find(f => f.primary) || version.files[0];
-    if (!file) {
-        showStatus('No downloadable file found for this version.', 'error');
-        return;
-    }
-
-    installBtnText.textContent = 'Installing...';
-    installBtn.disabled = true;
-    installStatus.classList.add('hidden');
-
-    const result = await sendMessage({
-        type: 'install_mod',
-        instanceId,
-        jarName: file.filename,
-        downloadUrl: file.url
+    const btn = card.querySelector(".btn-card-install");
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (hit.project_type === "modpack") {
+        openPackModal(hit);
+      } else {
+        openModModal(hit);
+      }
     });
 
-    if (result.success) {
-        showStatus(`✓ ${file.filename} installed successfully!`, 'success');
-        installBtnText.textContent = 'Done!';
-    } else {
-        showStatus(`✗ ${result.error}`, 'error');
-        installBtnText.textContent = 'Install';
-        installBtn.disabled = false;
-    }
-});
-
-function showStatus(msg, type) {
-    installStatus.textContent = msg;
-    installStatus.className = `install-status ${type}`;
+    resultsContainer.appendChild(card);
+  });
 }
 
-// Initial search
-search('fabric');
+function formatNum(n) {
+  if (!n) return "0";
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return String(n);
+}
+
+function escHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// State helpers
+// ────────────────────────────────────────────────────────────────────────────
+function showPlaceholder(msg) {
+  resultsContainer.innerHTML = `
+    <div class="placeholder">
+      <div class="placeholder-icon">🔍</div>
+      <p>${escHtml(msg)}</p>
+    </div>`;
+}
+
+function showLoading() {
+  resultsContainer.innerHTML = `
+    <div class="placeholder">
+      <div class="spinner"></div>
+      <p>Searching…</p>
+    </div>`;
+}
+
+function showEmpty(msg) {
+  resultsContainer.innerHTML = `
+    <div class="placeholder">
+      <div class="placeholder-icon">📭</div>
+      <p>${escHtml(msg)}</p>
+    </div>`;
+}
+
+function showError(msg) {
+  resultsContainer.innerHTML = `
+    <div class="placeholder error">
+      <div class="placeholder-icon">⚠️</div>
+      <p>${escHtml(msg)}</p>
+    </div>`;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Mod install modal
+// ────────────────────────────────────────────────────────────────────────────
+let _modVersions = [];
+let _modProjectId = null;
+
+function openModModal(hit) {
+  _modProjectId = hit.project_id;
+  modalIcon.src = hit.icon_url || "";
+  modalIcon.alt = hit.title;
+  modalName.textContent = hit.title;
+  modalAuthor.textContent = "by " + (hit.author || "");
+
+  versionSelect.innerHTML = `<option disabled selected>Loading versions…</option>`;
+  instanceSelect.innerHTML = `<option disabled selected>Loading instances…</option>`;
+  installStatus.classList.add("hidden");
+  installStatus.textContent = "";
+  modalInstall.disabled = false;
+  modalInstallText.textContent = "Install";
+  installModal.classList.remove("hidden");
+
+  // Fetch versions + instances in parallel
+  Promise.all([
+    fetch(`https://api.modrinth.com/v2/project/${hit.project_id}/version`).then((r) => r.json()),
+    loadInstances(),
+  ])
+    .then(([versions]) => {
+      _modVersions = versions;
+      versionSelect.innerHTML = "";
+      versions.forEach((v) => {
+        const opt = document.createElement("option");
+        opt.value = v.id;
+        const loaders = (v.loaders || []).join(", ");
+        const mc = (v.game_versions || []).slice(-1)[0] || "";
+        opt.textContent = `${v.version_number}  [${mc}${loaders ? " · " + loaders : ""}]`;
+        versionSelect.appendChild(opt);
+      });
+    })
+    .catch(() => {
+      versionSelect.innerHTML = `<option>Failed to load versions</option>`;
+    });
+}
+
+async function loadInstances() {
+  try {
+    const res = await sendMessage({ type: "get_instances" });
+    instances = res.instances || [];
+    instanceSelect.innerHTML = "";
+    if (!instances.length) {
+      instanceSelect.innerHTML = `<option disabled selected>No instances found</option>`;
+      return;
+    }
+    instances.forEach((inst) => {
+      const opt = document.createElement("option");
+      opt.value = inst.id;
+      opt.textContent = `${inst.name} (${inst.version}${inst.loader !== "Vanilla" ? " · " + inst.loader : ""})`;
+      instanceSelect.appendChild(opt);
+    });
+  } catch {
+    instanceSelect.innerHTML = `<option disabled>Could not load instances</option>`;
+  }
+}
+
+modalClose.addEventListener("click", closeModModal);
+modalCancel.addEventListener("click", closeModModal);
+installModal.addEventListener("click", (e) => {
+  if (e.target === installModal) closeModModal();
+});
+
+function closeModModal() {
+  installModal.classList.add("hidden");
+}
+
+modalInstall.addEventListener("click", async () => {
+  const versionId = versionSelect.value;
+  const instanceId = instanceSelect.value;
+  if (!versionId || !instanceId) return;
+
+  const version = _modVersions.find((v) => v.id === versionId);
+  if (!version) return;
+
+  const primaryFile = version.files.find((f) => f.primary) || version.files[0];
+  if (!primaryFile) {
+    showInstallStatus(installStatus, "error", "No download file found.");
+    return;
+  }
+
+  modalInstall.disabled = true;
+  modalInstallText.textContent = "Installing…";
+  showInstallStatus(installStatus, "info", "Downloading mod…");
+
+  try {
+    await sendMessage(
+      {
+        type: "install_mod",
+        instanceId,
+        jarName: primaryFile.filename,
+        downloadUrl: primaryFile.url,
+      },
+      60000
+    );
+    showInstallStatus(installStatus, "success", `✓ Installed ${primaryFile.filename}`);
+    modalInstallText.textContent = "Installed ✓";
+  } catch (err) {
+    showInstallStatus(installStatus, "error", "Install failed: " + err.message);
+    modalInstall.disabled = false;
+    modalInstallText.textContent = "Install";
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Modpack install modal
+// ────────────────────────────────────────────────────────────────────────────
+let _packVersions = [];
+
+function openPackModal(hit) {
+  packModalIcon.src = hit.icon_url || "";
+  packModalIcon.alt = hit.title;
+  packModalName.textContent = hit.title;
+  packModalAuthor.textContent = "by " + (hit.author || "");
+  packNameInput.value = hit.title;
+
+  packVersionSelect.innerHTML = `<option disabled selected>Loading versions…</option>`;
+  packInstallStatus.classList.add("hidden");
+  packInstallStatus.textContent = "";
+  packModalInstall.disabled = false;
+  packModalInstallText.textContent = "Create & Install";
+  packModal.classList.remove("hidden");
+
+  fetch(`https://api.modrinth.com/v2/project/${hit.project_id}/version`)
+    .then((r) => r.json())
+    .then((versions) => {
+      _packVersions = versions;
+      packVersionSelect.innerHTML = "";
+      versions.forEach((v) => {
+        const opt = document.createElement("option");
+        opt.value = v.id;
+        const mc = (v.game_versions || []).slice(-1)[0] || "";
+        const loaders = (v.loaders || []).join(", ");
+        opt.textContent = `${v.version_number}  [${mc}${loaders ? " · " + loaders : ""}]`;
+        packVersionSelect.appendChild(opt);
+      });
+    })
+    .catch(() => {
+      packVersionSelect.innerHTML = `<option>Failed to load versions</option>`;
+    });
+}
+
+packModalClose.addEventListener("click", closePackModal);
+packModalCancel.addEventListener("click", closePackModal);
+packModal.addEventListener("click", (e) => {
+  if (e.target === packModal) closePackModal();
+});
+
+function closePackModal() {
+  packModal.classList.add("hidden");
+}
+
+packModalInstall.addEventListener("click", async () => {
+  const versionId = packVersionSelect.value;
+  if (!versionId) return;
+
+  const version = _packVersions.find((v) => v.id === versionId);
+  if (!version) return;
+
+  // Find the .mrpack primary file
+  const mrpackFile =
+    version.files.find((f) => f.primary && f.filename.endsWith(".mrpack")) ||
+    version.files.find((f) => f.filename.endsWith(".mrpack")) ||
+    version.files[0];
+
+  if (!mrpackFile) {
+    showInstallStatus(packInstallStatus, "error", "No .mrpack file found for this version.");
+    return;
+  }
+
+  const packName = packNameInput.value.trim() || "";
+  packModalInstall.disabled = true;
+  packModalInstallText.textContent = "Installing…";
+  showInstallStatus(
+    packInstallStatus,
+    "info",
+    "Downloading and installing modpack — this may take a few minutes…"
+  );
+
+  try {
+    // 5 minute timeout for large modpacks
+    const res = await sendMessage(
+      {
+        type: "install_modpack",
+        packUrl: mrpackFile.url,
+        packName,
+      },
+      5 * 60 * 1000
+    );
+    showInstallStatus(
+      packInstallStatus,
+      "success",
+      `✓ Modpack installed! Instance "${res.packName || packName}" is ready.`
+    );
+    packModalInstallText.textContent = "Installed ✓";
+  } catch (err) {
+    showInstallStatus(packInstallStatus, "error", "Install failed: " + err.message);
+    packModalInstall.disabled = false;
+    packModalInstallText.textContent = "Create & Install";
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Shared status helper
+// ────────────────────────────────────────────────────────────────────────────
+function showInstallStatus(el, type, msg) {
+  el.className = "install-status " + type;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
