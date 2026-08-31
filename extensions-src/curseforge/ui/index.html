@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Curseforge Browser</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="header">
+    <div class="search-bar">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input id="searchInput" type="text" placeholder="Search Curseforge for mods, modpacks..." autocomplete="off" />
+    </div>
+  </div>
+
+  <div id="resultsContainer">
+    <div class="placeholder-wrap">
+      <div class="placeholder-icon">🔍</div>
+      <p>Search for mods above</p>
+    </div>
+  </div>
+
+  <div id="paginationBar" class="pagination-bar hidden">
+    <button id="prevPageBtn" class="page-btn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      Prev
+    </button>
+    <span id="pageIndicator" class="page-indicator">Page 1</span>
+    <button id="nextPageBtn" class="page-btn" disabled>
+      Next
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </button>
+  </div>
+
+  <!-- Install Modal -->
+  <div id="installModal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div id="modalModIcon" class="modal-mod-icon"></div>
+        <div>
+          <h3 id="modalModName">Mod Name</h3>
+          <p id="modalModAuthor" class="modal-mod-author"></p>
+        </div>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+
+      <div class="modal-section">
+        <label class="modal-label">Version</label>
+        <div class="custom-select" id="versionSelect">
+          <div class="custom-select-trigger">
+            <span class="custom-select-text">Loading versions...</span>
+            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+          <div class="custom-select-options hidden"></div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <label class="modal-label">Target Instance</label>
+        <div class="custom-select" id="instanceSelect">
+          <div class="custom-select-trigger">
+            <span class="custom-select-text">Loading instances...</span>
+            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+          <div class="custom-select-options hidden"></div>
+        </div>
+      </div>
+
+      <div id="installStatus" class="install-status hidden"></div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="cancelBtn">Cancel</button>
+        <button class="btn-install" id="installBtn">
+          <span id="installBtnText">Install</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

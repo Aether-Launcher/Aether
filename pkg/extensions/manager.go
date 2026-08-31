@@ -231,35 +231,55 @@ func (m *Manager) reloadSandboxes() {
 					return "", err
 				}
 				destPath := filepath.Join(modsDir, jarName)
-				// Use background context for mod downloads – the per-extension timeout is only for Execute, not launch-time operations
-				req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, downloadURL, nil)
-				if err != nil {
-					return "", err
+
+				doDownload := func(targetURL string) error {
+					req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, targetURL, nil)
+					if err != nil {
+						return err
+					}
+					req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+					resp, err := http.DefaultClient.Do(req)
+					if err != nil {
+						return err
+					}
+					defer resp.Body.Close()
+					if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+						return fmt.Errorf("mod download failed with status %s", resp.Status)
+					}
+					if resp.ContentLength > maxExtensionModSize {
+						return fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
+					}
+					out, err := os.Create(destPath)
+					if err != nil {
+						return err
+					}
+					defer out.Close()
+					written, err := io.Copy(out, io.LimitReader(resp.Body, maxExtensionModSize+1))
+					if err != nil {
+						_ = os.Remove(destPath)
+						return err
+					}
+					if written > maxExtensionModSize {
+						_ = os.Remove(destPath)
+						return fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
+					}
+					return nil
 				}
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					return "", err
+
+				dlErr := doDownload(downloadURL)
+				if dlErr != nil && (parsedURL.Hostname() == "edge.forgecdn.net" || parsedURL.Hostname() == "media.forgecdn.net") {
+					// Fallback to alternative CDN domain if DNS or connection fails
+					altHost := "media.forgecdn.net"
+					if parsedURL.Hostname() == "media.forgecdn.net" {
+						altHost = "edge.forgecdn.net"
+					}
+					altURL := strings.Replace(downloadURL, parsedURL.Hostname(), altHost, 1)
+					if altErr := doDownload(altURL); altErr == nil {
+						return destPath, nil
+					}
 				}
-				defer resp.Body.Close()
-				if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-					return "", fmt.Errorf("mod download failed with status %s", resp.Status)
-				}
-				if resp.ContentLength > maxExtensionModSize {
-					return "", fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
-				}
-				out, err := os.Create(destPath)
-				if err != nil {
-					return "", err
-				}
-				defer out.Close()
-				written, err := io.Copy(out, io.LimitReader(resp.Body, maxExtensionModSize+1))
-				if err != nil {
-					_ = os.Remove(destPath)
-					return "", err
-				}
-				if written > maxExtensionModSize {
-					_ = os.Remove(destPath)
-					return "", fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
+				if dlErr != nil {
+					return "", dlErr
 				}
 				return destPath, nil
 			},
@@ -587,35 +607,55 @@ func downloadInstanceAsset(instanceID, subFolder, fileName, downloadURL string, 
 		return "", err
 	}
 	destPath := filepath.Join(targetDir, fileName)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, downloadURL, nil)
-	if err != nil {
-		return "", err
+
+	doDownload := func(targetURL string) error {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, targetURL, nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			return fmt.Errorf("download failed with status %s", resp.Status)
+		}
+		const maxAssetSize int64 = 250 * 1024 * 1024
+		if resp.ContentLength > maxAssetSize {
+			return fmt.Errorf("file exceeds size limit of %d MB", maxAssetSize/(1024*1024))
+		}
+		out, err := os.Create(destPath)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		written, err := io.Copy(out, io.LimitReader(resp.Body, maxAssetSize+1))
+		if err != nil {
+			_ = os.Remove(destPath)
+			return err
+		}
+		if written > maxAssetSize {
+			_ = os.Remove(destPath)
+			return fmt.Errorf("file exceeds size limit of %d MB", maxAssetSize/(1024*1024))
+		}
+		return nil
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
+
+	dlErr := doDownload(downloadURL)
+	if dlErr != nil && (parsedURL.Hostname() == "edge.forgecdn.net" || parsedURL.Hostname() == "media.forgecdn.net") {
+		altHost := "media.forgecdn.net"
+		if parsedURL.Hostname() == "media.forgecdn.net" {
+			altHost = "edge.forgecdn.net"
+		}
+		altURL := strings.Replace(downloadURL, parsedURL.Hostname(), altHost, 1)
+		if altErr := doDownload(altURL); altErr == nil {
+			return destPath, nil
+		}
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("download failed with status %s", resp.Status)
-	}
-	const maxAssetSize int64 = 250 * 1024 * 1024
-	if resp.ContentLength > maxAssetSize {
-		return "", fmt.Errorf("file exceeds size limit of %d MB", maxAssetSize/(1024*1024))
-	}
-	out, err := os.Create(destPath)
-	if err != nil {
-		return "", err
-	}
-	defer out.Close()
-	written, err := io.Copy(out, io.LimitReader(resp.Body, maxAssetSize+1))
-	if err != nil {
-		_ = os.Remove(destPath)
-		return "", err
-	}
-	if written > maxAssetSize {
-		_ = os.Remove(destPath)
-		return "", fmt.Errorf("file exceeds size limit of %d MB", maxAssetSize/(1024*1024))
+	if dlErr != nil {
+		return "", dlErr
 	}
 	return destPath, nil
 }
