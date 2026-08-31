@@ -55,6 +55,7 @@
     try {
       await RemoveAccount(id);
       await loadData();
+      showDropdown = false;
     } catch (e) {
       console.error("Failed to remove account", e);
     }
@@ -84,7 +85,7 @@
           {#each accounts as acc}
             <div 
               class="account-item {activeAccount && activeAccount.id === acc.id ? 'active' : ''}" 
-              on:click={() => handleSwitch(acc.id)}
+              on:click|stopPropagation={() => handleSwitch(acc.id)}
               on:keydown={(e) => e.key === 'Enter' && handleSwitch(acc.id)}
               role="button"
               tabindex="0"
@@ -123,7 +124,7 @@
       </div>
       
       <div class="dropdown-actions">
-        <button class="add-account-btn" on:click={() => { showLoginModal = true; showDropdown = false; }}>
+        <button class="add-account-btn" on:click|stopPropagation={() => { showLoginModal = true; showDropdown = false; }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -322,19 +323,19 @@
     height: 16px;
   }
 
-  /* Dropdown Styles */
+  /* Dropdown Styles — fixed to escape sidebar overflow:hidden */
   .accounts-dropdown {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 0;
-    right: 0;
-    background: rgba(26, 26, 26, 0.95);
+    position: fixed;
+    left: 12px;
+    width: 196px;
+    bottom: 72px;
+    background: rgba(26, 26, 26, 0.98);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: var(--border-radius);
     box-shadow: 0 -10px 25px rgba(0, 0, 0, 0.5), 0 10px 25px rgba(0, 0, 0, 0.5);
-    z-index: 1000;
+    z-index: 1001;
     display: flex;
     flex-direction: column;
     overflow: hidden;
