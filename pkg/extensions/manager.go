@@ -15,6 +15,7 @@ import (
 
 	"Aether/pkg/fs"
 	"Aether/pkg/instance"
+	"Aether/pkg/mojang"
 )
 
 // Manager handles the lifecycle of all extensions
@@ -328,6 +329,47 @@ func (m *Manager) reloadSandboxes() {
 				if err != nil {
 					return "", fmt.Errorf("modpack install failed: %w", err)
 				}
+
+				// Option A: Auto-trigger Minecraft installation pipeline in background
+				go func() {
+					info, err := mojang.GetVersionInfo(inst.Version)
+					if err != nil {
+						fmt.Printf("[Mrpack] auto-install failed to fetch version info: %v\n", err)
+						return
+					}
+					basePath := filepath.Join(targetRoot, inst.ID)
+					assetsDir := fs.GetAssetsDir()
+					engine := mojang.NewDownloadEngine(m.ctx, inst.ID, basePath)
+
+					if m.emit != nil {
+						m.emit(m.ctx, "instance:state", map[string]interface{}{
+							"id":    inst.ID,
+							"state": "Installing",
+						})
+					}
+
+					if err := engine.Install(info, assetsDir); err != nil {
+						fmt.Printf("[Mrpack] auto-install failed: %v\n", err)
+						if m.emit != nil {
+							m.emit(m.ctx, "instance:error", map[string]interface{}{
+								"id":      inst.ID,
+								"message": fmt.Sprintf("Installation failed: %v", err),
+							})
+							m.emit(m.ctx, "instance:state", map[string]interface{}{
+								"id":    inst.ID,
+								"state": "Error",
+							})
+						}
+					} else {
+						if m.emit != nil {
+							m.emit(m.ctx, "instance:state", map[string]interface{}{
+								"id":    inst.ID,
+								"state": "Idle",
+							})
+						}
+					}
+				}()
+
 				return inst.ID, nil
 			},
 		)
