@@ -30,8 +30,8 @@ Aether.launcher.registerModLoader({
 
         // 2. Try to fetch the Forge version JSON for library listing
         // Maven no longer publishes a standalone .json for modern Forge
-        // (it lives inside the installer jar), so we try Maven first and
-        // fall back to Prism's upstream mirror, then continue with defaults.
+        // (it lives inside the installer jar); attempts Maven first and
+        // falls back to Prism's upstream mirror, then continues with defaults.
         var versionInfo = null;
         var jsonUrl = mavenUrl + basePath + ".json";
         var prismUrl = "https://raw.githubusercontent.com/PrismLauncher/meta-upstream/master/forge/version_manifests/" + fullVer + ".json";

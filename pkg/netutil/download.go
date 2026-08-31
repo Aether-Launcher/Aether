@@ -71,7 +71,7 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 				// If the destination now exists and its checksum is valid, we're done.
 				if len(expectedSha1) > 0 && expectedSha1[0] != "" {
 					if ok, _ := verifySha1(dest, expectedSha1[0]); ok {
-						_ = os.Remove(tempDest) // best-effort cleanup of our .tmp
+						_ = os.Remove(tempDest) // best-effort cleanup of temp file
 						return nil
 					}
 				} else if _, statErr := os.Stat(dest); statErr == nil {
@@ -108,10 +108,9 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 }
 
 // downloadAttempt performs a single HTTP GET (with optional Range resume) and writes
-// the response body to tempDest. It is fully self-contained — no named returns,
-// no shared error variables, no variable capture issues.
+// the response body to tempDest. Self-contained with no shared error state.
 func downloadAttempt(ctx context.Context, url, tempDest string, onProgress ProgressCallback) error {
-	// Check how many bytes we already have so we can try to resume
+	// Check existing temp file size for resume
 	var startBytes int64
 	if info, err := os.Stat(tempDest); err == nil {
 		startBytes = info.Size()
@@ -149,8 +148,8 @@ func downloadAttempt(ctx context.Context, url, tempDest string, onProgress Progr
 			return err
 		}
 	case http.StatusRequestedRangeNotSatisfiable:
-		// Our temp file is already complete (or corrupt beyond the file size).
-		// Delete it and start fresh on the next attempt.
+		// Temp file already complete or corrupt beyond file size.
+		// Delete it and start fresh on next attempt.
 		return fmt.Errorf("range not satisfiable (temp file may be corrupt)")
 	default:
 		return fmt.Errorf("unexpected HTTP status %d for %s", resp.StatusCode, url)

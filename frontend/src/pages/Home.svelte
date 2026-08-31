@@ -83,7 +83,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
   async function loadHome() {
     const all = await GetInstances();
-    // If we have a forced activeInstanceId use it, otherwise use GetActiveInstance
+    // Use forced activeInstanceId if present; otherwise use active instance.
     if (activeInstanceId) {
       currentInstance = all.find((i: any) => i.id === activeInstanceId) || await GetActiveInstance();
     } else {

@@ -82,7 +82,7 @@ func (s *Server) GetPort() int {
 
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow our Wails frontend (usually wails:// or http://localhost:...) to load these assets
+		// Allow the Wails frontend (usually wails:// or http://localhost:...) to load these assets
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")

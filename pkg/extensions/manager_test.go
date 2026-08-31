@@ -11,8 +11,8 @@ import (
 )
 
 // setupExtensionsDir isolates the test from the real user data directory.
-// fs.GetDataDir() prefers an .aether folder in the working directory, so we
-// chdir into a temp dir and create the expected layout there.
+// Prefers an .aether folder in the working directory, so the test changes
+// directory into a temp dir and creates the expected layout.
 func setupExtensionsDir(t *testing.T) string {
 	t.Helper()
 	tmp := t.TempDir()

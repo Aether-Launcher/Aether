@@ -43,10 +43,10 @@ func main() {
 	app := NewApp()
 
 	// On macOS, use native window chrome (traffic-light controls, standard titlebar).
-	// On Windows/Linux, keep our custom frameless titlebar where the platform allows it.
+	// On Windows/Linux, keep the custom frameless titlebar where the platform allows it.
 	frameless := windowChrome() == "custom"
 
-	// macOS-specific options: use full-size content view so our sidebar extends
+	// macOS-specific options: use full-size content view so the sidebar extends
 	// edge-to-edge, but keep the native title bar visible.
 	var macOptions *mac.Options
 	if runtime.GOOS == "darwin" {
