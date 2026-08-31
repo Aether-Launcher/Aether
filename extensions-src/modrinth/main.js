@@ -47,8 +47,6 @@ Aether.ui.onMessage(function (msg) {
   }
 
   // ── install_modpack ────────────────────────────────────────────────────
-  // Downloads the .mrpack, creates a new instance, and installs all files.
-  // This call blocks until the entire pack is installed.
   if (msg.type === "install_modpack") {
     try {
       var instanceId = Aether.instances.installModpack(
@@ -65,6 +63,58 @@ Aether.ui.onMessage(function (msg) {
     } catch (e) {
       Aether.ui.postMessage({
         type: "install_modpack_result",
+        requestId: msg.requestId,
+        success: false,
+        error: String(e),
+      });
+    }
+    return;
+  }
+
+  // ── install_resourcepack ───────────────────────────────────────────────
+  if (msg.type === "install_resourcepack") {
+    try {
+      var resPath = Aether.instances.installResourcePack(
+        msg.instanceId,
+        msg.fileName,
+        msg.downloadUrl
+      );
+      Aether.ui.postMessage({
+        type: "install_resourcepack_result",
+        requestId: msg.requestId,
+        success: true,
+        fileName: msg.fileName,
+        path: resPath,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "install_resourcepack_result",
+        requestId: msg.requestId,
+        success: false,
+        error: String(e),
+      });
+    }
+    return;
+  }
+
+  // ── install_shaderpack ─────────────────────────────────────────────────
+  if (msg.type === "install_shaderpack") {
+    try {
+      var shaderPath = Aether.instances.installShaderPack(
+        msg.instanceId,
+        msg.fileName,
+        msg.downloadUrl
+      );
+      Aether.ui.postMessage({
+        type: "install_shaderpack_result",
+        requestId: msg.requestId,
+        success: true,
+        fileName: msg.fileName,
+        path: shaderPath,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "install_shaderpack_result",
         requestId: msg.requestId,
         success: false,
         error: String(e),

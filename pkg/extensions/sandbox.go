@@ -134,6 +134,8 @@ func NewSandbox(
 	emit func(ctx context.Context, event string, data ...interface{}),
 	confirm func(action map[string]interface{}) bool,
 	installModpack func(packURL, packName string) (string, error),
+	installResourcePack func(instanceID, fileName, downloadURL string) (string, error),
+	installShaderPack func(instanceID, fileName, downloadURL string) (string, error),
 ) *Sandbox {
 	if emit == nil {
 		emit = func(_ context.Context, _ string, _ ...interface{}) {}
@@ -320,7 +322,7 @@ func NewSandbox(
 
 	// Instance and mod capabilities are independently controlled. The legacy
 	// instances:patch permission is accepted by HasAnyPermission for migration.
-	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install") {
+	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install", "resourcepacks:install", "shaderpacks:install") {
 		instancesObj := vm.NewObject()
 
 		if manifest.HasAnyPermission("instances:list") {
@@ -462,6 +464,70 @@ func NewSandbox(
 					panic(vm.NewGoError(err))
 				}
 				return vm.ToValue(instanceID)
+			})
+		}
+
+		// Capability: resourcepacks:install — downloads resource pack file to instance/resourcepacks
+		if manifest.HasAnyPermission("resourcepacks:install") {
+			instancesObj.Set("installResourcePack", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				downloadURL := call.Argument(2).String()
+
+				if !isAllowedURL(downloadURL) {
+					panic(vm.NewGoError(fmt.Errorf("access denied to URL: %s", downloadURL)))
+				}
+				if installResourcePack == nil {
+					panic(vm.NewGoError(fmt.Errorf("installResourcePack not available")))
+				}
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "install resource pack",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+					"fileName":      fileName,
+					"url":           downloadURL,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied resource pack installation")))
+				}
+
+				path, err := installResourcePack(instanceID, fileName, downloadURL)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(path)
+			})
+		}
+
+		// Capability: shaderpacks:install — downloads shader pack file to instance/shaderpacks
+		if manifest.HasAnyPermission("shaderpacks:install") {
+			instancesObj.Set("installShaderPack", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				downloadURL := call.Argument(2).String()
+
+				if !isAllowedURL(downloadURL) {
+					panic(vm.NewGoError(fmt.Errorf("access denied to URL: %s", downloadURL)))
+				}
+				if installShaderPack == nil {
+					panic(vm.NewGoError(fmt.Errorf("installShaderPack not available")))
+				}
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "install shader pack",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+					"fileName":      fileName,
+					"url":           downloadURL,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied shader pack installation")))
+				}
+
+				path, err := installShaderPack(instanceID, fileName, downloadURL)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(path)
 			})
 		}
 

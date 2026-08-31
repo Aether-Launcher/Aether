@@ -372,6 +372,12 @@ func (m *Manager) reloadSandboxes() {
 
 				return inst.ID, nil
 			},
+			func(instanceID, fileName, downloadURL string) (string, error) {
+				return downloadInstanceAsset(instanceID, "resourcepacks", fileName, downloadURL, map[string]bool{".zip": true, ".jar": true})
+			},
+			func(instanceID, fileName, downloadURL string) (string, error) {
+				return downloadInstanceAsset(instanceID, "shaderpacks", fileName, downloadURL, map[string]bool{".zip": true})
+			},
 		)
 		newSandboxes[id] = sandbox
 
@@ -560,4 +566,56 @@ func (m *Manager) BroadcastEvent(event string, payload map[string]interface{}) {
 // GetSidebarPages returns all registered sidebar pages
 func (m *Manager) GetSidebarPages() []map[string]interface{} {
 	return m.SidebarPages
+}
+
+func downloadInstanceAsset(instanceID, subFolder, fileName, downloadURL string, validExts map[string]bool) (string, error) {
+	fileName = filepath.Base(fileName)
+	ext := strings.ToLower(filepath.Ext(fileName))
+	if !validExts[ext] {
+		return "", fmt.Errorf("file extension %s is not permitted for %s", ext, subFolder)
+	}
+	parsedURL, err := neturl.Parse(downloadURL)
+	if err != nil || parsedURL.Scheme != "https" || parsedURL.Hostname() == "" {
+		return "", fmt.Errorf("asset downloads require an HTTPS URL")
+	}
+	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+	if err != nil {
+		return "", err
+	}
+	targetDir := filepath.Join(instanceDir, subFolder)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return "", err
+	}
+	destPath := filepath.Join(targetDir, fileName)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("download failed with status %s", resp.Status)
+	}
+	const maxAssetSize int64 = 250 * 1024 * 1024
+	if resp.ContentLength > maxAssetSize {
+		return "", fmt.Errorf("file exceeds size limit of %d MB", maxAssetSize/(1024*1024))
+	}
+	out, err := os.Create(destPath)
+	if err != nil {
+		return "", err
+	}
+	defer out.Close()
+	written, err := io.Copy(out, io.LimitReader(resp.Body, maxAssetSize+1))
+	if err != nil {
+		_ = os.Remove(destPath)
+		return "", err
+	}
+	if written > maxAssetSize {
+		_ = os.Remove(destPath)
+		return "", fmt.Errorf("file exceeds size limit of %d MB", maxAssetSize/(1024*1024))
+	}
+	return destPath, nil
 }

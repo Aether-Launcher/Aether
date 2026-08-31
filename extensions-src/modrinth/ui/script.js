@@ -1,6 +1,6 @@
 /**
  * Modrinth Browser – UI script
- * Supports: Mods + Modpacks tabs, paginated search, mod install, modpack install.
+ * Supports: Mods, Modpacks, Resource Packs, Shaders.
  */
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ window.addEventListener("message", (e) => {
 // State
 // ────────────────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 20;
-let currentType = "mod";  // "mod" | "modpack"
+let currentType = "mod";  // "mod" | "modpack" | "resourcepack" | "shader"
 let currentPage = 1;
 let totalHits = 0;
 let lastQuery = "";
@@ -59,10 +59,12 @@ const nextBtn         = document.getElementById("nextBtn");
 const pageInfo        = document.getElementById("pageInfo");
 
 // Tab buttons
-const tabMods     = document.getElementById("tabMods");
-const tabModpacks = document.getElementById("tabModpacks");
+const tabMods          = document.getElementById("tabMods");
+const tabModpacks      = document.getElementById("tabModpacks");
+const tabResourcePacks = document.getElementById("tabResourcePacks");
+const tabShaders       = document.getElementById("tabShaders");
 
-// Mod modal
+// Mod / ResourcePack / Shader modal
 const installModal    = document.getElementById("installModal");
 const modalClose      = document.getElementById("modalClose");
 const modalCancel     = document.getElementById("modalCancel");
@@ -98,13 +100,16 @@ function switchTab(type) {
 
   tabMods.classList.toggle("active", type === "mod");
   tabModpacks.classList.toggle("active", type === "modpack");
+  tabResourcePacks.classList.toggle("active", type === "resourcepack");
+  tabShaders.classList.toggle("active", type === "shader");
 
-  // Always fetch (empty query → popular by downloads, typed query → re-search)
   search(searchInput.value.trim());
 }
 
 tabMods.addEventListener("click", () => switchTab("mod"));
 tabModpacks.addEventListener("click", () => switchTab("modpack"));
+tabResourcePacks.addEventListener("click", () => switchTab("resourcepack"));
+tabShaders.addEventListener("click", () => switchTab("shader"));
 
 // ────────────────────────────────────────────────────────────────────────────
 // Pagination
@@ -166,7 +171,6 @@ async function search(query) {
   showLoading();
   const offset = (currentPage - 1) * PAGE_SIZE;
 
-  // Sort by downloads when browsing (empty query), by relevance when searching
   const index = query ? "relevance" : "downloads";
   const facets = `[["project_type:${currentType}"]]`;
   const url =
@@ -186,7 +190,13 @@ async function search(query) {
     updatePagination();
 
     if (!data.hits || data.hits.length === 0) {
-      showEmpty(currentType === "modpack" ? "No modpacks found" : "No mods found");
+      const typeLabels = {
+        mod: "mods",
+        modpack: "modpacks",
+        resourcepack: "resource packs",
+        shader: "shaders",
+      };
+      showEmpty(`No ${typeLabels[currentType] || "items"} found`);
       return;
     }
     renderResults(data.hits);
@@ -211,9 +221,16 @@ function renderResults(hits) {
     card.dataset.type = hit.project_type;
 
     const isModpack = hit.project_type === "modpack";
+    const isResourcePack = hit.project_type === "resourcepack";
+    const isShader = hit.project_type === "shader";
     const label = hit.latest_version || "";
     const downloads = formatNum(hit.downloads);
     const follows = formatNum(hit.follows);
+
+    let tagBadge = "";
+    if (isModpack) tagBadge = `<span class="card-tag pack-tag">Modpack</span>`;
+    else if (isResourcePack) tagBadge = `<span class="card-tag respack-tag">Resource Pack</span>`;
+    else if (isShader) tagBadge = `<span class="card-tag shader-tag">Shader</span>`;
 
     card.innerHTML = `
       <div class="card-top">
@@ -234,7 +251,7 @@ function renderResults(hits) {
         ${label ? `<span class="card-tag">${escHtml(label)}</span>` : ""}
         <span class="card-stat">⬇ ${downloads}</span>
         <span class="card-stat">♥ ${follows}</span>
-        ${isModpack ? `<span class="card-tag pack-tag">Modpack</span>` : ""}
+        ${tagBadge}
       </div>
       <button class="btn-card-install" data-id="${hit.project_id}" data-type="${hit.project_type}">
         ${isModpack ? "Install Pack" : "Install"}
@@ -273,14 +290,6 @@ function escHtml(s) {
 // ────────────────────────────────────────────────────────────────────────────
 // State helpers
 // ────────────────────────────────────────────────────────────────────────────
-function showPlaceholder(msg) {
-  resultsContainer.innerHTML = `
-    <div class="placeholder">
-      <div class="placeholder-icon">🔍</div>
-      <p>${escHtml(msg)}</p>
-    </div>`;
-}
-
 function showLoading() {
   resultsContainer.innerHTML = `
     <div class="placeholder">
@@ -306,13 +315,13 @@ function showError(msg) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Mod install modal
+// Mod / Resource Pack / Shader install modal
 // ────────────────────────────────────────────────────────────────────────────
 let _modVersions = [];
-let _modProjectId = null;
+let _currentItemType = "mod";
 
 function openModModal(hit) {
-  _modProjectId = hit.project_id;
+  _currentItemType = hit.project_type || "mod";
   modalIcon.src = hit.icon_url || "";
   modalIcon.alt = hit.title;
   modalName.textContent = hit.title;
@@ -394,14 +403,19 @@ modalInstall.addEventListener("click", async () => {
 
   modalInstall.disabled = true;
   modalInstallText.textContent = "Installing…";
-  showInstallStatus(installStatus, "info", "Downloading mod…");
+  showInstallStatus(installStatus, "info", "Downloading file…");
+
+  let ipcType = "install_mod";
+  if (_currentItemType === "resourcepack") ipcType = "install_resourcepack";
+  else if (_currentItemType === "shader") ipcType = "install_shaderpack";
 
   try {
     await sendMessage(
       {
-        type: "install_mod",
+        type: ipcType,
         instanceId,
         jarName: primaryFile.filename,
+        fileName: primaryFile.filename,
         downloadUrl: primaryFile.url,
       },
       60000
@@ -470,7 +484,6 @@ packModalInstall.addEventListener("click", async () => {
   const version = _packVersions.find((v) => v.id === versionId);
   if (!version) return;
 
-  // Find the .mrpack primary file
   const mrpackFile =
     version.files.find((f) => f.primary && f.filename.endsWith(".mrpack")) ||
     version.files.find((f) => f.filename.endsWith(".mrpack")) ||
@@ -491,7 +504,6 @@ packModalInstall.addEventListener("click", async () => {
   );
 
   try {
-    // 5 minute timeout for large modpacks
     const res = await sendMessage(
       {
         type: "install_modpack",
