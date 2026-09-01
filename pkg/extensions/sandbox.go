@@ -136,6 +136,9 @@ func NewSandbox(
 	installModpack func(packURL, packName string) (string, error),
 	installResourcePack func(instanceID, fileName, downloadURL string) (string, error),
 	installShaderPack func(instanceID, fileName, downloadURL string) (string, error),
+	listScreenshots func(instanceID string) ([]map[string]interface{}, error),
+	deleteScreenshot func(instanceID, fileName string) error,
+	openScreenshot func(instanceID, fileName string) error,
 ) *Sandbox {
 	if emit == nil {
 		emit = func(_ context.Context, _ string, _ ...interface{}) {}
@@ -528,6 +531,60 @@ func NewSandbox(
 					panic(vm.NewGoError(err))
 				}
 				return vm.ToValue(path)
+			})
+		}
+
+		// Capability: screenshots:read — list screenshots for an instance
+		if manifest.HasAnyPermission("screenshots:read") {
+			instancesObj.Set("listScreenshots", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				if listScreenshots == nil {
+					panic(vm.NewGoError(fmt.Errorf("listScreenshots not available")))
+				}
+				items, err := listScreenshots(instanceID)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(items)
+			})
+		}
+
+		// Capability: screenshots:write — delete a screenshot
+		if manifest.HasAnyPermission("screenshots:write") {
+			instancesObj.Set("deleteScreenshot", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				if deleteScreenshot == nil {
+					panic(vm.NewGoError(fmt.Errorf("deleteScreenshot not available")))
+				}
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "delete screenshot",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+					"fileName":      fileName,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied screenshot deletion")))
+				}
+				if err := deleteScreenshot(instanceID, fileName); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+		}
+
+		// Capability: screenshots:read — open screenshot in OS viewer
+		if manifest.HasAnyPermission("screenshots:read") {
+			instancesObj.Set("openScreenshot", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				if openScreenshot == nil {
+					panic(vm.NewGoError(fmt.Errorf("openScreenshot not available")))
+				}
+				if err := openScreenshot(instanceID, fileName); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
 			})
 		}
 

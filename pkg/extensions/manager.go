@@ -2,12 +2,14 @@ package extensions
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	neturl "net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -398,6 +400,15 @@ func (m *Manager) reloadSandboxes() {
 			func(instanceID, fileName, downloadURL string) (string, error) {
 				return downloadInstanceAsset(instanceID, "shaderpacks", fileName, downloadURL, map[string]bool{".zip": true})
 			},
+			func(instanceID string) ([]map[string]interface{}, error) {
+				return listInstanceScreenshots(instanceID)
+			},
+			func(instanceID, fileName string) error {
+				return deleteInstanceScreenshot(instanceID, fileName)
+			},
+			func(instanceID, fileName string) error {
+				return openInstanceScreenshot(instanceID, fileName)
+			},
 		)
 		newSandboxes[id] = sandbox
 
@@ -658,4 +669,80 @@ func downloadInstanceAsset(instanceID, subFolder, fileName, downloadURL string, 
 		return "", dlErr
 	}
 	return destPath, nil
+}
+
+func listInstanceScreenshots(instanceID string) ([]map[string]interface{}, error) {
+	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+	if err != nil {
+		return nil, err
+	}
+	screenshotsDir := filepath.Join(instanceDir, "screenshots")
+	entries, err := os.ReadDir(screenshotsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []map[string]interface{}{}, nil
+		}
+		return nil, err
+	}
+
+	var results []map[string]interface{}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext != ".png" && ext != ".jpg" && ext != ".jpeg" {
+			continue
+		}
+		imgPath := filepath.Join(screenshotsDir, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		data, err := os.ReadFile(imgPath)
+		if err != nil {
+			continue
+		}
+		mime := "image/png"
+		if ext == ".jpg" || ext == ".jpeg" {
+			mime = "image/jpeg"
+		}
+		b64 := base64.StdEncoding.EncodeToString(data)
+		dataURL := fmt.Sprintf("data:%s;base64,%s", mime, b64)
+
+		results = append(results, map[string]interface{}{
+			"name":    entry.Name(),
+			"size":    info.Size(),
+			"modTime": info.ModTime().Format(time.RFC3339),
+			"dataUrl": dataURL,
+		})
+	}
+	return results, nil
+}
+
+func deleteInstanceScreenshot(instanceID, fileName string) error {
+	fileName = filepath.Base(fileName)
+	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+	if err != nil {
+		return err
+	}
+	imgPath, err := fs.ContainedPath(filepath.Join(instanceDir, "screenshots"), fileName)
+	if err != nil {
+		return err
+	}
+	return os.Remove(imgPath)
+}
+
+func openInstanceScreenshot(instanceID, fileName string) error {
+	fileName = filepath.Base(fileName)
+	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+	if err != nil {
+		return err
+	}
+	imgPath, err := fs.ContainedPath(filepath.Join(instanceDir, "screenshots"), fileName)
+	if err != nil {
+		return err
+	}
+	return exec.Command("cmd", "/c", "start", "", imgPath).Run()
 }

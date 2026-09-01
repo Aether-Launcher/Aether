@@ -31,6 +31,9 @@ func TestSandboxCapabilities(t *testing.T) {
 		nil, // installModpack
 		nil, // installResourcePack
 		nil, // installShaderPack
+		nil, // listScreenshots
+		nil, // deleteScreenshot
+		nil, // openScreenshot
 	)
 
 	// This should succeed without panic
@@ -64,6 +67,9 @@ func TestSandboxCapabilities(t *testing.T) {
 		nil, // installModpack
 		nil, // installResourcePack
 		nil, // installShaderPack
+		nil, // listScreenshots
+		nil, // deleteScreenshot
+		nil, // openScreenshot
 	)
 
 	// This should throw a JS error because Aether.ui is undefined
@@ -82,7 +88,8 @@ func TestSandboxURLAllowList(t *testing.T) {
 		Permissions: []string{"network:http"},
 		Hosts:       []string{"example.com"},
 	}
-	sandbox := NewSandbox(context.Background(), manifest, "http://localhost", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	if err := sandbox.Execute(`Aether.http.get("https://example.com.evil.test/data");`); err == nil {
 		t.Fatal("expected a deceptive hostname to be rejected")
@@ -102,7 +109,7 @@ func TestSandboxGranularModPermissionAndConfirmation(t *testing.T) {
 		Permissions: []string{"mods:install"},
 		Hosts:       []string{"example.com"},
 	}
-	sandbox := NewSandbox(context.Background(), manifest, "http://localhost", nil, nil, nil, install, nil, nil, nil, nil, confirm, nil, nil, nil)
+	sandbox := NewSandbox(context.Background(), manifest, "http://localhost", nil, nil, nil, install, nil, nil, nil, nil, confirm, nil, nil, nil, nil, nil, nil)
 	if err := sandbox.Execute(`Aether.instances.installMod("instance", "mod.jar", "https://example.com/mod.jar");`); err == nil {
 		t.Fatal("expected denied confirmation to stop mod installation")
 	}
@@ -111,7 +118,7 @@ func TestSandboxGranularModPermissionAndConfirmation(t *testing.T) {
 	}
 
 	listOnly := Manifest{ID: "com.test.list", Permissions: []string{"instances:list"}}
-	listSandbox := NewSandbox(context.Background(), listOnly, "http://localhost", nil, nil, nil, install, nil, nil, nil, nil, nil, nil, nil, nil)
+	listSandbox := NewSandbox(context.Background(), listOnly, "http://localhost", nil, nil, nil, install, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err := listSandbox.Execute(`Aether.instances.installMod("instance", "mod.jar", "https://example.com/mod.jar");`); err == nil {
 		t.Fatal("expected list-only extension to lack installMod")
 	}
@@ -129,7 +136,7 @@ func TestSandboxModLoaderCallbackNonNil(t *testing.T) {
 		Permissions: []string{"launcher:modloader"},
 	}
 	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-		nil, onModLoader, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		nil, onModLoader, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	script := `
 		Aether.launcher.registerModLoader({
@@ -172,7 +179,7 @@ func TestModLoaderCallbackCacheIsScopedAndCleared(t *testing.T) {
 		var got ModLoaderConfig
 		manifest := Manifest{ID: id, Permissions: []string{"launcher:modloader"}}
 		sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-			nil, func(config ModLoaderConfig) { got = config }, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+			nil, func(config ModLoaderConfig) { got = config }, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err := sandbox.Execute(`Aether.launcher.registerModLoader({id: "fabric", name: "Fabric", description: "test loader"});`); err != nil {
 			t.Fatalf("registerModLoader execution failed for %s: %v", id, err)
 		}
@@ -227,7 +234,7 @@ func TestSandboxInvokeMessageSerializesConcurrentCalls(t *testing.T) {
 	install := func(string, string, string) (string, error) { return "mod.jar", nil }
 
 	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-		nil, nil, nil, install, nil, nil, nil, nil, confirm, nil, nil, nil)
+		nil, nil, nil, install, nil, nil, nil, nil, confirm, nil, nil, nil, nil, nil, nil)
 	script := `
 		Aether.ui.onMessage(function(msg) {
 			if (msg.type === "install") {
@@ -272,7 +279,7 @@ func TestSandboxInvokeMessageRecoversPanics(t *testing.T) {
 		Hosts:       []string{"example.com"},
 	}
 	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	script := `
 		Aether.ui.onMessage(function(msg) {
