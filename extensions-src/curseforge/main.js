@@ -2,96 +2,133 @@
 // Runs in the secure Goja Sandbox
 
 Aether.ui.registerSidebarPage({
-    id: "curseforge",
-    label: "CurseForge",
-    url: "ui/index.html"
+  id: "curseforge",
+  label: "CurseForge",
+  icon: "icon.png",
+  url: "ui/index.html",
 });
 
-
-// ── Handle IPC messages from the UI iframe ────────────────────────────────
-
-Aether.ui.onMessage(function(msg) {
-
-    // ── Get instances ─────────────────────────────────────────────────────
-
-    if (msg.type === "get_instances") {
-
-        try {
-            var instances = Aether.instances.list();
-
-            Aether.ui.postMessage({
-                type: "instances_result",
-                requestId: msg.requestId,
-                instances: instances
-            });
-
-        } catch (e) {
-
-            Aether.ui.postMessage({
-                type: "instances_result",
-                requestId: msg.requestId,
-                instances: [],
-                error: String(e)
-            });
-        }
-
-        return;
+Aether.ui.onMessage(function (msg) {
+  // ── get_instances ──────────────────────────────────────────────────────
+  if (msg.type === "get_instances") {
+    try {
+      var instances = Aether.instances.list();
+      Aether.ui.postMessage({
+        type: "instances_result",
+        requestId: msg.requestId,
+        instances: instances,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "instances_result",
+        requestId: msg.requestId,
+        instances: [],
+        error: String(e),
+      });
     }
+    return;
+  }
 
-
-    // ── Install CurseForge mod ────────────────────────────────────────────
-
-    if (msg.type === "install_mod") {
-
-        try {
-
-            if (!msg.instanceId) {
-                throw new Error("Missing instanceId");
-            }
-
-            if (!msg.jarName) {
-                throw new Error("Missing jarName");
-            }
-
-            if (!msg.downloadUrl) {
-                throw new Error("Missing downloadUrl");
-            }
-
-
-            /*
-             * msg.downloadUrl comes directly from CurseForge.
-             *
-             * Example:
-             *
-             * https://edge.forgecdn.net/files/...
-             *
-             * Aether handles the actual download and installation.
-             */
-
-            Aether.instances.installMod(
-                msg.instanceId,
-                msg.jarName,
-                msg.downloadUrl
-            );
-
-
-            Aether.ui.postMessage({
-                type: "install_result",
-                requestId: msg.requestId,
-                success: true,
-                jarName: msg.jarName
-            });
-
-        } catch (e) {
-
-            Aether.ui.postMessage({
-                type: "install_result",
-                requestId: msg.requestId,
-                success: false,
-                error: String(e)
-            });
-        }
-
-        return;
+  // ── install_mod ────────────────────────────────────────────────────────
+  if (msg.type === "install_mod") {
+    try {
+      var path = Aether.instances.installMod(
+        msg.instanceId,
+        msg.jarName,
+        msg.downloadUrl
+      );
+      Aether.ui.postMessage({
+        type: "install_result",
+        requestId: msg.requestId,
+        success: true,
+        jarName: msg.jarName,
+        path: path,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "install_result",
+        requestId: msg.requestId,
+        success: false,
+        error: String(e),
+      });
     }
+    return;
+  }
+
+  // ── install_modpack ────────────────────────────────────────────────────
+  if (msg.type === "install_modpack") {
+    try {
+      var instanceId = Aether.instances.installModpack(
+        msg.packUrl,
+        msg.packName
+      );
+      Aether.ui.postMessage({
+        type: "install_modpack_result",
+        requestId: msg.requestId,
+        success: true,
+        instanceId: instanceId,
+        packName: msg.packName,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "install_modpack_result",
+        requestId: msg.requestId,
+        success: false,
+        error: String(e),
+      });
+    }
+    return;
+  }
+
+  // ── install_resourcepack ───────────────────────────────────────────────
+  if (msg.type === "install_resourcepack") {
+    try {
+      var resPath = Aether.instances.installResourcePack(
+        msg.instanceId,
+        msg.fileName,
+        msg.downloadUrl
+      );
+      Aether.ui.postMessage({
+        type: "install_resourcepack_result",
+        requestId: msg.requestId,
+        success: true,
+        fileName: msg.fileName,
+        path: resPath,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "install_resourcepack_result",
+        requestId: msg.requestId,
+        success: false,
+        error: String(e),
+      });
+    }
+    return;
+  }
+
+  // ── install_shaderpack ─────────────────────────────────────────────────
+  if (msg.type === "install_shaderpack") {
+    try {
+      var shaderPath = Aether.instances.installShaderPack(
+        msg.instanceId,
+        msg.fileName,
+        msg.downloadUrl
+      );
+      Aether.ui.postMessage({
+        type: "install_shaderpack_result",
+        requestId: msg.requestId,
+        success: true,
+        fileName: msg.fileName,
+        path: shaderPath,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "install_shaderpack_result",
+        requestId: msg.requestId,
+        success: false,
+        error: String(e),
+      });
+    }
+    return;
+  }
 });

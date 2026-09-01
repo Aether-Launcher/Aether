@@ -12,10 +12,52 @@ body {
 
 /* ── Header ── */
 .header {
-    padding: 14px 16px;
+    padding: 10px 16px 12px;
     background: rgba(255,255,255,0.03);
     border-bottom: 1px solid rgba(255,255,255,0.07);
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* ── Tabs ── */
+.tabs {
+    display: flex;
+    gap: 4px;
+}
+
+.tab {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    position: relative;
+}
+.tab:hover { background: rgba(255,255,255,0.06); color: #aaa; }
+.tab.active {
+    background: rgba(241,100,54,0.15);
+    color: #F16436;
+}
+.tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 20px; height: 2px;
+    background: #F16436;
+    border-radius: 2px;
+}
+
+.search-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 .search-bar {
@@ -27,6 +69,7 @@ body {
     border-radius: 10px;
     padding: 0 14px;
     transition: border-color .15s;
+    flex: 1;
 }
 .search-bar:focus-within { border-color: #F16436; }
 
@@ -188,6 +231,9 @@ body {
     color: #F16436;
     font-size: 18px;
     font-weight: 800;
+    width: 42px;
+    height: 42px;
+    border-radius: 9px;
 }
 
 .card-info {
@@ -231,6 +277,29 @@ body {
 .card-downloads {
     font-size: 12px;
     color: #555;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.card-tag {
+    background: rgba(255,255,255,0.07);
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #888;
+}
+.pack-tag {
+    background: rgba(241,100,54,0.15);
+    color: #F16436;
+}
+.respack-tag {
+    background: rgba(56,189,248,0.15);
+    color: #38bdf8;
+}
+.shader-tag {
+    background: rgba(192,132,252,0.15);
+    color: #c084fc;
 }
 
 .btn-install-card {
@@ -494,6 +563,12 @@ body {
 
 .install-status.hidden {
     display: none;
+}
+
+.install-status.info {
+    background: rgba(80,140,255,0.1);
+    color: #88aaff;
+    border: 1px solid rgba(80,140,255,0.2);
 }
 
 .install-status.success {
