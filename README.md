@@ -120,4 +120,4 @@ wails build
 
 The Aether launcher and first-party tooling are licensed under the GNU GPL v3.0-only. See [LICENSE](LICENSE).
 
-The Aether Extension API (SDK) is licensed separately under the [Aether Extension API License](https://github.com/Aether-Launcher/Aether-SDK/blob/main/LICENSE), which permits closed-source extensions subject to Gallery review.
+The Aether Extension API (SDK) is licensed separately under the [Aether Extension API License](https://github.com/Aether-Launcher/Aether-SDK/blob/main/LICENSE). It permits closed-source extensions subject to official Gallery review, while fully preserving anyone's right to fork the launcher under GPL-3.0 or implement alternative APIs.
