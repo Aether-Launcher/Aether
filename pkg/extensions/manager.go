@@ -409,6 +409,9 @@ func (m *Manager) reloadSandboxes() {
 			func(instanceID, fileName string) error {
 				return openInstanceScreenshot(instanceID, fileName)
 			},
+			func(instanceID, fileName string) (string, error) {
+				return getInstanceScreenshotData(instanceID, fileName)
+			},
 		)
 		newSandboxes[id] = sandbox
 
@@ -694,31 +697,41 @@ func listInstanceScreenshots(instanceID string) ([]map[string]interface{}, error
 		if ext != ".png" && ext != ".jpg" && ext != ".jpeg" {
 			continue
 		}
-		imgPath := filepath.Join(screenshotsDir, entry.Name())
 		info, err := entry.Info()
 		if err != nil {
 			continue
 		}
 
-		data, err := os.ReadFile(imgPath)
-		if err != nil {
-			continue
-		}
-		mime := "image/png"
-		if ext == ".jpg" || ext == ".jpeg" {
-			mime = "image/jpeg"
-		}
-		b64 := base64.StdEncoding.EncodeToString(data)
-		dataURL := fmt.Sprintf("data:%s;base64,%s", mime, b64)
-
 		results = append(results, map[string]interface{}{
 			"name":    entry.Name(),
 			"size":    info.Size(),
 			"modTime": info.ModTime().Format(time.RFC3339),
-			"dataUrl": dataURL,
 		})
 	}
 	return results, nil
+}
+
+func getInstanceScreenshotData(instanceID, fileName string) (string, error) {
+	fileName = filepath.Base(fileName)
+	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+	if err != nil {
+		return "", err
+	}
+	imgPath, err := fs.ContainedPath(filepath.Join(instanceDir, "screenshots"), fileName)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(imgPath)
+	if err != nil {
+		return "", err
+	}
+	ext := strings.ToLower(filepath.Ext(fileName))
+	mime := "image/png"
+	if ext == ".jpg" || ext == ".jpeg" {
+		mime = "image/jpeg"
+	}
+	b64 := base64.StdEncoding.EncodeToString(data)
+	return fmt.Sprintf("data:%s;base64,%s", mime, b64), nil
 }
 
 func deleteInstanceScreenshot(instanceID, fileName string) error {

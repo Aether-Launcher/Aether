@@ -139,6 +139,7 @@ func NewSandbox(
 	listScreenshots func(instanceID string) ([]map[string]interface{}, error),
 	deleteScreenshot func(instanceID, fileName string) error,
 	openScreenshot func(instanceID, fileName string) error,
+	getScreenshotData func(instanceID, fileName string) (string, error),
 ) *Sandbox {
 	if emit == nil {
 		emit = func(_ context.Context, _ string, _ ...interface{}) {}
@@ -585,6 +586,22 @@ func NewSandbox(
 					panic(vm.NewGoError(err))
 				}
 				return goja.Undefined()
+			})
+		}
+
+		// Capability: screenshots:read — get screenshot image data
+		if manifest.HasAnyPermission("screenshots:read") {
+			instancesObj.Set("getScreenshotData", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				if getScreenshotData == nil {
+					panic(vm.NewGoError(fmt.Errorf("getScreenshotData not available")))
+				}
+				dataURL, err := getScreenshotData(instanceID, fileName)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(dataURL)
 			})
 		}
 

@@ -118,7 +118,16 @@ refreshBtn.addEventListener('click', () => {
 });
 
 
-// ── Load Screenshots ──────────────────────────────────────────────────────
+// ── Load Screenshots (Metadata Instant + Async Image Data) ────────────────
+
+async function fetchImageData(fileName) {
+  const res = await sendMessage({
+    type: 'get_screenshot_data',
+    instanceId: selectedInstanceId,
+    fileName: fileName
+  });
+  return res.dataUrl || '';
+}
 
 async function loadScreenshots() {
   if (!selectedInstanceId) return;
@@ -131,6 +140,7 @@ async function loadScreenshots() {
   `;
 
   try {
+    // 1. Fetch metadata only — sub-millisecond instant!
     const res = await sendMessage({
       type: 'get_screenshots',
       instanceId: selectedInstanceId
@@ -150,12 +160,13 @@ async function loadScreenshots() {
       return;
     }
 
+    // 2. Render cards immediately with skeleton thumbnails
     galleryContainer.innerHTML = `
       <div class="grid">
         ${screenshots.map((item, idx) => `
-          <div class="screenshot-card" data-index="${idx}">
+          <div class="screenshot-card" data-index="${idx}" data-name="${escapeHtml(item.name)}">
             <div class="thumb-wrap">
-              <img class="thumb-img" src="${item.dataUrl}" alt="${escapeHtml(item.name)}" loading="lazy" />
+              <img class="thumb-img" id="thumb-${idx}" src="" alt="${escapeHtml(item.name)}" style="opacity:0; transition:opacity .3s ease;" />
             </div>
             <div class="card-details">
               <div class="card-filename">${escapeHtml(item.name)}</div>
@@ -176,6 +187,9 @@ async function loadScreenshots() {
       });
     });
 
+    // 3. Asynchronously load thumbnail image data in parallel chunks
+    loadThumbnailsConcurrently();
+
   } catch (err) {
     console.error('Failed to load screenshots:', err);
     galleryContainer.innerHTML = `
@@ -186,15 +200,30 @@ async function loadScreenshots() {
   }
 }
 
+async function loadThumbnailsConcurrently() {
+  const currentInst = selectedInstanceId;
+  for (let i = 0; i < screenshots.length; i++) {
+    if (selectedInstanceId !== currentInst) break; // abort if user switched instance
+    const item = screenshots[i];
+    if (!item.dataUrl) {
+      item.dataUrl = await fetchImageData(item.name);
+    }
+    const imgEl = document.getElementById(`thumb-${i}`);
+    if (imgEl && item.dataUrl) {
+      imgEl.src = item.dataUrl;
+      imgEl.style.opacity = '1';
+    }
+  }
+}
+
 
 // ── Lightbox Modal ────────────────────────────────────────────────────────
 
-function openLightbox(index) {
+async function openLightbox(index) {
   if (index < 0 || index >= screenshots.length) return;
   currentLightboxIndex = index;
   const item = screenshots[index];
 
-  lightboxImg.src = item.dataUrl;
   lightboxTitle.textContent = item.name;
   lightboxMeta.textContent = `${formatSize(item.size)} · ${formatDate(item.modTime)}`;
 
@@ -202,6 +231,12 @@ function openLightbox(index) {
   nextImgBtn.disabled = index === screenshots.length - 1;
 
   lightboxModal.classList.remove('hidden');
+
+  if (!item.dataUrl) {
+    lightboxImg.src = '';
+    item.dataUrl = await fetchImageData(item.name);
+  }
+  lightboxImg.src = item.dataUrl;
 }
 
 function closeLightbox() {
@@ -245,6 +280,9 @@ copyBtn.addEventListener('click', async () => {
   if (currentLightboxIndex < 0) return;
   const item = screenshots[currentLightboxIndex];
   try {
+    if (!item.dataUrl) {
+      item.dataUrl = await fetchImageData(item.name);
+    }
     const response = await fetch(item.dataUrl);
     const blob = await response.blob();
     await navigator.clipboard.write([

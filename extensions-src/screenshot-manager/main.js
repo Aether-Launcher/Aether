@@ -49,6 +49,26 @@ Aether.ui.onMessage(function (msg) {
     return;
   }
 
+  // ── get_screenshot_data ───────────────────────────────────────────────
+  if (msg.type === "get_screenshot_data") {
+    try {
+      var dataUrl = Aether.instances.getScreenshotData(msg.instanceId, msg.fileName);
+      Aether.ui.postMessage({
+        type: "screenshot_data_result",
+        requestId: msg.requestId,
+        dataUrl: dataUrl,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "screenshot_data_result",
+        requestId: msg.requestId,
+        dataUrl: "",
+        error: String(e),
+      });
+    }
+    return;
+  }
+
   // ── delete_screenshot ──────────────────────────────────────────────────
   if (msg.type === "delete_screenshot") {
     try {
