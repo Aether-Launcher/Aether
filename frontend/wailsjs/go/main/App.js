@@ -74,6 +74,10 @@ export function GetJavaStatus() {
   return window['go']['main']['App']['GetJavaStatus']();
 }
 
+export function GetLauncherVersion() {
+  return window['go']['main']['App']['GetLauncherVersion']();
+}
+
 export function GetModLoaders() {
   return window['go']['main']['App']['GetModLoaders']();
 }

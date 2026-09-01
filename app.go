@@ -185,6 +185,12 @@ func (a *App) WindowChrome() string {
 	return windowChrome()
 }
 
+// GetLauncherVersion returns the running launcher version string (e.g. "v1.2.3").
+// Returns "dev" for local development builds.
+func (a *App) GetLauncherVersion() string {
+	return Version
+}
+
 // CheckForUpdates queries GitHub Releases for a newer launcher version.
 // Returns nil when the app is up to date.
 func (a *App) CheckForUpdates() (*update.Info, error) {

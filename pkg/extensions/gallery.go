@@ -23,8 +23,9 @@ type GalleryExtension struct {
 	Description string `json:"description"`
 	Author      string `json:"author"`
 	Version     string `json:"version"`
-	Trust       string `json:"trust"`
-	URL         string `json:"url"`
+	Trust              string `json:"trust"`
+	URL                string `json:"url"`
+	MinLauncherVersion string `json:"minLauncherVersion,omitempty"`
 }
 
 var (
