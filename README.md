@@ -12,11 +12,11 @@
   <a href="https://discord.gg/hyPWTs9FfM">
     <img src="https://img.shields.io/badge/discord-Join%20our%20Discord-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Discord">
   </a>
-  <a href="https://github.com/wayback09/Aether/releases">
-    <img src="https://img.shields.io/github/v/release/wayback09/Aether?style=for-the-badge&label=Latest%20Release&color=2ea44f" alt="Latest Release">
+  <a href="https://github.com/Aether-Launcher/Aether/releases">
+    <img src="https://img.shields.io/github/v/release/Aether-Launcher/Aether?style=for-the-badge&label=Latest%20Release&color=2ea44f" alt="Latest Release">
   </a>
-  <a href="https://github.com/wayback09/Aether/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/wayback09/Aether?style=for-the-badge&color=1f6feb" alt="License">
+  <a href="https://github.com/Aether-Launcher/Aether/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/Aether-Launcher/Aether?style=for-the-badge&color=1f6feb" alt="License">
   </a>
 </p>
 
@@ -33,6 +33,7 @@ Every feature that is not essential to launching the game—like downloading mod
 - **Snapshot Support**: Effortlessly toggle between stable releases and latest snapshots when creating instances.
 - **Extensible Architecture**: Everything from Modrinth integration to server browsers is an extension.
 - **Capability-Based Extensions**: Extension backend code runs in a restricted Goja runtime and can only use the launcher APIs granted by its manifest permissions.
+- **Version Compatibility**: Extensions declare a `minLauncherVersion` — the Gallery automatically blocks installation on incompatible launcher versions with a clear warning.
 
 ## Documentation
 
@@ -42,7 +43,7 @@ All project documentation is located in the `docs/` directory. If you are lookin
 - **[Architecture](docs/ARCHITECTURE.md)** - Overview of the Go backend, Extension Manager, and launcher pipeline.
 - **[API & Interoperability](docs/API.md)** - Details on the extension API and permission model.
 - **[Extensions Guide](docs/EXTENSIONS.md)** - How to build, package, and publish extensions for Aether.
-  - *Looking for the official extension registry? Visit the [Aether-Extensions](https://github.com/wayback09/Aether-Extensions) repository.*
+  - *Looking for the official extension registry? Visit the [Aether-Extensions](https://github.com/Aether-Launcher/Aether-Extensions) repository.*
 - **[Themes Guide](docs/THEMES.md)** - How to build and package `.theme` CSS/asset overwrites for Aether.
 - **[Security & Sandboxing](docs/SECURITY.md)** - Threat models, capability isolation, and review guidelines.
 - **[UI Specifications](docs/UI.md)** - Layout rules, components, and empty states.
@@ -50,10 +51,10 @@ All project documentation is located in the `docs/` directory. If you are lookin
 
 ## Developer Tooling
 
-The following tools are available for building Aether extensions. They are maintained outside this core launcher repository and are available for terminal installation:
+The following tools are available for building Aether extensions. They are maintained outside this core launcher repository:
 
-- [Aether SDK](https://github.com/wayback09/Aether-SDK) (`@aethermc/sdk`) - TypeScript type definitions and helper utilities for extension development, published to [npm](https://www.npmjs.com/package/@aethermc/sdk). Install with `npm install --save-dev @aethermc/sdk`.
-- [Aether CLI](https://github.com/wayback09/Aether-Cli) (`aether-cli`) - Scaffold, validate, and package extensions into `.aex` format. Install with `go install github.com/wayback09/aether-cli@latest`.
+- [Aether SDK](https://github.com/Aether-Launcher/Aether-SDK) (`@aethermc/sdk`) — TypeScript type definitions and helper utilities for extension development, published to [npm](https://www.npmjs.com/package/@aethermc/sdk). Install with `npm install --save-dev @aethermc/sdk`. Licensed under the [Aether Extension API License](https://github.com/Aether-Launcher/Aether-SDK/blob/main/LICENSE) — closed-source extensions are permitted, subject to Gallery review.
+- [Aether CLI](https://github.com/Aether-Launcher/Aether-Cli) (`aether-cli`) — Scaffold, validate, and package extensions into `.aex` format. Install with `go install github.com/Aether-Launcher/aether-cli@latest`.
 
 ## Getting Started
 
@@ -106,7 +107,7 @@ If you'd like to build Aether from source, ensure you have the following install
 
 ```bash
 # Clone the repository
-git clone https://github.com/wayback09/Aether.git
+git clone https://github.com/Aether-Launcher/Aether.git
 cd Aether
 # Run in development mode (live reload)
 wails dev
@@ -118,3 +119,5 @@ wails build
 ## License
 
 The Aether launcher and first-party tooling are licensed under the GNU GPL v3.0-only. See [LICENSE](LICENSE).
+
+The Aether Extension API (SDK) is licensed separately under the [Aether Extension API License](https://github.com/Aether-Launcher/Aether-SDK/blob/main/LICENSE), which permits closed-source extensions subject to Gallery review.
