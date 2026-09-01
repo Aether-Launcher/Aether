@@ -401,7 +401,7 @@ func (m *Manager) reloadSandboxes() {
 				return downloadInstanceAsset(instanceID, "shaderpacks", fileName, downloadURL, map[string]bool{".zip": true})
 			},
 			func(instanceID string) ([]map[string]interface{}, error) {
-				return listInstanceScreenshots(instanceID)
+				return listInstanceScreenshots(m.serverURL, instanceID)
 			},
 			func(instanceID, fileName string) error {
 				return deleteInstanceScreenshot(instanceID, fileName)
@@ -674,7 +674,7 @@ func downloadInstanceAsset(instanceID, subFolder, fileName, downloadURL string, 
 	return destPath, nil
 }
 
-func listInstanceScreenshots(instanceID string) ([]map[string]interface{}, error) {
+func listInstanceScreenshots(serverURL, instanceID string) ([]map[string]interface{}, error) {
 	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
 	if err != nil {
 		return nil, err
@@ -702,10 +702,12 @@ func listInstanceScreenshots(instanceID string) ([]map[string]interface{}, error
 			continue
 		}
 
+		imgURL := fmt.Sprintf("%s/_screenshots/%s/%s", serverURL, neturl.PathEscape(instanceID), neturl.PathEscape(entry.Name()))
 		results = append(results, map[string]interface{}{
 			"name":    entry.Name(),
 			"size":    info.Size(),
 			"modTime": info.ModTime().Format(time.RFC3339),
+			"url":     imgURL,
 		})
 	}
 	return results, nil
