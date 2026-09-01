@@ -31,7 +31,7 @@ var (
 	galleryCache    []GalleryExtension
 	galleryCacheAt  time.Time
 	galleryCacheMu  sync.Mutex
-	galleryCacheTTL = 5 * time.Minute
+	galleryCacheTTL = 30 * time.Second
 )
 
 // GetGalleryExtensions returns the live registry from GitHub, with a 5-minute in-memory cache.
