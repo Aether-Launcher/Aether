@@ -325,7 +325,7 @@ func NewSandbox(
 
 	// Instance and mod capabilities are independently controlled. The legacy
 	// instances:patch permission is accepted by HasAnyPermission for migration.
-	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install", "resourcepacks:install", "shaderpacks:install") {
+	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install", "resourcepacks:install", "shaderpacks:install", "screenshots:read", "screenshots:write") {
 		instancesObj := vm.NewObject()
 
 		if manifest.HasAnyPermission("instances:list") {
