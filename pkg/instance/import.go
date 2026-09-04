@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"Aether/pkg/fs"
@@ -232,13 +233,31 @@ func uniqueInstanceID(base, targetRoot string) string {
 // slug converts a folder name into a safe instance ID.
 func slug(name string) string {
 	s := strings.ToLower(strings.TrimSpace(name))
-	s = strings.ReplaceAll(s, " ", "-")
-	s = strings.ReplaceAll(s, "/", "-")
-	s = strings.ReplaceAll(s, "\\", "-")
 	if s == "" {
 		return "imported-instance"
 	}
+	// Keep only allow-list characters; other runs become a single dash.
+	s = regexpMustCompile(`[^a-z0-9._-]+`).ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-._")
+	s = regexpMustCompile(`-+`).ReplaceAllString(s, "-")
+	if s == "" {
+		return "imported-instance"
+	}
+	if s[0] == '.' || s[0] == '_' || s[0] == '-' {
+		s = "a" + s
+	}
+	if len(s) > 65 {
+		s = s[:65]
+		s = strings.TrimRight(s, "-._")
+	}
 	return s
+}
+
+// regexpMustCompile is a tiny helper to avoid importing regexp at top for a single use.
+// Defined here to keep import list minimal for tests that don't need regexp.
+func regexpMustCompile(expr string) *regexp.Regexp {
+	r, _ := regexp.Compile(expr)
+	return r
 }
 
 // copyPlanFor returns the copy rules for a launcher format.

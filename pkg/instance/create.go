@@ -14,14 +14,30 @@ import (
 var validIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,64}$`)
 var windowsReserved = map[string]bool{"con": true, "prn": true, "aux": true, "nul": true, "com1": true, "com2": true, "com3": true, "com4": true, "com5": true, "com6": true, "com7": true, "com8": true, "com9": true, "lpt1": true, "lpt2": true, "lpt3": true, "lpt4": true, "lpt5": true, "lpt6": true, "lpt7": true, "lpt8": true, "lpt9": true}
 
-// sanitizeID reuses the import slug logic and adds allow-list validation.
+// sanitizeID normalizes the display name into a filesystem-safe instance ID.
 func sanitizeID(name string) (string, error) {
 	id := strings.ToLower(strings.TrimSpace(name))
-	id = strings.ReplaceAll(id, " ", "-")
-	id = strings.ReplaceAll(id, "/", "-")
-	id = strings.ReplaceAll(id, "\\", "-")
 	if id == "" {
 		return "", fmt.Errorf("instance name must not be empty")
+	}
+	// Replace any run of characters outside the allow-list with a single dash.
+	// Allow-list: a-z, 0-9, dot, underscore, hyphen (validated by validIDRe).
+	invalidSeq := regexp.MustCompile(`[^a-z0-9._-]+`)
+	id = invalidSeq.ReplaceAllString(id, "-")
+	// Collapse multiple dashes and trim leading/trailing separators.
+	id = regexp.MustCompile(`-+`).ReplaceAllString(id, "-")
+	id = strings.Trim(id, "-._")
+	if id == "" {
+		return "", fmt.Errorf("instance name must not be empty")
+	}
+	// Must start with alphanumeric
+	if id[0] == '.' || id[0] == '_' || id[0] == '-' {
+		id = "a" + id
+	}
+	// Truncate to max length for validIDRe (1 + 64 chars)
+	if len(id) > 65 {
+		id = id[:65]
+		id = strings.TrimRight(id, "-._")
 	}
 	if !validIDRe.MatchString(id) {
 		return "", fmt.Errorf("instance id %q contains invalid characters", id)
