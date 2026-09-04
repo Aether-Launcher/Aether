@@ -1,9 +1,9 @@
-// Modrinth Extension – backend sandbox script
-// Handles IPC messages forwarded from the sidebar iframe UI.
+// CurseForge Browser Extension Backend
+// Runs in the secure Goja Sandbox
 
 Aether.ui.registerSidebarPage({
-  id: "modrinth",
-  label: "Modrinth",
+  id: "curseforge",
+  label: "CurseForge",
   icon: "icon.png",
   url: "ui/index.html",
 });
@@ -11,12 +11,21 @@ Aether.ui.registerSidebarPage({
 Aether.ui.onMessage(function (msg) {
   // ── get_instances ──────────────────────────────────────────────────────
   if (msg.type === "get_instances") {
-    var instances = Aether.instances.list();
-    Aether.ui.postMessage({
-      type: "instances_result",
-      requestId: msg.requestId,
-      instances: instances,
-    });
+    try {
+      var instances = Aether.instances.list();
+      Aether.ui.postMessage({
+        type: "instances_result",
+        requestId: msg.requestId,
+        instances: instances,
+      });
+    } catch (e) {
+      Aether.ui.postMessage({
+        type: "instances_result",
+        requestId: msg.requestId,
+        instances: [],
+        error: String(e),
+      });
+    }
     return;
   }
 

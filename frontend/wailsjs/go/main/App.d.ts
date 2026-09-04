@@ -45,6 +45,8 @@ export function GetInstances():Promise<Array<instance.Instance>>;
 
 export function GetJavaStatus():Promise<Array<main.JavaRuntimeStatus>>;
 
+export function GetLauncherVersion():Promise<string>;
+
 export function GetModLoaders():Promise<Array<main.ModLoaderInfo>>;
 
 export function GetSettings():Promise<settings.GlobalSettings>;

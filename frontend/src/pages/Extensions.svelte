@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { EventsOn } from '../../wailsjs/runtime/runtime.js';
-  import { GetExtensions, SelectAndInstallExtension, DownloadAndInstallExtension, GetSettings, UninstallExtension, GetExtensionUpdates, UpdateExtension, ReloadExtensions } from '../../wailsjs/go/main/App.js';
+  import { GetExtensions, SelectAndInstallExtension, DownloadAndInstallExtension, GetSettings, UninstallExtension, GetExtensionUpdates, UpdateExtension, ReloadExtensions, GetLauncherVersion } from '../../wailsjs/go/main/App.js';
   import EmptyState from '../components/EmptyState.svelte';
   import ConfirmDialog from '../lib/components/ConfirmDialog.svelte';
   import { toast } from '../stores/toast';
@@ -25,6 +25,7 @@
   let checkingUpdates = false;
   let updatingId = '';
   let reloading = false;
+  let launcherVersion = 'dev'; // will be loaded on mount
 
   $: filteredGalleryExtensions = galleryExtensions.filter((ext) => {
     const query = gallerySearch.trim().toLowerCase();
@@ -48,6 +49,15 @@
   function hasUpdate(ext: any): boolean {
     const installed = installedFor(ext);
     return !!installed && compareVersions(ext.version, installed.version) > 0;
+  }
+
+  // Returns the required min version string if the current launcher is too old, otherwise null.
+  function requiresNewerLauncher(ext: any): string | null {
+    const min = ext.minLauncherVersion;
+    if (!min) return null;
+    // "dev" builds are treated as compatible (local dev)
+    if (launcherVersion === 'dev') return null;
+    return compareVersions(launcherVersion, min) < 0 ? min : null;
   }
 
   async function fetchUpdates(): Promise<any[]> {
@@ -197,6 +207,7 @@
   onMount(async () => {
     await loadInstalled();
     checkForUpdates();
+    try { launcherVersion = await GetLauncherVersion(); } catch { /* fallback: dev */ }
 
     const unsubStart = EventsOn('extension:reload:start', () => {
       reloading = true;
@@ -410,7 +421,13 @@
               <p class="ext-desc">{ext.description}</p>
               
               <div class="ext-footer">
-                {#if installedFor(ext)}
+                {#if requiresNewerLauncher(ext)}
+                  <div class="compat-warning">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    Requires Aether {requiresNewerLauncher(ext)}+
+                  </div>
+                  <button class="btn btn-secondary" disabled title="Update Aether to install this extension">Incompatible</button>
+                {:else if installedFor(ext)}
                   {#if hasUpdate(ext)}
                     <button class="btn btn-primary" on:click={() => handleRemoteInstall(ext.url, ext.id)} disabled={isInstalling}>
                       {installingId === ext.id ? "Updating..." : "Update to v" + ext.version}
@@ -651,6 +668,20 @@
     padding-top: 16px;
     border-top: 1px solid rgba(255,255,255,0.05);
     margin-top: auto;
+  }
+
+  .compat-warning {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 6px;
+    padding: 4px 8px;
+    max-width: 180px;
   }
 
   .ext-status-wrap {

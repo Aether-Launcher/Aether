@@ -133,6 +133,13 @@ func NewSandbox(
 	toggleMod func(instanceID, jarName string, enable bool) error,
 	emit func(ctx context.Context, event string, data ...interface{}),
 	confirm func(action map[string]interface{}) bool,
+	installModpack func(packURL, packName string) (string, error),
+	installResourcePack func(instanceID, fileName, downloadURL string) (string, error),
+	installShaderPack func(instanceID, fileName, downloadURL string) (string, error),
+	listScreenshots func(instanceID string) ([]map[string]interface{}, error),
+	deleteScreenshot func(instanceID, fileName string) error,
+	openScreenshot func(instanceID, fileName string) error,
+	getScreenshotData func(instanceID, fileName string) (string, error),
 ) *Sandbox {
 	if emit == nil {
 		emit = func(_ context.Context, _ string, _ ...interface{}) {}
@@ -319,7 +326,7 @@ func NewSandbox(
 
 	// Instance and mod capabilities are independently controlled. The legacy
 	// instances:patch permission is accepted by HasAnyPermission for migration.
-	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle") {
+	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install", "resourcepacks:install", "shaderpacks:install", "screenshots:read", "screenshots:write") {
 		instancesObj := vm.NewObject()
 
 		if manifest.HasAnyPermission("instances:list") {
@@ -432,6 +439,169 @@ func NewSandbox(
 					panic(vm.NewGoError(err))
 				}
 				return goja.Undefined()
+			})
+		}
+
+		// Capability: modpacks:install — downloads a .mrpack and creates a new instance
+		if manifest.HasAnyPermission("modpacks:install") {
+			instancesObj.Set("installModpack", func(call goja.FunctionCall) goja.Value {
+				packURL := call.Argument(0).String()
+				packName := call.Argument(1).String()
+
+				if !isAllowedURL(packURL) {
+					panic(vm.NewGoError(fmt.Errorf("access denied to URL: %s", packURL)))
+				}
+				if installModpack == nil {
+					panic(vm.NewGoError(fmt.Errorf("installModpack not available")))
+				}
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "install modpack",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"packName":      packName,
+					"url":           packURL,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied modpack installation")))
+				}
+				instanceID, err := installModpack(packURL, packName)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(instanceID)
+			})
+		}
+
+		// Capability: resourcepacks:install — downloads resource pack file to instance/resourcepacks
+		if manifest.HasAnyPermission("resourcepacks:install") {
+			instancesObj.Set("installResourcePack", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				downloadURL := call.Argument(2).String()
+
+				if !isAllowedURL(downloadURL) {
+					panic(vm.NewGoError(fmt.Errorf("access denied to URL: %s", downloadURL)))
+				}
+				if installResourcePack == nil {
+					panic(vm.NewGoError(fmt.Errorf("installResourcePack not available")))
+				}
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "install resource pack",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+					"fileName":      fileName,
+					"url":           downloadURL,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied resource pack installation")))
+				}
+
+				path, err := installResourcePack(instanceID, fileName, downloadURL)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(path)
+			})
+		}
+
+		// Capability: shaderpacks:install — downloads shader pack file to instance/shaderpacks
+		if manifest.HasAnyPermission("shaderpacks:install") {
+			instancesObj.Set("installShaderPack", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				downloadURL := call.Argument(2).String()
+
+				if !isAllowedURL(downloadURL) {
+					panic(vm.NewGoError(fmt.Errorf("access denied to URL: %s", downloadURL)))
+				}
+				if installShaderPack == nil {
+					panic(vm.NewGoError(fmt.Errorf("installShaderPack not available")))
+				}
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "install shader pack",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+					"fileName":      fileName,
+					"url":           downloadURL,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied shader pack installation")))
+				}
+
+				path, err := installShaderPack(instanceID, fileName, downloadURL)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(path)
+			})
+		}
+
+		// Capability: screenshots:read — list screenshots for an instance
+		if manifest.HasAnyPermission("screenshots:read") {
+			instancesObj.Set("listScreenshots", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				if listScreenshots == nil {
+					panic(vm.NewGoError(fmt.Errorf("listScreenshots not available")))
+				}
+				items, err := listScreenshots(instanceID)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(items)
+			})
+		}
+
+		// Capability: screenshots:write — delete a screenshot
+		if manifest.HasAnyPermission("screenshots:write") {
+			instancesObj.Set("deleteScreenshot", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				if deleteScreenshot == nil {
+					panic(vm.NewGoError(fmt.Errorf("deleteScreenshot not available")))
+				}
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "delete screenshot",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+					"fileName":      fileName,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied screenshot deletion")))
+				}
+				if err := deleteScreenshot(instanceID, fileName); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+		}
+
+		// Capability: screenshots:read — open screenshot in OS viewer
+		if manifest.HasAnyPermission("screenshots:read") {
+			instancesObj.Set("openScreenshot", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				if openScreenshot == nil {
+					panic(vm.NewGoError(fmt.Errorf("openScreenshot not available")))
+				}
+				if err := openScreenshot(instanceID, fileName); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+		}
+
+		// Capability: screenshots:read — get screenshot image data
+		if manifest.HasAnyPermission("screenshots:read") {
+			instancesObj.Set("getScreenshotData", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				fileName := call.Argument(1).String()
+				if getScreenshotData == nil {
+					panic(vm.NewGoError(fmt.Errorf("getScreenshotData not available")))
+				}
+				dataURL, err := getScreenshotData(instanceID, fileName)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(dataURL)
 			})
 		}
 

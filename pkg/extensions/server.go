@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"Aether/pkg/fs"
@@ -37,6 +38,36 @@ func (s *Server) Start() (string, error) {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", enableCORS(fsHandler))
+	mux.HandleFunc("/_screenshots/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		rel := strings.TrimPrefix(r.URL.Path, "/_screenshots/")
+		parts := strings.SplitN(rel, "/", 2)
+		if len(parts) < 2 {
+			http.Error(w, "Invalid screenshot request", http.StatusBadRequest)
+			return
+		}
+		instanceID := parts[0]
+		fileName := filepath.Base(parts[1])
+
+		instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+		if err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+		imgPath, err := fs.ContainedPath(filepath.Join(instanceDir, "screenshots"), fileName)
+		if err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+		http.ServeFile(w, r, imgPath)
+	})
 
 	// Bind to port 0 to let the OS assign a random available port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

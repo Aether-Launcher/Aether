@@ -1,0 +1,24 @@
+{
+  "id": "curseforge",
+  "name": "Curseforge Browser",
+  "version": "1.2.0",
+  "author": "Aether & Cribest7890",
+  "description": "Browse and install mods, modpacks, resource packs, and shader packs from CurseForge directly into your instances.",
+  "icon": "icon.png",
+  "main": "main.js",
+  "api": "1.0",
+  "permissions": [
+    "ui:sidebar",
+    "instances:list",
+    "mods:install",
+    "modpacks:install",
+    "resourcepacks:install",
+    "shaderpacks:install"
+  ],
+  "hosts": [
+    "curseforge-proxy.cribest7890.workers.dev",
+    "edge.forgecdn.net",
+    "media.forgecdn.net",
+    "files.forgecdn.net"
+  ]
+}

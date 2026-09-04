@@ -1,0 +1,16 @@
+{
+  "id": "screenshot-manager",
+  "name": "Screenshot Manager",
+  "version": "1.0.3",
+  "author": "Aether",
+  "description": "Browse, view, export, and delete screenshots taken across your Minecraft instances.",
+  "icon": "icon.png",
+  "main": "main.js",
+  "api": "1.0",
+  "permissions": [
+    "ui:sidebar",
+    "instances:list",
+    "screenshots:read",
+    "screenshots:write"
+  ]
+}

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screenshot Manager</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="header">
+    <div class="title-row">
+      <h2>📷 Screenshot Manager</h2>
+      <button id="refreshBtn" class="icon-btn" title="Refresh screenshots">🔄</button>
+    </div>
+    <div class="controls-row">
+      <div class="instance-select-wrap">
+        <label>Instance:</label>
+        <select id="instanceSelect">
+          <option value="">Loading instances...</option>
+        </select>
+      </div>
+      <div class="count-badge" id="countBadge">0 screenshots</div>
+    </div>
+  </div>
+
+  <div id="galleryContainer" class="gallery-container">
+    <div class="placeholder-wrap">
+      <div class="placeholder-icon">🖼️</div>
+      <p>Select an instance to view its screenshots</p>
+    </div>
+  </div>
+
+  <!-- Lightbox Fullscreen Modal -->
+  <div id="lightboxModal" class="lightbox-backdrop hidden">
+    <div class="lightbox-content">
+      <div class="lightbox-header">
+        <span id="lightboxTitle" class="lightbox-title">screenshot.png</span>
+        <div class="lightbox-actions">
+          <button id="openExternalBtn" class="lightbox-btn" title="Open in system viewer">↗ Open</button>
+          <button id="copyBtn" class="lightbox-btn" title="Copy to clipboard">📋 Copy</button>
+          <button id="deleteBtn" class="lightbox-btn btn-danger" title="Delete screenshot">🗑️ Delete</button>
+          <button id="closeLightboxBtn" class="lightbox-close" title="Close">✕</button>
+        </div>
+      </div>
+      <div class="lightbox-image-wrap">
+        <button id="prevImgBtn" class="nav-btn prev-btn" title="Previous screenshot">‹</button>
+        <img id="lightboxImg" src="" alt="Screenshot preview" />
+        <button id="nextImgBtn" class="nav-btn next-btn" title="Next screenshot">›</button>
+      </div>
+      <div class="lightbox-footer">
+        <span id="lightboxMeta">0 KB · 2026-09-01</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -2,68 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none';
+             img-src https://cdn.modrinth.com https: data:;
+             script-src 'self';
+             style-src 'self' 'unsafe-inline';
+             connect-src https://api.modrinth.com https://cdn.modrinth.com" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://cdn.modrinth.com https: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https://api.modrinth.com">
-  <title>Modrinth Browser</title>
+  <title>Modrinth</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+  <!-- ── Top bar ──────────────────────────────────────────────────────── -->
   <div class="header">
-    <div class="search-bar">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
-      <input id="searchInput" type="text" placeholder="Search Modrinth for mods, modpacks..." autocomplete="off" />
+    <div class="tabs">
+      <button class="tab active" id="tabMods" data-type="mod">Mods</button>
+      <button class="tab" id="tabModpacks" data-type="modpack">Modpacks</button>
+      <button class="tab" id="tabResourcePacks" data-type="resourcepack">Resource Packs</button>
+      <button class="tab" id="tabShaders" data-type="shader">Shaders</button>
+    </div>
+    <div class="search-row">
+      <input
+        type="text"
+        id="searchInput"
+        class="search-input"
+        placeholder="Search Modrinth…"
+        autocomplete="off"
+      />
+      <button class="btn-search" id="searchBtn" aria-label="Search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </button>
     </div>
   </div>
 
-  <div id="resultsContainer">
-    <div class="placeholder-wrap">
+  <!-- ── Results ──────────────────────────────────────────────────────── -->
+  <div id="resultsContainer" class="results-container">
+    <div class="placeholder">
       <div class="placeholder-icon">🔍</div>
-      <p>Search for mods above</p>
+      <p>Search for mods or modpacks above</p>
     </div>
   </div>
 
-  <!-- Install Modal -->
-  <div id="installModal" class="modal-backdrop hidden">
+  <!-- ── Pagination ───────────────────────────────────────────────────── -->
+  <div class="pagination hidden" id="pagination">
+    <button class="btn-page" id="prevBtn" disabled>‹ Prev</button>
+    <span class="page-info" id="pageInfo">Page 1</span>
+    <button class="btn-page" id="nextBtn">Next ›</button>
+  </div>
+
+  <!-- ── Mod install modal ────────────────────────────────────────────── -->
+  <div id="installModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
     <div class="modal">
       <div class="modal-header">
-        <div id="modalModIcon" class="modal-mod-icon"></div>
-        <div>
-          <h3 id="modalModName">Mod Name</h3>
-          <p id="modalModAuthor" class="modal-mod-author"></p>
+        <img id="modalIcon" class="modal-icon" src="" alt="" />
+        <div class="modal-title-block">
+          <h3 id="modalName">Mod Name</h3>
+          <p id="modalAuthor" class="modal-author"></p>
         </div>
-        <button class="modal-close" id="modalClose">✕</button>
+        <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
       </div>
 
       <div class="modal-section">
-        <label class="modal-label">Version</label>
-        <div class="custom-select" id="versionSelect">
-          <div class="custom-select-trigger">
-            <span class="custom-select-text">Loading versions...</span>
-            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-          <div class="custom-select-options hidden"></div>
+        <label class="modal-label" for="versionSelect">Version</label>
+        <div class="custom-select-wrapper">
+          <select id="versionSelect" class="custom-select"></select>
         </div>
       </div>
 
       <div class="modal-section">
-        <label class="modal-label">Target Instance</label>
-        <div class="custom-select" id="instanceSelect">
-          <div class="custom-select-trigger">
-            <span class="custom-select-text">Loading instances...</span>
-            <svg class="custom-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-          <div class="custom-select-options hidden"></div>
+        <label class="modal-label" for="instanceSelect">Install into</label>
+        <div class="custom-select-wrapper">
+          <select id="instanceSelect" class="custom-select"></select>
         </div>
       </div>
 
       <div id="installStatus" class="install-status hidden"></div>
 
       <div class="modal-actions">
-        <button class="btn-cancel" id="cancelBtn">Cancel</button>
-        <button class="btn-install" id="installBtn">
-          <span id="installBtnText">Install</span>
+        <button class="btn-cancel" id="modalCancel">Cancel</button>
+        <button class="btn-install" id="modalInstall">
+          <span id="modalInstallText">Install</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modpack install modal ────────────────────────────────────────── -->
+  <div id="packModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modal-header">
+        <img id="packModalIcon" class="modal-icon" src="" alt="" />
+        <div class="modal-title-block">
+          <h3 id="packModalName">Modpack Name</h3>
+          <p id="packModalAuthor" class="modal-author"></p>
+        </div>
+        <button class="modal-close" id="packModalClose" aria-label="Close">✕</button>
+      </div>
+
+      <div class="modal-section">
+        <label class="modal-label" for="packVersionSelect">Version</label>
+        <div class="custom-select-wrapper">
+          <select id="packVersionSelect" class="custom-select"></select>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <label class="modal-label" for="packNameInput">Instance name</label>
+        <input
+          type="text"
+          id="packNameInput"
+          class="search-input"
+          placeholder="Leave blank to use pack name"
+        />
+      </div>
+
+      <div id="packInstallStatus" class="install-status hidden"></div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="packModalCancel">Cancel</button>
+        <button class="btn-install" id="packModalInstall">
+          <span id="packModalInstallText">Create &amp; Install</span>
         </button>
       </div>
     </div>

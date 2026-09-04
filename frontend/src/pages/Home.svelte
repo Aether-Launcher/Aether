@@ -156,9 +156,32 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   }
 
   async function handleQuickPlay(inst: any) {
+    if (!inst) return;
+    currentInstance = inst;
+    installError = '';
+
+    const all = await GetInstances();
+    recentInstances = all
+      .filter((i: any) => i.id !== inst.id)
+      .sort((a: any, b: any) => {
+        if (!a.lastPlayed && !b.lastPlayed) return 0;
+        if (!a.lastPlayed) return 1;
+        if (!b.lastPlayed) return -1;
+        return b.lastPlayed.localeCompare(a.lastPlayed);
+      })
+      .slice(0, 5);
+
+    if (!inst.installed) {
+      await handleInstall();
+      return;
+    }
+
+    gameStore.update(s => ({ ...s, instanceId: inst.id, state: 'Starting...', logs: [] }));
     try {
       await LaunchInstance(inst.id);
-    } catch (err) {
+    } catch (err: any) {
+      installError = err?.message || String(err);
+      gameStore.update(s => ({ ...s, state: 'Error' }));
       console.error('Quick play failed:', err);
     }
   }
@@ -390,9 +413,17 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
                   class="btn btn-secondary recent-play-btn"
                   on:click={() => handleQuickPlay(inst)}
                   title="Launch {inst.name}"
-                  disabled={!inst.installed}
+                  disabled={!inst.installed || ($gameStore.instanceId === inst.id && ($gameStore.state === 'Starting...' || $gameStore.state === 'Running'))}
                 >
-                  {inst.installed ? 'Play' : 'Not installed'}
+                  {#if !inst.installed}
+                    Not installed
+                  {:else if $gameStore.instanceId === inst.id && $gameStore.state === 'Starting...'}
+                    Starting...
+                  {:else if $gameStore.instanceId === inst.id && $gameStore.state === 'Running'}
+                    Playing
+                  {:else}
+                    Play
+                  {/if}
                 </button>
               </div>
             {/each}

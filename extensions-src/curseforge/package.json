@@ -1,0 +1,9 @@
+{
+  "name": "curseforge",
+  "version": "1.0.0",
+  "description": "Curseforge Browser",
+  "main": "main.js",  
+  "dependencies": {
+    "@aethermc/sdk": "latest"
+  }
+}
