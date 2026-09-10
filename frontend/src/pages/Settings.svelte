@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime, GetThemes, SelectAndInstallTheme, SetActiveTheme, UninstallTheme } from '../../wailsjs/go/main/App.js';
+  import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime, GetThemes, SelectAndInstallTheme, SetActiveTheme, UninstallTheme, GetLauncherVersion } from '../../wailsjs/go/main/App.js';
   import { EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { BrowserOpenURL } from '../../wailsjs/runtime/runtime.js';
   import Dropdown from '../components/Dropdown.svelte';
@@ -27,6 +27,19 @@
   let themes: any[] = [];
   let installingTheme = false;
   let themeBusyId = '';
+  let currentVersion = '';
+
+  function triggerUpdateCheck() {
+    window.dispatchEvent(new CustomEvent('aether:check-updates'));
+  }
+
+  function openTerminalLogs() {
+    window.dispatchEvent(new CustomEvent('aether:open-terminal-logs'));
+  }
+
+  function onDevModeToggle(e: Event) {
+    window.dispatchEvent(new CustomEvent('aether:settings-updated'));
+  }
 
   const memoryOptions = [
     { label: '2 GB', value: '2048' },
@@ -71,6 +84,7 @@ onMount(async () => {
     try {
       const s = await GetSettings();
       settings = { ...settings, ...s };
+      currentVersion = await GetLauncherVersion();
       await loadJavaStatuses();
       await loadThemes();
     } catch (e) {
@@ -166,6 +180,7 @@ onMount(async () => {
     try {
       await SaveSettings(settings);
       saveSuccess = true;
+      window.dispatchEvent(new CustomEvent('aether:settings-updated'));
     } catch (e) {
       console.error("Failed to save settings:", e);
     } finally {
@@ -318,7 +333,12 @@ onMount(async () => {
 
     <!-- Updates Section -->
     <div class="settings-card card">
-      <h2>Updates</h2>
+      <div class="card-header-row">
+        <h2>Updates</h2>
+        {#if currentVersion}
+          <span class="version-badge">v{currentVersion}</span>
+        {/if}
+      </div>
 
       <div class="form-group checkbox-group">
         <label class="checkbox-label" for="auto-check-updates">
@@ -341,6 +361,12 @@ onMount(async () => {
           </div>
         </label>
       </div>
+
+      <div class="update-action-row">
+        <button class="btn btn-secondary" on:click={triggerUpdateCheck}>
+          Check for Updates Now
+        </button>
+      </div>
     </div>
 
     <!-- Advanced Section -->
@@ -349,13 +375,18 @@ onMount(async () => {
 
       <div class="form-group checkbox-group">
         <label class="checkbox-label" for="developer-mode">
-          <input id="developer-mode" type="checkbox" bind:checked={settings.developerMode} />
+          <input id="developer-mode" type="checkbox" bind:checked={settings.developerMode} on:change={onDevModeToggle} />
           <span class="custom-checkbox"></span>
           <div class="label-content">
             <div class="label-title">Developer Mode</div>
-            <div class="label-desc">Enable developer tools, logs, and advanced extension debugging features.</div>
+            <div class="label-desc">Enable developer tools, live terminal logs, and advanced extension debugging features.</div>
           </div>
         </label>
+        {#if settings.developerMode}
+          <button class="btn btn-secondary btn-sm" on:click={openTerminalLogs} style="margin-left: auto;">
+            &gt;_ View Terminal Logs (Ctrl+Shift+L)
+          </button>
+        {/if}
       </div>
 
       <div class="form-group checkbox-group warning">
@@ -714,5 +745,34 @@ onMount(async () => {
   .bug-report-btn:hover:not(:disabled) {
     border-color: #5865F2;
     background: rgba(88, 101, 242, 0.1);
+  }
+
+  .card-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-md, 16px);
+  }
+
+  .card-header-row h2 {
+    margin: 0;
+  }
+
+  .version-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .update-action-row {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    justify-content: flex-end;
   }
 </style>

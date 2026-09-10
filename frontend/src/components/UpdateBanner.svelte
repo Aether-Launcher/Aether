@@ -24,12 +24,12 @@
     }
   }
 
+  function openModal() {
+    window.dispatchEvent(new CustomEvent('aether:check-updates'));
+  }
+
   async function update() {
-    try {
-      await DownloadAndUpdate();
-    } catch (e) {
-      status = { phase: 'error', message: String(e) };
-    }
+    openModal();
   }
 
   onMount(() => {

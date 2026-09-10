@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
-  import { GetExtensionSidebarPages, GetConnectivityStatus } from '../../wailsjs/go/main/App';
+  import { GetExtensionSidebarPages, GetConnectivityStatus, GetSettings } from '../../wailsjs/go/main/App';
   import { themeAssets } from '../stores/theme';
   import AccountManager from './AccountManager.svelte';
   import Icon from './Icon.svelte';
@@ -27,6 +27,16 @@
   let connectivity: any = null;
   let checkingConnectivity = false;
   let connTimer: any = null;
+  let isDevMode = false;
+
+  async function updateDevMode() {
+    try {
+      const sets = await GetSettings();
+      isDevMode = !!sets?.developerMode;
+    } catch {
+      isDevMode = false;
+    }
+  }
 
   async function refreshConnectivity() {
     checkingConnectivity = true;
@@ -40,8 +50,11 @@
   }
 
   onMount(async () => {
+    updateDevMode();
     refreshConnectivity();
     connTimer = setInterval(refreshConnectivity, 60000);
+    window.addEventListener('aether:settings-updated', updateDevMode);
+    EventsOn('settings:updated', updateDevMode);
 
     // Fetch extension UI tabs registered during backend startup
     try {
@@ -92,6 +105,8 @@
   onDestroy(() => {
     EventsOff('extension:sidebar:add');
     EventsOff('extension:sidebar:reset');
+    EventsOff('settings:updated');
+    window.removeEventListener('aether:settings-updated', updateDevMode);
     if (connTimer) clearInterval(connTimer);
   });
 
@@ -180,6 +195,19 @@
       {/if}
     </span>
   </button>
+
+  {#if isDevMode}
+    <button
+      class="dev-logs-btn"
+      on:click={() => window.dispatchEvent(new CustomEvent('aether:toggle-terminal-logs'))}
+      title="Developer Terminal Logs (Ctrl+Shift+L)"
+    >
+      <span class="dev-logs-icon">
+        <Icon name="terminal" size={14} />
+      </span>
+      <span class="dev-logs-label">Dev Logs</span>
+    </button>
+  {/if}
 
   <UpdateBanner />
 
@@ -348,5 +376,44 @@
     padding: 4px 12px;
     font-weight: 600;
     margin-top: 2px;
+  }
+
+  .dev-logs-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    margin-bottom: 8px;
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .dev-logs-btn:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+    border-color: rgba(79, 156, 249, 0.35);
+    color: var(--text-primary);
+  }
+
+  .dev-logs-icon {
+    display: flex;
+    align-items: center;
+    color: var(--accent, #4f9cf9);
+  }
+
+  .dev-logs-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

@@ -14,6 +14,8 @@
   import InstanceDetails from './pages/InstanceDetails.svelte';
   import Settings from './pages/Settings.svelte';
   import ConfirmDialog from './lib/components/ConfirmDialog.svelte';
+  import UpdateModal from './components/UpdateModal.svelte';
+  import TerminalLogsModal from './components/TerminalLogsModal.svelte';
 
   const isMacOS = /Macintosh|Mac OS X/i.test(navigator.userAgent);
   let titleBarStyle: 'custom' | 'system' | 'pending' = 'pending';
@@ -83,6 +85,9 @@
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
       e.preventDefault();
       openPalette();
+    } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('aether:toggle-terminal-logs'));
     }
   }
 
@@ -184,6 +189,12 @@
   <ToastContainer />
 
   <ConfirmDialog bind:this={confirmationDialog} on:confirm={resolveExtensionConfirmation} />
+
+  <!-- Update Prompt Modal -->
+  <UpdateModal />
+
+  <!-- Terminal Logs Overlay -->
+  <TerminalLogsModal />
 </div>
 
 <style>

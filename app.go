@@ -18,6 +18,7 @@ import (
 	"Aether/pkg/fs"
 	"Aether/pkg/instance"
 	"Aether/pkg/java"
+	"Aether/pkg/logger"
 	"Aether/pkg/mojang"
 	"Aether/pkg/settings"
 	"Aether/pkg/theme"
@@ -39,10 +40,13 @@ func NewApp() *App {
 // to call runtime methods.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	logger.SetEmitter(ctx, runtime.EventsEmit)
+	logger.Info("Launcher", "Aether core runtime initializing...")
+
 	fs.EnsureDirectories()
 
 	if _, err := theme.GlobalServer.Start(); err != nil {
-		fmt.Printf("[Theme] Warning: Failed to start asset server: %v\n", err)
+		logger.Warn("Theme", fmt.Sprintf("Failed to start asset server: %v", err))
 	}
 
 	globalSettings := settings.Load()
@@ -189,6 +193,16 @@ func (a *App) WindowChrome() string {
 // Returns "dev" for local development builds.
 func (a *App) GetLauncherVersion() string {
 	return Version
+}
+
+// GetLogs returns the buffered background log entries.
+func (a *App) GetLogs() []logger.LogEntry {
+	return logger.GetEntries()
+}
+
+// ClearLogs flushes all buffered background log entries.
+func (a *App) ClearLogs() {
+	logger.Clear()
 }
 
 // CheckForUpdates queries GitHub Releases for a newer launcher version.

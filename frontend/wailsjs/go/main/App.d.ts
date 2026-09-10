@@ -6,10 +6,13 @@ import {auth} from '../models';
 import {mojang} from '../models';
 import {extensions} from '../models';
 import {main} from '../models';
+import {logger} from '../models';
 import {settings} from '../models';
 import {theme} from '../models';
 
 export function CheckForUpdates():Promise<update.Info>;
+
+export function ClearLogs():Promise<void>;
 
 export function CreateInstance(arg1:string,arg2:string,arg3:string):Promise<instance.Instance>;
 
@@ -46,6 +49,8 @@ export function GetInstances():Promise<Array<instance.Instance>>;
 export function GetJavaStatus():Promise<Array<main.JavaRuntimeStatus>>;
 
 export function GetLauncherVersion():Promise<string>;
+
+export function GetLogs():Promise<Array<logger.LogEntry>>;
 
 export function GetModLoaders():Promise<Array<main.ModLoaderInfo>>;
 

@@ -6,6 +6,10 @@ export function CheckForUpdates() {
   return window['go']['main']['App']['CheckForUpdates']();
 }
 
+export function ClearLogs() {
+  return window['go']['main']['App']['ClearLogs']();
+}
+
 export function CreateInstance(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateInstance'](arg1, arg2, arg3);
 }
@@ -76,6 +80,10 @@ export function GetJavaStatus() {
 
 export function GetLauncherVersion() {
   return window['go']['main']['App']['GetLauncherVersion']();
+}
+
+export function GetLogs() {
+  return window['go']['main']['App']['GetLogs']();
 }
 
 export function GetModLoaders() {
