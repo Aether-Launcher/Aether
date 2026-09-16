@@ -146,17 +146,19 @@
   class="app-container"
   style={$themeAssets['background'] ? `background-image: url('${$themeAssets['background']}'); background-size: cover; background-position: center;` : ''}
 >
-  {#if titleBarStyle === 'custom'}
-    <TitleBar />
-  {:else if titleBarStyle === 'system' && isMacOS}
-    <div class="native-titlebar-spacer" aria-hidden="true"></div>
-  {/if}
-  <div class="layout">
-    <Sidebar
-      {activePage}
-      on:navigate={handleNavigate}
-      on:registerExtensionRoute={handleRegisterExtensionRoute}
-    />
+  <Sidebar
+    {activePage}
+    isMacOS={titleBarStyle === 'system' && isMacOS}
+    on:navigate={handleNavigate}
+    on:registerExtensionRoute={handleRegisterExtensionRoute}
+  />
+
+  <div class="main-column">
+    {#if titleBarStyle === 'custom'}
+      <TitleBar />
+    {:else if titleBarStyle === 'system' && isMacOS}
+      <div class="native-titlebar-spacer" aria-hidden="true"></div>
+    {/if}
 
     <main class="content">
       {#if activePage === 'home'}
@@ -205,24 +207,27 @@
 
   .app-container {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     width: 100vw;
     height: 100vh;
     overflow: hidden;
     background: var(--bg-dark, #0d0d0d);
   }
 
+  .main-column {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+  }
+
   .native-titlebar-spacer {
     height: 32px;
     flex-shrink: 0;
-    background: #0d0d0d;
-  }
-
-  .layout {
-    display: flex;
-    width: 100%;
-    flex: 1;
-    min-height: 0;
+    background: transparent;
   }
 
   .content {

@@ -60,7 +60,7 @@
     justify-content: space-between;
     align-items: center;
     height: 32px;
-    background: #0d0d0d;
+    background: transparent;
     user-select: none;
     -webkit-user-select: none;
     flex-shrink: 0;

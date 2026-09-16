@@ -8,6 +8,7 @@
   import UpdateBanner from './UpdateBanner.svelte';
 
   export let activePage: string = 'home';
+  export let isMacOS: boolean = false;
 
   const dispatch = createEventDispatcher();
 
@@ -120,10 +121,12 @@
   }
 </script>
 
-<aside class="sidebar">
-  <div class="logo">
-    <img src={$themeAssets['sidebar-logo'] || '/logo.png'} alt="Logo" class="sidebar-logo" />
-    Aether
+<aside class="sidebar" class:macos={isMacOS}>
+  <div class="sidebar-header" style="--wails-draggable: drag">
+    <div class="logo">
+      <img src={$themeAssets['sidebar-logo'] || '/logo.png'} alt="Logo" class="sidebar-logo" />
+      <span>Aether</span>
+    </div>
   </div>
 
   <nav class="top-nav">
@@ -222,7 +225,7 @@
     background-color: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
-    padding: 24px 12px;
+    padding: 0 12px 16px 12px;
     box-sizing: border-box;
     border-right: 1px solid rgba(255, 255, 255, 0.05);
     /* Fix #11: sidebar must be independently contained so Settings/account
@@ -231,20 +234,35 @@
     flex-shrink: 0;
   }
 
+  .sidebar.macos {
+    padding-top: 28px;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    padding: 0 4px;
+    margin-bottom: 12px;
+    user-select: none;
+    -webkit-user-select: none;
+    flex-shrink: 0;
+  }
+
   .logo {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 22px;
+    gap: 10px;
+    font-size: 19px;
     font-weight: 700;
-    margin-bottom: 36px;
-    padding: 0 12px;
     letter-spacing: -0.5px;
+    padding: 0 8px;
+    pointer-events: none;
   }
 
   .sidebar-logo {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     object-fit: contain;
   }
 
