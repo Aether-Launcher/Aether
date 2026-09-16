@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const galleryIndexURL = "https://raw.githubusercontent.com/wayback09/Aether-Extensions/main/index.json"
+const galleryIndexURL = "https://raw.githubusercontent.com/Aether-Launcher/Aether-Extensions/main/index.json"
 
 // GalleryExtension represents an extension in the Aether Registry.
 // Trust tier is assigned by the Aether team in the registry — never by the extension itself.

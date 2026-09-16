@@ -54,7 +54,7 @@ func CheckConnectivity() ConnectivityStatus {
 		{"Assets CDN", "https://resources.download.minecraft.net"},
 		{"Libraries CDN", "https://libraries.minecraft.net"},
 		{"Java Runtime", "https://api.adoptium.net/v3/info/available_releases"},
-		{"Extension Registry", "https://raw.githubusercontent.com/wayback09/Aether-Extensions/main/index.json"},
+		{"Extension Registry", "https://raw.githubusercontent.com/Aether-Launcher/Aether-Extensions/main/index.json"},
 	}
 
 	services := make([]ServiceStatus, len(endpoints))

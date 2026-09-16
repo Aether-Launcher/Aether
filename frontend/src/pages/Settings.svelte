@@ -336,7 +336,7 @@ onMount(async () => {
       <div class="card-header-row">
         <h2>Updates</h2>
         {#if currentVersion}
-          <span class="version-badge">v{currentVersion}</span>
+          <span class="version-badge">{currentVersion === 'dev' ? 'dev' : 'v' + currentVersion.replace(/^v+/i, '')}</span>
         {/if}
       </div>
 

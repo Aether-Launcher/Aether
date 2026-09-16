@@ -16,36 +16,59 @@ type ExtensionUpdate struct {
 	URL            string `json:"url"`
 }
 
-// CompareVersions compares two dot-separated numeric version strings.
+// CompareVersions compares two version strings.
 // It returns 1 if a > b, -1 if a < b, and 0 if they are equal.
-// Non-numeric suffixes are ignored (e.g. "1.0.0-beta" parses as 1.0.0).
+// Supports semantic versioning including pre-release tags (e.g. "1.0.0-beta.15" vs "1.0.0-beta.14").
 func CompareVersions(a, b string) int {
-	parts := func(v string) []int {
+	type semver struct {
+		nums   []int
+		hasPre bool
+		preTag string
+		preNum int
+	}
+
+	parse := func(v string) semver {
 		v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-		raw := strings.Split(v, ".")
-		out := make([]int, 0, len(raw))
-		for _, p := range raw {
+		var s semver
+		if idx := strings.IndexByte(v, '-'); idx != -1 {
+			pre := v[idx+1:]
+			v = v[:idx]
+			s.hasPre = true
+			parts := strings.Split(pre, ".")
+			if len(parts) > 1 {
+				if n, err := strconv.Atoi(parts[len(parts)-1]); err == nil {
+					s.preNum = n
+					s.preTag = strings.Join(parts[:len(parts)-1], ".")
+				} else {
+					s.preTag = pre
+				}
+			} else {
+				s.preTag = pre
+			}
+		}
+
+		for _, p := range strings.Split(v, ".") {
 			n, err := strconv.Atoi(strings.TrimSpace(p))
 			if err != nil {
 				break
 			}
-			out = append(out, n)
+			s.nums = append(s.nums, n)
 		}
-		return out
+		return s
 	}
 
-	aa, bb := parts(a), parts(b)
-	maxLen := len(aa)
-	if len(bb) > maxLen {
-		maxLen = len(bb)
+	sa, sb := parse(a), parse(b)
+	maxLen := len(sa.nums)
+	if len(sb.nums) > maxLen {
+		maxLen = len(sb.nums)
 	}
 	for i := 0; i < maxLen; i++ {
 		var x, y int
-		if i < len(aa) {
-			x = aa[i]
+		if i < len(sa.nums) {
+			x = sa.nums[i]
 		}
-		if i < len(bb) {
-			y = bb[i]
+		if i < len(sb.nums) {
+			y = sb.nums[i]
 		}
 		if x != y {
 			if x > y {
@@ -54,6 +77,27 @@ func CompareVersions(a, b string) int {
 			return -1
 		}
 	}
+
+	// Main versions are equal; compare pre-releases.
+	// A stable release (no pre-release) is greater than a pre-release.
+	if !sa.hasPre && sb.hasPre {
+		return 1
+	}
+	if sa.hasPre && !sb.hasPre {
+		return -1
+	}
+	if sa.hasPre && sb.hasPre {
+		if sa.preTag != sb.preTag {
+			return strings.Compare(sa.preTag, sb.preTag)
+		}
+		if sa.preNum != sb.preNum {
+			if sa.preNum > sb.preNum {
+				return 1
+			}
+			return -1
+		}
+	}
+
 	return 0
 }
 
