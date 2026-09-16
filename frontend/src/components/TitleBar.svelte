@@ -1,6 +1,5 @@
 <script lang="ts">
   import { WindowMinimise, WindowToggleMaximise, Quit } from '../../wailsjs/runtime/runtime.js';
-  import { themeAssets } from '../stores/theme';
 
   let isMaximized = false;
 
@@ -19,10 +18,7 @@
 </script>
 
 <div class="titlebar" style="--wails-draggable: drag">
-  <div class="title">
-    <img src={$themeAssets['titlebar-logo'] || '/logo.png'} alt="Logo" class="logo-img" />
-    <span>Aether</span>
-  </div>
+  <div class="drag-handle"></div>
 
   <div class="controls" style="--wails-draggable: no-drag">
     <!-- Minimize -->
@@ -68,23 +64,11 @@
     user-select: none;
     -webkit-user-select: none;
     flex-shrink: 0;
-    /* border removed */
   }
 
-  .title {
-    display: flex;
-    align-items: center;
-    padding-left: 12px;
-    font-size: 12px;
-    color: #a0a0a0;
-    gap: 8px;
-    font-family: inherit;
-  }
-
-  .logo-img {
-    width: 14px;
-    height: 14px;
-    object-fit: contain;
+  .drag-handle {
+    flex: 1;
+    height: 100%;
   }
 
   .controls {

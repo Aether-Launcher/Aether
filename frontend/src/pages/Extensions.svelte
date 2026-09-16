@@ -318,14 +318,13 @@
         on:action={() => setTab('gallery')}
       />
     {:else}
-      <div class="grid">
+      <div class="grid installed-grid">
         {#each installedExtensions as ext}
           {@const badge = trustBadge(ext.trust)}
           {@const grad  = extGradient(ext.name)}
           {@const dot   = statusColor(ext.status)}
 
-          <div class="card ext-card">
-            <div class="card-accent" style="background: {grad};"></div>
+          <div class="card ext-card installed-card">
             <div class="card-body">
               <div class="ext-header">
                 <div class="ext-icon" style={!ext.iconUrl ? `background: ${grad};` : ''}>
@@ -414,7 +413,6 @@
           {@const grad = extGradient(ext.name)}
           
           <div class="card ext-card">
-            <div class="card-accent" style="background: {grad};"></div>
             <div class="card-body">
               <div class="ext-header">
                 <div class="ext-icon" style={!ext.iconUrl ? `background: ${grad};` : ''}>
@@ -588,18 +586,56 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    transition: border-color 0.15s ease, transform 0.15s ease;
   }
 
-  .card-accent {
-    height: 4px;
-    width: 100%;
+  .installed-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+
+  .installed-card .card-body {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .installed-card .ext-header {
+    gap: 12px;
+  }
+
+  .installed-card .ext-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .installed-card .ext-icon-letter {
+    font-size: 16px;
+  }
+
+  .installed-card .ext-title {
+    font-size: 14px;
+  }
+
+  .installed-card .ext-desc {
+    font-size: 12px;
+    -webkit-line-clamp: 1;
+  }
+
+  .installed-card .ext-footer {
+    padding-top: 8px;
+  }
+
+  .installed-card .btn {
+    padding: 5px 12px;
+    font-size: 12px;
   }
 
   .card-body {
-    padding: 20px;
+    padding: 18px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
     flex: 1;
   }
 
