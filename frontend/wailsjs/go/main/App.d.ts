@@ -3,9 +3,9 @@
 import {update} from '../models';
 import {instance} from '../models';
 import {auth} from '../models';
+import {main} from '../models';
 import {mojang} from '../models';
 import {extensions} from '../models';
-import {main} from '../models';
 import {logger} from '../models';
 import {settings} from '../models';
 import {theme} from '../models';
@@ -34,6 +34,8 @@ export function GetActiveThemeAssets():Promise<Record<string, string>>;
 
 export function GetActiveThemeCSS():Promise<string>;
 
+export function GetAetherReleaseNotes():Promise<Array<main.AetherReleaseNote>>;
+
 export function GetAvailableVersions(arg1:boolean):Promise<Array<string>>;
 
 export function GetConnectivityStatus():Promise<mojang.ConnectivityStatus>;
@@ -52,7 +54,11 @@ export function GetLauncherVersion():Promise<string>;
 
 export function GetLogs():Promise<Array<logger.LogEntry>>;
 
+export function GetMinecraftNews():Promise<Array<main.MinecraftNewsItem>>;
+
 export function GetModLoaders():Promise<Array<main.ModLoaderInfo>>;
+
+export function GetRecentScreenshots(arg1:number):Promise<Array<main.ScreenshotItem>>;
 
 export function GetSettings():Promise<settings.GlobalSettings>;
 
@@ -63,6 +69,10 @@ export function InstallInstance(arg1:string):Promise<void>;
 export function LaunchInstance(arg1:string):Promise<void>;
 
 export function LoginOffline(arg1:string):Promise<auth.Account>;
+
+export function OpenScreenshot(arg1:string,arg2:string):Promise<void>;
+
+export function OpenScreenshotsFolder(arg1:string):Promise<void>;
 
 export function ReloadExtensions():Promise<void>;
 

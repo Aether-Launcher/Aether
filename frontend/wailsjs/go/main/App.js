@@ -50,6 +50,10 @@ export function GetActiveThemeCSS() {
   return window['go']['main']['App']['GetActiveThemeCSS']();
 }
 
+export function GetAetherReleaseNotes() {
+  return window['go']['main']['App']['GetAetherReleaseNotes']();
+}
+
 export function GetAvailableVersions(arg1) {
   return window['go']['main']['App']['GetAvailableVersions'](arg1);
 }
@@ -86,8 +90,16 @@ export function GetLogs() {
   return window['go']['main']['App']['GetLogs']();
 }
 
+export function GetMinecraftNews() {
+  return window['go']['main']['App']['GetMinecraftNews']();
+}
+
 export function GetModLoaders() {
   return window['go']['main']['App']['GetModLoaders']();
+}
+
+export function GetRecentScreenshots(arg1) {
+  return window['go']['main']['App']['GetRecentScreenshots'](arg1);
 }
 
 export function GetSettings() {
@@ -108,6 +120,14 @@ export function LaunchInstance(arg1) {
 
 export function LoginOffline(arg1) {
   return window['go']['main']['App']['LoginOffline'](arg1);
+}
+
+export function OpenScreenshot(arg1, arg2) {
+  return window['go']['main']['App']['OpenScreenshot'](arg1, arg2);
+}
+
+export function OpenScreenshotsFolder(arg1) {
+  return window['go']['main']['App']['OpenScreenshotsFolder'](arg1);
 }
 
 export function ReloadExtensions() {
