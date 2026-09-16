@@ -15,7 +15,7 @@
   let gallerySearch = '';
 
   // Real GitHub URL for the Aether Extension Registry
-  const GALLERY_INDEX_URL = 'https://raw.githubusercontent.com/wayback09/Aether-Extensions/main/index.json';
+  const GALLERY_INDEX_URL = 'https://raw.githubusercontent.com/Aether-Launcher/Aether-Extensions/main/index.json';
 
   let isDevMode = false;
   let confirmDialog: any;
@@ -35,12 +35,25 @@
 
   function compareVersions(left: string, right: string): number {
     const parse = (version: string) => {
-      const match = String(version || '').trim().replace(/^v/i, '').match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
-      return match ? [Number(match[1]), Number(match[2] || 0), Number(match[3] || 0)] : null;
+      const match = String(version || '').trim().replace(/^v/i, '').match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([a-zA-Z0-9.]+))?/);
+      if (!match) return null;
+      return {
+        major: Number(match[1]),
+        minor: Number(match[2] || 0),
+        patch: Number(match[3] || 0),
+        prerelease: match[4] || null,
+      };
     };
     const a = parse(left), b = parse(right);
     if (!a || !b) return 0;
-    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
+    if (a.major !== b.major) return a.major > b.major ? 1 : -1;
+    if (a.minor !== b.minor) return a.minor > b.minor ? 1 : -1;
+    if (a.patch !== b.patch) return a.patch > b.patch ? 1 : -1;
+    if (!a.prerelease && b.prerelease) return 1;
+    if (a.prerelease && !b.prerelease) return -1;
+    if (a.prerelease && b.prerelease) {
+      return a.prerelease.localeCompare(b.prerelease, undefined, { numeric: true, sensitivity: 'base' });
+    }
     return 0;
   }
 
