@@ -307,6 +307,10 @@ export namespace settings {
 	    autoCheckUpdates: boolean;
 	    includeBetaUpdates: boolean;
 	    activeTheme?: string;
+	    showRecentInstances: boolean;
+	    showScreenshots: boolean;
+	    showServicesHealth: boolean;
+	    showNewsFeed: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new GlobalSettings(source);
@@ -323,6 +327,10 @@ export namespace settings {
 	        this.autoCheckUpdates = source["autoCheckUpdates"];
 	        this.includeBetaUpdates = source["includeBetaUpdates"];
 	        this.activeTheme = source["activeTheme"];
+	        this.showRecentInstances = source["showRecentInstances"];
+	        this.showScreenshots = source["showScreenshots"];
+	        this.showServicesHealth = source["showServicesHealth"];
+	        this.showNewsFeed = source["showNewsFeed"];
 	    }
 	}
 
@@ -444,3 +452,43 @@ export namespace update {
 
 }
 
+export namespace settings {
+	
+	export class GlobalSettings {
+	    defaultMemory: string;
+	    closeOnLaunch: boolean;
+	    developerMode: boolean;
+	    disableExtensions: boolean;
+	    garbageCollector?: string;
+	    customJvmArgs?: string;
+	    autoCheckUpdates: boolean;
+	    includeBetaUpdates: boolean;
+	    activeTheme?: string;
+	    showRecentInstances: boolean;
+	    showScreenshots: boolean;
+	    showServicesHealth: boolean;
+	    showNewsFeed: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new GlobalSettings(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.defaultMemory = source["defaultMemory"];
+	        this.closeOnLaunch = source["closeOnLaunch"];
+	        this.developerMode = source["developerMode"];
+	        this.disableExtensions = source["disableExtensions"];
+	        this.garbageCollector = source["garbageCollector"];
+	        this.customJvmArgs = source["customJvmArgs"];
+	        this.autoCheckUpdates = source["autoCheckUpdates"];
+	        this.includeBetaUpdates = source["includeBetaUpdates"];
+	        this.activeTheme = source["activeTheme"];
+	        this.showRecentInstances = source["showRecentInstances"];
+	        this.showScreenshots = source["showScreenshots"];
+	        this.showServicesHealth = source["showServicesHealth"];
+	        this.showNewsFeed = source["showNewsFeed"];
+	    }
+	}
+
+}

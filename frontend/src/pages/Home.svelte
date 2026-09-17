@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy, beforeUpdate } from 'svelte';
-import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
+import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus, GetSettings } from '../../wailsjs/go/main/App.js';
 import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { gameStore } from '../stores/gameStore.js';
   import EmptyState from '../components/EmptyState.svelte';
@@ -24,13 +24,42 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   let checkingConnectivity = false;
   let installError = '';
 
+  let launcherSettings: any = {
+    showRecentInstances: true,
+    showScreenshots: true,
+    showServicesHealth: true,
+    showNewsFeed: true,
+  };
+
+  async function loadSettings() {
+    try {
+      const s = await GetSettings();
+      if (s) {
+        launcherSettings = { ...launcherSettings, ...s };
+      }
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
+  }
+
+  $: hasRightWidgets = Boolean(
+    launcherSettings.showRecentInstances ||
+    launcherSettings.showScreenshots ||
+    launcherSettings.showServicesHealth ||
+    launcherSettings.showNewsFeed
+  );
+
   // Derive from global store — survives navigation
   $: launchState = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.state : 'Idle';
   $: logs = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.logs.slice(-10) : [];
 
   onMount(async () => {
     await loadHome();
+    await loadSettings();
     refreshConnectivity();
+
+    const onSettingsUpdate = () => { loadSettings(); };
+    window.addEventListener('aether:settings-updated', onSettingsUpdate);
 
     // instance:state and instance:log are handled globally in gameStore.
     // Install progress is page-local — only relevant while Home is mounted.
@@ -65,6 +94,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
       u1();
       u2();
       u3();
+      window.removeEventListener('aether:settings-updated', onSettingsUpdate);
     };
   });
 
@@ -282,7 +312,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
 <div class="page">
   {#if currentInstance}
-    <div class="dashboard-grid">
+    <div class={hasRightWidgets ? "dashboard-grid" : "dashboard-single"}>
 
       <!-- ── LEFT COLUMN ──────────────────────────────────────── -->
       <div class="dash-left">
@@ -411,17 +441,27 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
       </div>
 
       <!-- ── RIGHT COLUMN ─────────────────────────────────────── -->
-      <div class="dash-right">
-        <RecentInstancesWidget
-          instances={recentInstances}
-          activeInstanceId={currentInstance?.id || ''}
-          on:play={({ detail }) => handleQuickPlay(detail)}
-          on:navigate={({ detail }) => dispatch('navigate', detail)}
-        />
-        <ScreenshotsWidget />
-        <ServicesStatusWidget />
-        <NewsFeedWidget />
-      </div>
+      {#if hasRightWidgets}
+        <div class="dash-right">
+          {#if launcherSettings.showRecentInstances}
+            <RecentInstancesWidget
+              instances={recentInstances}
+              activeInstanceId={currentInstance?.id || ''}
+              on:play={({ detail }) => handleQuickPlay(detail)}
+              on:navigate={({ detail }) => dispatch('navigate', detail)}
+            />
+          {/if}
+          {#if launcherSettings.showScreenshots}
+            <ScreenshotsWidget />
+          {/if}
+          {#if launcherSettings.showServicesHealth}
+            <ServicesStatusWidget />
+          {/if}
+          {#if launcherSettings.showNewsFeed}
+            <NewsFeedWidget />
+          {/if}
+        </div>
+      {/if}
 
     </div>
   {:else}
@@ -445,12 +485,19 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     overflow-y: auto;
   }
 
-  /* Dashboard 2-column layout */
+  /* Dashboard layout */
   .dashboard-grid {
     display: grid;
     grid-template-columns: minmax(0, 480px) minmax(0, 1fr);
     gap: 24px;
     align-items: start;
+    width: 100%;
+  }
+
+  .dashboard-single {
+    display: flex;
+    flex-direction: column;
+    max-width: 580px;
     width: 100%;
   }
 

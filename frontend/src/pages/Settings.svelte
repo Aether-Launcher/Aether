@@ -16,6 +16,10 @@
     customJvmArgs: '',
     autoCheckUpdates: true,
     includeBetaUpdates: false,
+    showRecentInstances: true,
+    showScreenshots: true,
+    showServicesHealth: true,
+    showNewsFeed: true,
   };
 
   let saving = false;
@@ -217,6 +221,56 @@ onMount(async () => {
           <div class="label-content">
             <div class="label-title">Close launcher on game start</div>
             <div class="label-desc">Aether will hide itself when Minecraft opens and reappear when it closes.</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Home Dashboard Section -->
+    <div class="settings-card card">
+      <h2>Home Dashboard</h2>
+      <p class="section-hint">Choose which widgets appear on the Home dashboard overview.</p>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="show-recent-instances">
+          <input id="show-recent-instances" type="checkbox" bind:checked={settings.showRecentInstances} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">Recent Instances & Quick-Play</div>
+            <div class="label-desc">Show quick-launch cards for your recently played instances.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="show-screenshots">
+          <input id="show-screenshots" type="checkbox" bind:checked={settings.showScreenshots} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">Screenshot Showcase</div>
+            <div class="label-desc">Show a gallery of in-game screenshots with a full-size lightbox viewer.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="show-services-health">
+          <input id="show-services-health" type="checkbox" bind:checked={settings.showServicesHealth} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">Live Services Status</div>
+            <div class="label-desc">Show reachability and latency indicators for Mojang & Minecraft servers.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="show-news-feed">
+          <input id="show-news-feed" type="checkbox" bind:checked={settings.showNewsFeed} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">News & Updates Feed</div>
+            <div class="label-desc">Show official Minecraft patch notes and Aether launcher releases.</div>
           </div>
         </label>
       </div>
@@ -472,6 +526,12 @@ onMount(async () => {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-lg);
+  }
+
+  .section-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: -8px 0 4px 0;
   }
 
   .settings-card h2 {

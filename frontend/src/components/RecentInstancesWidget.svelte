@@ -33,7 +33,6 @@
   }
 
   $: candidateList = (() => {
-    // Exclude currently selected hero instance, prioritize by lastPlayed, fallback to all instances
     const list = (instances || []).filter((i) => i.id !== activeInstanceId);
     list.sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
     return list.slice(0, 3);
@@ -51,7 +50,7 @@
 <div class="widget-card card">
   <div class="widget-header">
     <div class="widget-title">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/>
         <polyline points="12 6 12 12 16 14"/>
       </svg>
@@ -61,9 +60,9 @@
   </div>
 
   {#if candidateList.length === 0}
-    <div class="empty-state">
-      <p class="empty-text">No other instances created yet.</p>
-      <button class="btn btn-secondary btn-sm" on:click={() => window.dispatchEvent(new CustomEvent('aether:open-create-instance'))}>
+    <div class="empty-compact">
+      <span class="empty-text">No other instances created</span>
+      <button class="btn btn-secondary btn-sm new-btn" on:click={() => window.dispatchEvent(new CustomEvent('aether:open-create-instance'))}>
         + New Instance
       </button>
     </div>
@@ -80,9 +79,9 @@
             <div class="recent-name" title={inst.name}>{inst.name}</div>
             <div class="recent-meta">
               <span class="meta-tag">{inst.version}</span>
-              <span class="meta-dot">•</span>
+              <span class="meta-dot">·</span>
               <span class="meta-tag">{inst.loader || 'Vanilla'}</span>
-              <span class="meta-dot">•</span>
+              <span class="meta-dot">·</span>
               <span class="meta-time">{formatLastPlayed(inst.lastPlayed)}</span>
             </div>
           </div>
@@ -111,10 +110,13 @@
 
 <style>
   .widget-card {
-    padding: 16px;
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius);
   }
 
   .widget-header {
@@ -126,19 +128,19 @@
   .widget-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 13px;
+    gap: 6px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
   }
 
   .view-all-btn {
     background: none;
     border: none;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
     padding: 2px 6px;
     border-radius: 4px;
@@ -150,51 +152,56 @@
     background: rgba(255, 255, 255, 0.06);
   }
 
-  .empty-state {
+  .empty-compact {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 24px 12px;
-    gap: 10px;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px dashed rgba(255, 255, 255, 0.07);
+    border-radius: 6px;
   }
 
   .empty-text {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
-    margin: 0;
+  }
+
+  .new-btn {
+    padding: 4px 10px;
+    font-size: 11px;
   }
 
   .recent-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
 
   .recent-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 10px;
-    background: rgba(255, 255, 255, 0.025);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: var(--border-radius);
+    gap: 10px;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.035);
+    border-radius: 6px;
     transition: background 0.15s ease, border-color 0.15s ease;
   }
 
   .recent-row:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.07);
   }
 
   .recent-art {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: #ffffff;
     flex-shrink: 0;
@@ -206,7 +213,7 @@
   }
 
   .recent-name {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
@@ -218,9 +225,9 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-secondary);
-    margin-top: 2px;
+    margin-top: 1px;
   }
 
   .meta-tag {
@@ -236,8 +243,8 @@
   }
 
   .play-btn {
-    padding: 4px 12px;
-    font-size: 12px;
+    padding: 4px 10px;
+    font-size: 11px;
     font-weight: 600;
     flex-shrink: 0;
   }

@@ -4,96 +4,85 @@
   import { BrowserOpenURL } from '../../wailsjs/runtime/runtime';
 
   let activeTab: 'minecraft' | 'aether' = 'minecraft';
-  let mcNews: Array<{
-    title: string;
-    tag: string;
-    date: string;
-    text: string;
-    image: string;
-    readMoreUrl: string;
-  }> = [];
-  let aetherReleases: Array<{
-    tagName: string;
-    name: string;
-    body: string;
-    publishedAt: string;
-    htmlUrl: string;
-  }> = [];
+  let mcNews: any[] = [];
+  let aetherReleases: any[] = [];
   let loading = true;
 
-  async function loadData() {
+  async function loadFeed() {
     loading = true;
     try {
-      const [news, releases] = await Promise.all([
-        GetMinecraftNews().catch(() => []),
-        GetAetherReleaseNotes().catch(() => []),
+      const [mc, aether] = await Promise.all([
+        GetMinecraftNews(),
+        GetAetherReleaseNotes(),
       ]);
-      mcNews = news || [];
-      aetherReleases = releases || [];
+      mcNews = mc || [];
+      aetherReleases = aether || [];
     } catch (e) {
-      console.error('Failed to load news feed:', e);
+      console.error('Failed to load news feeds:', e);
     } finally {
       loading = false;
     }
   }
 
-  function formatDate(d: string): string {
-    if (!d) return '';
+  function formatDate(iso: string): string {
+    if (!iso) return '';
     try {
-      return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     } catch {
-      return d;
+      return '';
     }
   }
 
   function openExternal(url: string) {
-    if (!url) return;
-    try {
+    if (url) {
       BrowserOpenURL(url);
-    } catch {
-      window.open(url, '_blank');
     }
   }
 
   onMount(() => {
-    loadData();
+    loadFeed();
   });
 </script>
 
 <div class="widget-card card">
   <div class="widget-header">
-    <div class="tabs-wrap">
+    <div class="widget-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
+        <path d="M18 14h-8"/>
+        <path d="M15 18h-5"/>
+        <path d="M10 6h8v4h-8V6Z"/>
+      </svg>
+      <span>News & Updates</span>
+    </div>
+
+    <div class="tab-pills">
       <button
-        class="feed-tab {activeTab === 'minecraft' ? 'active' : ''}"
-        on:click={() => (activeTab = 'minecraft')}
+        class="tab-btn"
+        class:active={activeTab === 'minecraft'}
+        on:click={() => activeTab = 'minecraft'}
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-        </svg>
-        <span>Minecraft Notes</span>
+        Minecraft
       </button>
       <button
-        class="feed-tab {activeTab === 'aether' ? 'active' : ''}"
-        on:click={() => (activeTab = 'aether')}
+        class="tab-btn"
+        class:active={activeTab === 'aether'}
+        on:click={() => activeTab = 'aether'}
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="16" x2="12" y2="12"/>
-          <line x1="12" y1="8" x2="12.01" y2="8"/>
-        </svg>
-        <span>Aether Updates</span>
+        Aether
       </button>
     </div>
   </div>
 
   {#if loading}
     <div class="loading-state">
-      <span>Loading news feed...</span>
+      <span>Loading feed...</span>
     </div>
   {:else if activeTab === 'minecraft'}
     {#if mcNews.length === 0}
-      <div class="empty-state">
-        <p class="empty-text">No news articles found.</p>
+      <div class="empty-compact">
+        <span class="empty-text">No news articles found</span>
       </div>
     {:else}
       <div class="news-list">
@@ -120,8 +109,8 @@
     {/if}
   {:else if activeTab === 'aether'}
     {#if aetherReleases.length === 0}
-      <div class="empty-state">
-        <p class="empty-text">No launcher releases found.</p>
+      <div class="empty-compact">
+        <span class="empty-text">No launcher releases found</span>
       </div>
     {:else}
       <div class="news-list">
@@ -144,10 +133,13 @@
 
 <style>
   .widget-card {
-    padding: 16px;
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius);
   }
 
   .widget-header {
@@ -156,71 +148,77 @@
     align-items: center;
   }
 
-  .tabs-wrap {
-    display: flex;
-    background: rgba(255, 255, 255, 0.04);
-    padding: 3px;
-    border-radius: 6px;
-    gap: 2px;
-  }
-
-  .feed-tab {
+  .widget-title {
     display: flex;
     align-items: center;
     gap: 6px;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 600;
-    padding: 4px 10px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .tab-pills {
+    display: flex;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 2px;
+    border-radius: 6px;
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    padding: 2px 8px;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
-  .feed-tab:hover {
-    color: var(--text-primary);
-  }
-
-  .feed-tab.active {
-    background: rgba(255, 255, 255, 0.08);
+  .tab-btn.active {
+    background: rgba(255, 255, 255, 0.1);
     color: #ffffff;
+    font-weight: 600;
   }
 
   .loading-state {
-    padding: 24px;
+    padding: 14px;
     text-align: center;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
   }
 
-  .empty-state {
-    padding: 20px;
+  .empty-compact {
+    padding: 10px;
     text-align: center;
+    background: rgba(255, 255, 255, 0.015);
+    border-radius: 6px;
   }
 
   .empty-text {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
-    margin: 0;
   }
 
   .news-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    max-height: 260px;
+    gap: 6px;
+    max-height: 220px;
     overflow-y: auto;
-    padding-right: 4px;
+    padding-right: 2px;
   }
 
   .news-item {
     display: flex;
     gap: 10px;
-    padding: 8px;
+    padding: 7px 8px;
     background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.035);
     border-radius: 6px;
     cursor: pointer;
     text-align: left;
@@ -232,13 +230,13 @@
   }
 
   .news-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.07);
   }
 
   .news-img-wrap {
-    width: 68px;
-    height: 52px;
+    width: 60px;
+    height: 44px;
     border-radius: 4px;
     overflow: hidden;
     flex-shrink: 0;
@@ -249,35 +247,37 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
   }
 
   .news-content {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .news-meta {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 2px;
   }
 
   .news-tag {
     font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.25);
-    padding: 1px 5px;
+    letter-spacing: 0.5px;
+    color: var(--accent-color, #3b82f6);
+    background: rgba(59, 130, 246, 0.1);
+    padding: 1px 4px;
     border-radius: 3px;
   }
 
   .release-tag {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
-    border-color: rgba(16, 185, 129, 0.25);
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.1);
   }
 
   .news-date {
@@ -286,19 +286,19 @@
   }
 
   .news-title {
-    margin: 0 0 3px 0;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-primary);
+    margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .news-desc {
-    margin: 0;
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-secondary);
+    margin: 0;
     line-height: 1.35;
     display: -webkit-box;
     -webkit-line-clamp: 2;

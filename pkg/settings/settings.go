@@ -19,19 +19,29 @@ type GlobalSettings struct {
 	AutoCheckUpdates   bool   `json:"autoCheckUpdates"`
 	IncludeBetaUpdates bool   `json:"includeBetaUpdates"`
 	ActiveTheme        string `json:"activeTheme,omitempty"`
+
+	// Home Dashboard Widget Visibility
+	ShowRecentInstances bool `json:"showRecentInstances"`
+	ShowScreenshots     bool `json:"showScreenshots"`
+	ShowServicesHealth  bool `json:"showServicesHealth"`
+	ShowNewsFeed        bool `json:"showNewsFeed"`
 }
 
 // GetDefaultSettings returns the default configuration
 func GetDefaultSettings() GlobalSettings {
 	return GlobalSettings{
-		DefaultMemory:      "4096",
-		CloseOnLaunch:      false,
-		DeveloperMode:      false,
-		DisableExtensions:  false,
-		GarbageCollector:   "G1GC",
-		CustomJVMArgs:      "",
-		AutoCheckUpdates:   true,
-		IncludeBetaUpdates: false,
+		DefaultMemory:       "4096",
+		CloseOnLaunch:       false,
+		DeveloperMode:       false,
+		DisableExtensions:   false,
+		GarbageCollector:    "G1GC",
+		CustomJVMArgs:       "",
+		AutoCheckUpdates:    true,
+		IncludeBetaUpdates:  false,
+		ShowRecentInstances: true,
+		ShowScreenshots:     true,
+		ShowServicesHealth:  true,
+		ShowNewsFeed:        true,
 	}
 }
 
@@ -49,7 +59,7 @@ func Load() GlobalSettings {
 		return GetDefaultSettings()
 	}
 
-	var s GlobalSettings
+	s := GetDefaultSettings()
 	if err := json.Unmarshal(data, &s); err != nil {
 		return GetDefaultSettings()
 	}

@@ -68,11 +68,11 @@
 <div class="widget-card card">
   <div class="widget-header">
     <div class="widget-title">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
         <circle cx="12" cy="13" r="4"/>
       </svg>
-      <span>Latest Screenshots</span>
+      <span>Screenshots</span>
     </div>
     {#if screenshots.length > 0}
       <button class="refresh-btn" on:click={loadScreenshots} title="Refresh screenshots">
@@ -89,16 +89,16 @@
       <span class="loading-text">Scanning screenshots...</span>
     </div>
   {:else if screenshots.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <div class="empty-compact">
+      <div class="empty-left">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
           <circle cx="8.5" cy="8.5" r="1.5"/>
           <polyline points="21 15 16 10 5 21"/>
         </svg>
+        <span class="empty-text">No screenshots yet</span>
       </div>
-      <p class="empty-title">No screenshots captured yet</p>
-      <p class="empty-hint">Press <kbd>F2</kbd> in Minecraft to capture moments and view them here.</p>
+      <span class="empty-hint">Press <kbd>F2</kbd> in-game</span>
     </div>
   {:else}
     <div class="screenshots-grid">
@@ -135,7 +135,7 @@
       <div class="lightbox-header">
         <div class="lightbox-title-wrap">
           <span class="lightbox-title">{activePreview.fileName}</span>
-          <span class="lightbox-subtitle">{activePreview.instanceName} • {formatTime(activePreview.modTime)}</span>
+          <span class="lightbox-subtitle">{activePreview.instanceName} · {formatTime(activePreview.modTime)}</span>
         </div>
         <div class="lightbox-actions">
           <button class="btn btn-secondary btn-sm" on:click={handleOpenInViewer} title="Open in Windows Photo Viewer">
@@ -156,10 +156,13 @@
 
 <style>
   .widget-card {
-    padding: 16px;
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius);
   }
 
   .widget-header {
@@ -171,19 +174,19 @@
   .widget-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 13px;
+    gap: 6px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
   }
 
   .refresh-btn {
     background: none;
     border: none;
     color: var(--text-secondary);
-    padding: 4px;
+    padding: 3px;
     border-radius: 4px;
     cursor: pointer;
     display: flex;
@@ -194,54 +197,48 @@
 
   .refresh-btn:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.06);
   }
 
   .loading-wrap {
-    padding: 24px;
+    padding: 14px;
     text-align: center;
   }
 
   .loading-text {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
   }
 
-  .empty-state {
+  .empty-compact {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 24px 12px;
-    text-align: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px dashed rgba(255, 255, 255, 0.07);
+    border-radius: 6px;
   }
 
-  .empty-icon {
+  .empty-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     color: var(--text-secondary);
-    opacity: 0.6;
-    margin-bottom: 8px;
-  }
-
-  .empty-title {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    margin: 0 0 4px 0;
+    font-size: 11px;
   }
 
   .empty-hint {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.35);
-    margin: 0;
+    color: rgba(255, 255, 255, 0.4);
   }
 
   kbd {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 3px;
     padding: 1px 4px;
     font-size: 10px;
-    font-family: inherit;
     color: var(--text-primary);
   }
 
@@ -255,7 +252,7 @@
     position: relative;
     border-radius: 6px;
     overflow: hidden;
-    height: 90px;
+    height: 82px;
     background: #000;
     border: 1px solid rgba(255, 255, 255, 0.05);
     padding: 0;
@@ -278,11 +275,11 @@
   .tile-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, transparent 60%);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 60%);
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    padding: 6px 8px;
+    padding: 5px 8px;
     opacity: 0;
     transition: opacity 0.15s ease;
   }
@@ -292,7 +289,7 @@
   }
 
   .tile-inst {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     color: #ffffff;
     max-width: 65%;
@@ -303,7 +300,7 @@
 
   .tile-date {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.6);
   }
 
   /* Lightbox */
