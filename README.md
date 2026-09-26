@@ -78,20 +78,18 @@ chmod +x Aether-linux-amd64.AppImage
 # (that bypasses AppRun and will always fail with libwebkit missing)
 ```
 
-If you see `libwebkit2gtk-4.0.so.37: cannot open shared object file` or `Unable to spawn ... WebKitNetworkProcess (No such file or directory)`:
+If you see `libwebkit2gtk-4.1.so.0: cannot open shared object file` or `Unable to spawn ... WebKitNetworkProcess (No such file or directory)`:
 
 ```bash
-# Ubuntu 22.04 / Debian 12 / Mint 21
-sudo apt update && sudo apt install libwebkit2gtk-4.0-37 libgtk-3-0 libayatana-appindicator3-1
-# Ubuntu 24.04+ / Mint 22+ (4.0 → 4.1)
-sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1
-# Arch Linux — also needs Debian-path symlink for the Ubuntu-built AppImage:
-sudo pacman -S webkit2gtk gtk3 libappindicator-gtk3
-sudo mkdir -p /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0
-sudo ln -sf /usr/lib/webkit2gtk-4.0/WebKitNetworkProcess /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitNetworkProcess 2>/dev/null || true
-sudo ln -sf /usr/lib/webkit2gtk-4.0/WebKitWebProcess /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitWebProcess 2>/dev/null || true
+# Ubuntu 22.04+ / Debian 12+ / Mint 21+
+sudo apt update && sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1
+# Arch Linux
+sudo pacman -S webkit2gtk-4.1 gtk3 libappindicator-gtk3
+sudo mkdir -p /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1
+sudo ln -sf /usr/lib/webkit2gtk-4.1/WebKitNetworkProcess /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitNetworkProcess 2>/dev/null || true
+sudo ln -sf /usr/lib/webkit2gtk-4.1/WebKitWebProcess /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitWebProcess 2>/dev/null || true
 # Fedora
-sudo dnf install webkit2gtk4.0 gtk3 libappindicator-gtk3
+sudo dnf install webkit2gtk4.1 gtk3 libappindicator-gtk3
 ```
 
 The AppImage does not bundle WebKit itself — it uses your host's WebKit, like Chrome/Electron do.
@@ -103,7 +101,7 @@ If you'd like to build Aether from source, ensure you have the following install
 - [Go 1.25+](https://go.dev/doc/install)
 - [Node.js 20+](https://nodejs.org/)
 - [Wails CLI v2](https://wails.io/docs/gettingstarted/installation)
-- **Linux only:** `sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev` to build, and `sudo apt install libwebkit2gtk-4.0-37 libgtk-3-0 libayatana-appindicator3-1` to run the AppImage/binary. On newer distros where `libwebkit2gtk-4.0` is unavailable, use `libwebkit2gtk-4.1-0` / `libwebkit2gtk-4.1-dev` instead.
+- **Linux only:** `sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev` to build (`wails build -tags webkit2_41`), and `sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1` to run the AppImage/binary.
 
 ```bash
 # Clone the repository
