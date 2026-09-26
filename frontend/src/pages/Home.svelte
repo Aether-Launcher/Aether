@@ -236,25 +236,6 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
   $: artGradient = currentInstance ? instanceGradient(currentInstance.name) : '';
 
-  function formatLastPlayed(dateStr: string): string {
-    if (!dateStr || dateStr === 'Never' || dateStr === 'Never played') return 'Never';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return 'Never';
-      const now = new Date();
-      const diffMs = now.getTime() - d.getTime();
-      if (diffMs < 0) return 'Just now';
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      if (diffDays === 0) return 'Today';
-      if (diffDays === 1) return 'Yesterday';
-      if (diffDays < 7) return `${diffDays} days ago`;
-      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-      return d.toLocaleDateString();
-    } catch {
-      return 'Never';
-    }
-  }
-
   /**
    * Normalise a raw memory string from the instance config into a human-friendly label.
    * Handles: '4G', '4g', '4096', '4096M', '4096m', '2048', etc.

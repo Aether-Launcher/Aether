@@ -41,7 +41,7 @@
     window.dispatchEvent(new CustomEvent('aether:open-terminal-logs'));
   }
 
-  function onDevModeToggle(e: Event) {
+  function onDevModeToggle() {
     window.dispatchEvent(new CustomEvent('aether:settings-updated'));
   }
 
