@@ -15,7 +15,7 @@
   const topNav = [
     { id: 'home',       label: 'Home',       icon: 'home'       },
     { id: 'instances',  label: 'Instances',  icon: 'instances'  },
-    { id: 'extensions', label: 'Extensions', icon: 'extensions' },
+    { id: 'extensions', label: 'Marketplace', icon: 'extensions' },
   ];
 
   const bottomNav = [
