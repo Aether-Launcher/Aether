@@ -376,6 +376,108 @@ func TestImportModrinthDotMinecraft(t *testing.T) {
 	}
 }
 
+func TestDetectFormatNonUTF8(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "cf-badenc")
+	// 0x8d alone is invalid UTF-8; Go's encoding/json rejects the whole file.
+	writeTestFile(t, filepath.Join(src, "manifest.json"), "{\"minecraft\":{\"version\":\"1.20.1\"},\"note\":\"caf\x8d\"}")
+	if got := DetectFormat(src); got != FormatCurseForge {
+		t.Fatalf("non-UTF8 manifest: got %q, want %q", got, FormatCurseForge)
+	}
+}
+
+func TestImportCFInstanceJsonNonUTF8(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "cf-nonutf8")
+	writeTestFile(t, filepath.Join(src, "minecraftinstance.json"), "{\"name\":\"Pack\",\"gameVersion\":\"1.20.1\",\"baseModLoader\":{\"name\":\"forge-47.2.0\",\"minecraftVersion\":\"1.20.1\"},\"note\":\"caf\x8d\"}")
+	writeTestFile(t, filepath.Join(src, "mods", "mod.jar"), "jar")
+
+	inst, err := ImportInstance(src, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inst.Version != "1.20.1" || inst.Loader != "Forge" {
+		t.Fatalf("got version=%q loader=%q", inst.Version, inst.Loader)
+	}
+}
+
+func TestDetectFormatGeneric(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "plain")
+	writeTestFile(t, filepath.Join(src, "mods", "mod.jar"), "jar")
+	writeTestFile(t, filepath.Join(src, "options.txt"), "version:4174\n")
+	if got := DetectFormat(src); got != FormatGeneric {
+		t.Fatalf("generic folder: got %q, want %q", got, FormatGeneric)
+	}
+
+	// mods/ alone without any game marker is not enough.
+	bare := filepath.Join(dir, "bare")
+	writeTestFile(t, filepath.Join(bare, "mods", "mod.jar"), "jar")
+	if got := DetectFormat(bare); got != FormatUnknown {
+		t.Fatalf("bare mods dir: got %q, want %q", got, FormatUnknown)
+	}
+}
+
+func TestImportGenericFolder(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "FO Pack")
+	writeTestFile(t, filepath.Join(src, "mods", "sodium.jar"), "jar")
+	writeTestFile(t, filepath.Join(src, "options.txt"), "version:4174\n")
+	writeTestFile(t, filepath.Join(src, "saves", "world", "level.dat"), "dat")
+	writeTestFile(t, filepath.Join(src, "debug", "disconnect.txt"), "---- Crash Report ----\nMinecraft Version: 26.2\nOperating System: Windows 11\n")
+	writeTestFile(t, filepath.Join(src, ".fabric", "processedMods", "placeholder-api-3.0.0+26.1-abcdef.jar"), "jar")
+
+	targetRoot := t.TempDir()
+	inst, err := ImportInstance(src, targetRoot, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inst.Version != "26.2" {
+		t.Fatalf("version: got %q, want %q", inst.Version, "26.2")
+	}
+	if inst.Loader != "Fabric" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "Fabric")
+	}
+	if inst.Name != "FO Pack" {
+		t.Fatalf("name: got %q, want %q", inst.Name, "FO Pack")
+	}
+	target := filepath.Join(targetRoot, inst.ID)
+	for _, want := range []string{"mods/sodium.jar", "options.txt", "saves/world/level.dat"} {
+		if _, err := os.Stat(filepath.Join(target, want)); err != nil {
+			t.Fatalf("expected %s: %v", want, err)
+		}
+	}
+	for _, skip := range []string{"debug", ".fabric"} {
+		if _, err := os.Stat(filepath.Join(target, skip)); err == nil {
+			t.Fatalf("expected %s to be skipped", skip)
+		}
+	}
+}
+
+func TestImportGenericJarVote(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "vote")
+	writeTestFile(t, filepath.Join(src, "mods", "a.jar"), "jar")
+	writeTestFile(t, filepath.Join(src, "options.txt"), "foo: bar\n")
+	writeTestFile(t, filepath.Join(src, ".fabric", "processedMods", "x-1.0+26.1-aaa.jar"), "jar")
+	writeTestFile(t, filepath.Join(src, ".fabric", "processedMods", "y-1.0+26.1-bbb.jar"), "jar")
+	writeTestFile(t, filepath.Join(src, ".fabric", "processedMods", "z-1.0+1.3.2-ccc.jar"), "jar")
+
+	inst, err := ImportInstance(src, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inst.Version != "26.1" {
+		t.Fatalf("version: got %q, want %q", inst.Version, "26.1")
+	}
+}
+
+func TestImportGenericNoVersion(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "noversion")
+	writeTestFile(t, filepath.Join(src, "mods", "mod.jar"), "jar")
+	writeTestFile(t, filepath.Join(src, "options.txt"), "foo: bar\n")
+	if _, err := ImportInstance(src, t.TempDir(), nil); err == nil {
+		t.Fatal("expected error when version cannot be determined")
+	}
+}
+
 func TestNormalizeLoaderID(t *testing.T) {
 	cases := map[string]string{
 		"":                "Vanilla",
