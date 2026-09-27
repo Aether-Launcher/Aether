@@ -332,7 +332,7 @@ function updateVersionDropdown(inst) {
     versionSelect.setOptions(
         filtered.map(v => {
             const origIdx = currentVersions.indexOf(v);
-            const compatLabel = v.game_versions?.includes(instVer) ? '' : '⚠️ ';
+            const compatLabel = v.game_versions?.includes(instVer) ? '' : '[!] ';
             return {
                 label: `${compatLabel}${v.version_number} — ${v.name} (${(v.game_versions || []).slice(0, 3).join(', ')})${warning}`,
                 value: String(origIdx)
@@ -387,7 +387,7 @@ async function search(query = '', page = 0) {
         if (!mods.length) {
             resultsDiv.innerHTML = `
                 <div class="placeholder-wrap">
-                    <div class="placeholder-icon">📦</div>
+                    <div class="placeholder-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
                     <p>No content found.</p>
                 </div>
             `;
@@ -449,7 +449,7 @@ async function search(query = '', page = 0) {
 
                         <div class="card-footer">
                             <span class="card-downloads">
-                                ⬇ ${dl} ${badge}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>${dl} ${badge}
                             </span>
                             <button class="btn-install-card" data-id="${mod.id}">
                                 ${btnLabel}

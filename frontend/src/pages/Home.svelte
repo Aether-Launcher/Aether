@@ -25,10 +25,10 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   let installError = '';
 
   let launcherSettings: any = {
-    showRecentInstances: true,
-    showScreenshots: true,
-    showServicesHealth: true,
-    showNewsFeed: true,
+    showRecentInstances: false,
+    showScreenshots: false,
+    showServicesHealth: false,
+    showNewsFeed: false,
   };
 
   async function loadSettings() {

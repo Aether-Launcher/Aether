@@ -38,10 +38,10 @@ func GetDefaultSettings() GlobalSettings {
 		CustomJVMArgs:       "",
 		AutoCheckUpdates:    true,
 		IncludeBetaUpdates:  false,
-		ShowRecentInstances: true,
-		ShowScreenshots:     true,
-		ShowServicesHealth:  true,
-		ShowNewsFeed:        true,
+		ShowRecentInstances: false,
+		ShowScreenshots:     false,
+		ShowServicesHealth:  false,
+		ShowNewsFeed:        false,
 	}
 }
 

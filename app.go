@@ -523,8 +523,8 @@ func (a *App) UninstallTheme(id string) error {
 }
 
 // SelectAndImportInstance imports an existing instance folder from Aether,
-// Prism/MultiMC, or CurseForge. It returns a display label for the imported
-// instance, or "" when the user cancelled the dialog.
+// Prism/MultiMC, Modrinth, or CurseForge. It returns a display label for the
+// imported instance, or "" when the user cancelled the dialog.
 func (a *App) SelectAndImportInstance() (string, error) {
 	source, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Select Minecraft Instance"})
 	if err != nil {
@@ -535,7 +535,7 @@ func (a *App) SelectAndImportInstance() (string, error) {
 	}
 
 	if instance.DetectFormat(source) == instance.FormatUnknown {
-		return "", fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, or CurseForge instance folder")
+		return "", fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, Modrinth, or CurseForge instance folder")
 	}
 
 	instancesDir := filepath.Join(fs.GetDataDir(), "instances")
@@ -554,6 +554,7 @@ func (a *App) SelectAndImportInstance() (string, error) {
 		instance.FormatNative:     "Aether",
 		instance.FormatMultiMC:    "Prism/MultiMC",
 		instance.FormatCurseForge: "CurseForge",
+		instance.FormatModrinth:   "Modrinth",
 	}[instance.DetectFormat(source)]
 
 	return fmt.Sprintf("%s (%s)", inst.Name, launcher), nil
@@ -849,7 +850,7 @@ func (a *App) GetMinecraftNews() ([]MinecraftNewsItem, error) {
 	ctx, cancel := context.WithTimeout(a.ctx, 6*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://launchercontent.mojang.com/news.json", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://launchercontent.mojang.com/v2/news.json", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -869,11 +870,15 @@ func (a *App) GetMinecraftNews() ([]MinecraftNewsItem, error) {
 		Entries []struct {
 			Title         string `json:"title"`
 			Tag           string `json:"tag"`
+			Category      string `json:"category"`
 			Date          string `json:"date"`
 			Text          string `json:"text"`
 			NewsPageImage struct {
 				URL string `json:"url"`
 			} `json:"newsPageImage"`
+			PlayPageImage struct {
+				URL string `json:"url"`
+			} `json:"playPageImage"`
 			ReadMoreLink string `json:"readMoreLink"`
 		} `json:"entries"`
 	}
@@ -888,12 +893,19 @@ func (a *App) GetMinecraftNews() ([]MinecraftNewsItem, error) {
 			break
 		}
 		img := entry.NewsPageImage.URL
+		if img == "" {
+			img = entry.PlayPageImage.URL
+		}
 		if img != "" && !strings.HasPrefix(img, "http") {
 			img = "https://launchercontent.mojang.com" + img
 		}
+		tag := entry.Tag
+		if tag == "" {
+			tag = entry.Category
+		}
 		results = append(results, MinecraftNewsItem{
 			Title:       entry.Title,
-			Tag:         entry.Tag,
+			Tag:         tag,
 			Date:        entry.Date,
 			Text:        entry.Text,
 			Image:       img,

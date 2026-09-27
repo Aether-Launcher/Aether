@@ -19,6 +19,7 @@ const (
 	FormatNative     Format = "native"
 	FormatMultiMC    Format = "multimc"
 	FormatCurseForge Format = "curseforge"
+	FormatModrinth   Format = "modrinth"
 	FormatUnknown    Format = ""
 )
 
@@ -44,6 +45,24 @@ type curseforgeManifest struct {
 	} `json:"minecraft"`
 }
 
+// modrinthProfile mirrors the Modrinth App (Theseus) profile.json structure.
+type modrinthProfile struct {
+	Name         string `json:"name"`
+	GameVersion  string `json:"game_version"`
+	Loader       string `json:"loader"`
+	GameVersion2 string `json:"gameVersion"`
+	ModLoader    string `json:"modloader"`
+	ModLoader2   string `json:"modLoader"`
+	Memory       int    `json:"memory"`
+}
+
+// modrinthIndex mirrors the modrinth.index.json structure used by exported packs.
+type modrinthIndex struct {
+	Name         string            `json:"name"`
+	Game         string            `json:"game"`
+	Dependencies map[string]string `json:"dependencies"`
+}
+
 // DetectFormat identifies which launcher produced the given instance folder.
 func DetectFormat(source string) Format {
 	if _, err := os.Stat(filepath.Join(source, "instance.json")); err == nil {
@@ -58,6 +77,23 @@ func DetectFormat(source string) Format {
 			return FormatCurseForge
 		}
 	}
+	if data, err := os.ReadFile(filepath.Join(source, "profile.json")); err == nil {
+		var p modrinthProfile
+		if json.Unmarshal(data, &p) == nil && (p.GameVersion != "" || p.GameVersion2 != "" || p.Loader != "") {
+			return FormatModrinth
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(source, "modrinth.index.json")); err == nil {
+		var idx modrinthIndex
+		if json.Unmarshal(data, &idx) == nil {
+			if _, ok := idx.Dependencies["minecraft"]; ok {
+				return FormatModrinth
+			}
+			if strings.EqualFold(idx.Game, "minecraft") {
+				return FormatModrinth
+			}
+		}
+	}
 	return FormatUnknown
 }
 
@@ -69,7 +105,7 @@ func DetectFormat(source string) Format {
 func ImportInstance(source, targetRoot string, onProgress ImportProgress) (*Instance, error) {
 	format := DetectFormat(source)
 	if format == FormatUnknown {
-		return nil, fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, or CurseForge instance folder")
+		return nil, fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, Modrinth, or CurseForge instance folder")
 	}
 
 	inst := &Instance{Loader: "Vanilla", Memory: "4G", LastPlayed: "Never"}
@@ -116,6 +152,21 @@ func ImportInstance(source, targetRoot string, onProgress ImportProgress) (*Inst
 		inst.Version = version
 		inst.Loader = loader
 		inst.Name = baseName
+		inst.ID = baseName
+	case FormatModrinth:
+		version, loader, name, memory, err := parseModrinth(source)
+		if err != nil {
+			return nil, err
+		}
+		inst.Version = version
+		inst.Loader = loader
+		inst.Name = name
+		if name == "" {
+			inst.Name = baseName
+		}
+		if memory != "" {
+			inst.Memory = memory
+		}
 		inst.ID = baseName
 	}
 
@@ -213,6 +264,77 @@ func parseCurseForge(source string) (version, loader string, err error) {
 		}
 	}
 	return version, loader, nil
+}
+
+// parseModrinth reads profile.json or modrinth.index.json to extract
+// Minecraft version, mod loader, instance name, and optional memory.
+func parseModrinth(source string) (version, loader, name, memory string, err error) {
+	loader = "Vanilla"
+
+	// Try profile.json first (local Modrinth App instances)
+	if data, readErr := os.ReadFile(filepath.Join(source, "profile.json")); readErr == nil {
+		var p modrinthProfile
+		if json.Unmarshal(data, &p) == nil {
+			name = p.Name
+			version = p.GameVersion
+			if version == "" {
+				version = p.GameVersion2
+			}
+			raw := strings.ToLower(strings.TrimSpace(p.Loader))
+			if raw == "" {
+				raw = strings.ToLower(strings.TrimSpace(p.ModLoader))
+			}
+			if raw == "" {
+				raw = strings.ToLower(strings.TrimSpace(p.ModLoader2))
+			}
+			switch raw {
+			case "fabric":
+				loader = "fabric"
+			case "forge":
+				loader = "forge"
+			case "neoforge":
+				loader = "neoforge"
+			case "quilt":
+				loader = "quilt"
+			}
+			if p.Memory > 0 {
+				memory = fmt.Sprintf("%dM", p.Memory)
+			}
+			if version != "" {
+				return version, loader, name, memory, nil
+			}
+		}
+	}
+
+	// Fall back to modrinth.index.json (exported modpacks)
+	if data, readErr := os.ReadFile(filepath.Join(source, "modrinth.index.json")); readErr == nil {
+		var idx modrinthIndex
+		if json.Unmarshal(data, &idx) == nil {
+			if name == "" {
+				name = idx.Name
+			}
+			if v, ok := idx.Dependencies["minecraft"]; ok {
+				version = v
+			}
+			for dep := range idx.Dependencies {
+				switch strings.ToLower(dep) {
+				case "fabric-loader":
+					loader = "fabric"
+				case "forge":
+					loader = "forge"
+				case "neoforge":
+					loader = "neoforge"
+				case "quilt-loader":
+					loader = "quilt"
+				}
+			}
+		}
+	}
+
+	if version == "" {
+		return "", "", "", "", fmt.Errorf("could not determine Minecraft version from Modrinth instance")
+	}
+	return version, loader, name, memory, nil
 }
 
 // uniqueInstanceID returns a folder ID that does not collide with any
@@ -319,6 +441,42 @@ func copyPlanFor(format Format) copyPlan {
 			}
 			if strings.HasPrefix(rel, "overrides/") {
 				return strings.TrimPrefix(rel, "overrides/"), true
+			}
+			return rel, true
+		}}
+	case FormatModrinth:
+		skipped := map[string]bool{
+			"logs": true, "crash-reports": true, "bin": true,
+			"libraries": true, "natives": true, ".fabric": true,
+			".quilt": true, "cache": true,
+		}
+		skipFiles := map[string]bool{
+			"profile.json": true, "modrinth.index.json": true,
+		}
+		return copyPlan{remap: func(rel string) (string, bool) {
+			root := rel
+			if i := strings.IndexByte(rel, '/'); i > 0 {
+				root = rel[:i]
+			}
+			if skipped[root] {
+				return "", false
+			}
+			if skipFiles[rel] {
+				return "", false
+			}
+			// Strip overrides/ prefix (exported packs)
+			if rel == "overrides" {
+				return "", false
+			}
+			if strings.HasPrefix(rel, "overrides/") {
+				return strings.TrimPrefix(rel, "overrides/"), true
+			}
+			// Strip .minecraft/ prefix (some Modrinth layouts)
+			if strings.HasPrefix(rel, ".minecraft/") {
+				return strings.TrimPrefix(rel, ".minecraft/"), true
+			}
+			if rel == ".minecraft" {
+				return "", false
 			}
 			return rel, true
 		}}

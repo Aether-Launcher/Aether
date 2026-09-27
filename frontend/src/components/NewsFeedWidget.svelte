@@ -28,7 +28,13 @@
     if (!iso) return '';
     try {
       const d = new Date(iso);
-      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      if (isNaN(d.getTime())) return iso;
+      const now = new Date();
+      const isCurrentYear = d.getFullYear() === now.getFullYear();
+      if (isCurrentYear) {
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      }
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     } catch {
       return '';
     }

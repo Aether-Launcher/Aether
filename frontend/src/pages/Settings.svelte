@@ -16,10 +16,10 @@
     customJvmArgs: '',
     autoCheckUpdates: true,
     includeBetaUpdates: false,
-    showRecentInstances: true,
-    showScreenshots: true,
-    showServicesHealth: true,
-    showNewsFeed: true,
+    showRecentInstances: false,
+    showScreenshots: false,
+    showServicesHealth: false,
+    showNewsFeed: false,
   };
 
   let saving = false;
