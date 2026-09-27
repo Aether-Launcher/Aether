@@ -90,7 +90,7 @@ async function loadInstances() {
       instanceSelect.innerHTML = '<option value="">No instances found</option>';
       galleryContainer.innerHTML = `
         <div class="placeholder-wrap">
-          <div class="placeholder-icon">📦</div>
+          <div class="placeholder-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
           <p>No Minecraft instances created yet.</p>
         </div>
       `;
@@ -142,7 +142,7 @@ async function loadScreenshots() {
     if (screenshots.length === 0) {
       galleryContainer.innerHTML = `
         <div class="placeholder-wrap">
-          <div class="placeholder-icon">📷</div>
+          <div class="placeholder-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>
           <p>No screenshots taken in this instance yet.</p>
           <p style="font-size:12px; color:#666;">Press F2 in Minecraft to capture screenshots!</p>
         </div>
@@ -250,8 +250,8 @@ copyBtn.addEventListener('click', async () => {
     await navigator.clipboard.write([
       new ClipboardItem({ [blob.type]: blob })
     ]);
-    copyBtn.textContent = '✓ Copied!';
-    setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 2000);
+    copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+    setTimeout(() => { copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Copy'; }, 2000);
   } catch (err) {
     console.error('Clipboard copy failed:', err);
   }

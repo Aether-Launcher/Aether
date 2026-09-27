@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	stdruntime "runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +23,7 @@ import (
 	"Aether/pkg/fs"
 	"Aether/pkg/instance"
 	"Aether/pkg/java"
+	"Aether/pkg/logger"
 	"Aether/pkg/mojang"
 	"Aether/pkg/settings"
 	"Aether/pkg/theme"
@@ -39,10 +45,13 @@ func NewApp() *App {
 // to call runtime methods.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	logger.SetEmitter(ctx, runtime.EventsEmit)
+	logger.Info("Launcher", "Aether core runtime initializing...")
+
 	fs.EnsureDirectories()
 
 	if _, err := theme.GlobalServer.Start(); err != nil {
-		fmt.Printf("[Theme] Warning: Failed to start asset server: %v\n", err)
+		logger.Warn("Theme", fmt.Sprintf("Failed to start asset server: %v", err))
 	}
 
 	globalSettings := settings.Load()
@@ -189,6 +198,16 @@ func (a *App) WindowChrome() string {
 // Returns "dev" for local development builds.
 func (a *App) GetLauncherVersion() string {
 	return Version
+}
+
+// GetLogs returns the buffered background log entries.
+func (a *App) GetLogs() []logger.LogEntry {
+	return logger.GetEntries()
+}
+
+// ClearLogs flushes all buffered background log entries.
+func (a *App) ClearLogs() {
+	logger.Clear()
 }
 
 // CheckForUpdates queries GitHub Releases for a newer launcher version.
@@ -504,8 +523,8 @@ func (a *App) UninstallTheme(id string) error {
 }
 
 // SelectAndImportInstance imports an existing instance folder from Aether,
-// Prism/MultiMC, or CurseForge. It returns a display label for the imported
-// instance, or "" when the user cancelled the dialog.
+// Prism/MultiMC, Modrinth, or CurseForge. It returns a display label for the
+// imported instance, or "" when the user cancelled the dialog.
 func (a *App) SelectAndImportInstance() (string, error) {
 	source, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Select Minecraft Instance"})
 	if err != nil {
@@ -516,7 +535,7 @@ func (a *App) SelectAndImportInstance() (string, error) {
 	}
 
 	if instance.DetectFormat(source) == instance.FormatUnknown {
-		return "", fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, or CurseForge instance folder")
+		return "", fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, Modrinth, or CurseForge instance folder (expected one of: instance.json, mmc-pack.json, profile.json, modrinth.index.json, manifest.json, minecraftinstance.json) — make sure you selected the instance folder itself, not the launcher root")
 	}
 
 	instancesDir := filepath.Join(fs.GetDataDir(), "instances")
@@ -535,6 +554,7 @@ func (a *App) SelectAndImportInstance() (string, error) {
 		instance.FormatNative:     "Aether",
 		instance.FormatMultiMC:    "Prism/MultiMC",
 		instance.FormatCurseForge: "CurseForge",
+		instance.FormatModrinth:   "Modrinth",
 	}[instance.DetectFormat(source)]
 
 	return fmt.Sprintf("%s (%s)", inst.Name, launcher), nil
@@ -681,4 +701,278 @@ func (a *App) UpdateInstance(inst *instance.Instance) error {
 // DeleteInstance deletes an instance completely
 func (a *App) DeleteInstance(id string) error {
 	return instance.DeleteInstance(id)
+}
+
+// ScreenshotItem represents an in-game screenshot taken in an instance.
+type ScreenshotItem struct {
+	InstanceID   string `json:"instanceId"`
+	InstanceName string `json:"instanceName"`
+	FileName     string `json:"fileName"`
+	DataURL      string `json:"dataUrl"`
+	ModTime      string `json:"modTime"`
+}
+
+// GetRecentScreenshots finds the newest screenshots across all instances.
+func (a *App) GetRecentScreenshots(limit int) ([]ScreenshotItem, error) {
+	if limit <= 0 {
+		limit = 4
+	}
+	instances := instance.GetInstances()
+	type fileEntry struct {
+		instanceID   string
+		instanceName string
+		fileName     string
+		fullPath     string
+		modTime      time.Time
+	}
+	var allFiles []fileEntry
+
+	for _, inst := range instances {
+		instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), inst.ID)
+		if err != nil {
+			continue
+		}
+		screenshotsDir := filepath.Join(instanceDir, "screenshots")
+		entries, err := os.ReadDir(screenshotsDir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			ext := strings.ToLower(filepath.Ext(e.Name()))
+			if ext != ".png" && ext != ".jpg" && ext != ".jpeg" {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			allFiles = append(allFiles, fileEntry{
+				instanceID:   inst.ID,
+				instanceName: inst.Name,
+				fileName:     e.Name(),
+				fullPath:     filepath.Join(screenshotsDir, e.Name()),
+				modTime:      info.ModTime(),
+			})
+		}
+	}
+
+	sort.Slice(allFiles, func(i, j int) bool {
+		return allFiles[i].modTime.After(allFiles[j].modTime)
+	})
+
+	if len(allFiles) > limit {
+		allFiles = allFiles[:limit]
+	}
+
+	results := make([]ScreenshotItem, 0, len(allFiles))
+	for _, f := range allFiles {
+		data, err := os.ReadFile(f.fullPath)
+		if err != nil {
+			continue
+		}
+		mime := "image/png"
+		if strings.HasSuffix(strings.ToLower(f.fileName), ".jpg") || strings.HasSuffix(strings.ToLower(f.fileName), ".jpeg") {
+			mime = "image/jpeg"
+		}
+		dataURL := fmt.Sprintf("data:%s;base64,%s", mime, base64.StdEncoding.EncodeToString(data))
+		results = append(results, ScreenshotItem{
+			InstanceID:   f.instanceID,
+			InstanceName: f.instanceName,
+			FileName:     f.fileName,
+			DataURL:      dataURL,
+			ModTime:      f.modTime.Format(time.RFC3339),
+		})
+	}
+
+	return results, nil
+}
+
+// OpenScreenshot opens a specific screenshot file using the default operating system viewer.
+func (a *App) OpenScreenshot(instanceID, fileName string) error {
+	fileName = filepath.Base(fileName)
+	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+	if err != nil {
+		return err
+	}
+	imgPath, err := fs.ContainedPath(filepath.Join(instanceDir, "screenshots"), fileName)
+	if err != nil {
+		return err
+	}
+	var cmd *exec.Cmd
+	switch stdruntime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", imgPath)
+	case "darwin":
+		cmd = exec.Command("open", imgPath)
+	default:
+		cmd = exec.Command("xdg-open", imgPath)
+	}
+	return cmd.Start()
+}
+
+// OpenScreenshotsFolder opens the screenshots folder of an instance in Explorer / Finder.
+func (a *App) OpenScreenshotsFolder(instanceID string) error {
+	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+	if err != nil {
+		return err
+	}
+	screenshotsDir := filepath.Join(instanceDir, "screenshots")
+	if err := os.MkdirAll(screenshotsDir, 0755); err != nil {
+		return err
+	}
+	var cmd *exec.Cmd
+	switch stdruntime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", screenshotsDir)
+	case "darwin":
+		cmd = exec.Command("open", screenshotsDir)
+	default:
+		cmd = exec.Command("xdg-open", screenshotsDir)
+	}
+	return cmd.Start()
+}
+
+// MinecraftNewsItem represents a news or patch note article from Mojang.
+type MinecraftNewsItem struct {
+	Title       string `json:"title"`
+	Tag         string `json:"tag"`
+	Date        string `json:"date"`
+	Text        string `json:"text"`
+	Image       string `json:"image"`
+	ReadMoreURL string `json:"readMoreUrl"`
+}
+
+// GetMinecraftNews fetches official patch notes and announcements from Mojang.
+func (a *App) GetMinecraftNews() ([]MinecraftNewsItem, error) {
+	ctx, cancel := context.WithTimeout(a.ctx, 6*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://launchercontent.mojang.com/v2/news.json", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return []MinecraftNewsItem{}, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []MinecraftNewsItem{}, nil
+	}
+
+	var payload struct {
+		Entries []struct {
+			Title         string `json:"title"`
+			Tag           string `json:"tag"`
+			Category      string `json:"category"`
+			Date          string `json:"date"`
+			Text          string `json:"text"`
+			NewsPageImage struct {
+				URL string `json:"url"`
+			} `json:"newsPageImage"`
+			PlayPageImage struct {
+				URL string `json:"url"`
+			} `json:"playPageImage"`
+			ReadMoreLink string `json:"readMoreLink"`
+		} `json:"entries"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return []MinecraftNewsItem{}, nil
+	}
+
+	var results []MinecraftNewsItem
+	for i, entry := range payload.Entries {
+		if i >= 6 {
+			break
+		}
+		img := entry.NewsPageImage.URL
+		if img == "" {
+			img = entry.PlayPageImage.URL
+		}
+		if img != "" && !strings.HasPrefix(img, "http") {
+			img = "https://launchercontent.mojang.com" + img
+		}
+		tag := entry.Tag
+		if tag == "" {
+			tag = entry.Category
+		}
+		results = append(results, MinecraftNewsItem{
+			Title:       entry.Title,
+			Tag:         tag,
+			Date:        entry.Date,
+			Text:        entry.Text,
+			Image:       img,
+			ReadMoreURL: entry.ReadMoreLink,
+		})
+	}
+
+	return results, nil
+}
+
+// AetherReleaseNote represents a release note entry from Aether Launcher GitHub releases.
+type AetherReleaseNote struct {
+	TagName     string `json:"tagName"`
+	Name        string `json:"name"`
+	Body        string `json:"body"`
+	PublishedAt string `json:"publishedAt"`
+	HTMLURL     string `json:"htmlUrl"`
+}
+
+// GetAetherReleaseNotes fetches the latest GitHub release notes for Aether Launcher.
+func (a *App) GetAetherReleaseNotes() ([]AetherReleaseNote, error) {
+	ctx, cancel := context.WithTimeout(a.ctx, 6*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/Aether-Launcher/Aether/releases?per_page=6", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "Aether-Launcher")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return []AetherReleaseNote{}, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []AetherReleaseNote{}, nil
+	}
+
+	var raw []struct {
+		TagName     string `json:"tag_name"`
+		Name        string `json:"name"`
+		Body        string `json:"body"`
+		PublishedAt string `json:"published_at"`
+		HTMLURL     string `json:"html_url"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return []AetherReleaseNote{}, nil
+	}
+
+	var results []AetherReleaseNote
+	for _, r := range raw {
+		name := r.Name
+		if name == "" {
+			name = r.TagName
+		}
+		results = append(results, AetherReleaseNote{
+			TagName:     r.TagName,
+			Name:        name,
+			Body:        r.Body,
+			PublishedAt: r.PublishedAt,
+			HTMLURL:     r.HTMLURL,
+		})
+	}
+	return results, nil
 }

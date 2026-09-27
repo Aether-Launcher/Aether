@@ -77,7 +77,7 @@ run_appimagetool() {
 
 if run_appimagetool; then
     echo "[AppImage] Built: $OUTPUT"
-    echo "[AppImage] Run with: ./$OUTPUT  (requires host libwebkit2gtk-4.0-37 or libwebkit2gtk-4.1-0)"
+    echo "[AppImage] Run with: ./$OUTPUT  (requires host libwebkit2gtk-4.1-0)"
 else
     echo "[AppImage] WARNING: packaging skipped. AppDir ready at $APPDIR" >&2
 fi

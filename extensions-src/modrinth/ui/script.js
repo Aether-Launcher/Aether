@@ -4,7 +4,7 @@
  */
 
 // ────────────────────────────────────────────────────────────────────────────
-// IPC bridge (postMessage ↔ parent sandbox)
+// IPC bridge (postMessage <-> parent sandbox)
 // ────────────────────────────────────────────────────────────────────────────
 let _reqId = 0;
 const _pending = {};
@@ -249,8 +249,8 @@ function renderResults(hits) {
       <p class="card-desc">${escHtml(hit.description || "")}</p>
       <div class="card-meta">
         ${label ? `<span class="card-tag">${escHtml(label)}</span>` : ""}
-        <span class="card-stat">⬇ ${downloads}</span>
-        <span class="card-stat">♥ ${follows}</span>
+        <span class="card-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>${downloads}</span>
+        <span class="card-stat"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-1px;margin-right:3px"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>${follows}</span>
         ${tagBadge}
       </div>
       <button class="btn-card-install" data-id="${hit.project_id}" data-type="${hit.project_type}">
@@ -301,7 +301,7 @@ function showLoading() {
 function showEmpty(msg) {
   resultsContainer.innerHTML = `
     <div class="placeholder">
-      <div class="placeholder-icon">📭</div>
+      <div class="placeholder-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
       <p>${escHtml(msg)}</p>
     </div>`;
 }
@@ -309,7 +309,7 @@ function showEmpty(msg) {
 function showError(msg) {
   resultsContainer.innerHTML = `
     <div class="placeholder error">
-      <div class="placeholder-icon">⚠️</div>
+      <div class="placeholder-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
       <p>${escHtml(msg)}</p>
     </div>`;
 }

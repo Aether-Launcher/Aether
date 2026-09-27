@@ -70,7 +70,7 @@ jobs:
           done
           timeout 600 sudo apt-get $APT_OPTS install -y \
             libgtk-3-dev \
-            libwebkit2gtk-4.0-dev \
+            libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev
 
       - name: macOS dependencies
@@ -81,4 +81,9 @@ jobs:
         run: go test ./...
 
       - name: Verify Build
+        if: runner.os != 'Linux'
         run: wails build -clean
+
+      - name: Verify Build (Linux)
+        if: runner.os == 'Linux'
+        run: wails build -clean -tags webkit2_41

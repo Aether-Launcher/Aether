@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime.js';
-  import { DownloadAndUpdate } from '../../wailsjs/go/main/App.js';
-
+  
   type Status = {
     phase: 'none' | 'checking' | 'available' | 'downloading' | 'ready' | 'error';
     version?: string;
@@ -24,12 +23,12 @@
     }
   }
 
+  function openModal() {
+    window.dispatchEvent(new CustomEvent('aether:check-updates'));
+  }
+
   async function update() {
-    try {
-      await DownloadAndUpdate();
-    } catch (e) {
-      status = { phase: 'error', message: String(e) };
-    }
+    openModal();
   }
 
   onMount(() => {

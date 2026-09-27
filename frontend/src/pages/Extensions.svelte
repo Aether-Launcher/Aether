@@ -15,7 +15,7 @@
   let gallerySearch = '';
 
   // Real GitHub URL for the Aether Extension Registry
-  const GALLERY_INDEX_URL = 'https://raw.githubusercontent.com/wayback09/Aether-Extensions/main/index.json';
+  const GALLERY_INDEX_URL = 'https://raw.githubusercontent.com/Aether-Launcher/Aether-Extensions/main/index.json';
 
   let isDevMode = false;
   let confirmDialog: any;
@@ -35,16 +35,43 @@
 
   function compareVersions(left: string, right: string): number {
     const parse = (version: string) => {
-      const match = String(version || '').trim().replace(/^v/i, '').match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
-      return match ? [Number(match[1]), Number(match[2] || 0), Number(match[3] || 0)] : null;
+      const match = String(version || '').trim().replace(/^v/i, '').match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([a-zA-Z0-9.]+))?/);
+      if (!match) return null;
+      return {
+        major: Number(match[1]),
+        minor: Number(match[2] || 0),
+        patch: Number(match[3] || 0),
+        prerelease: match[4] || null,
+      };
     };
     const a = parse(left), b = parse(right);
     if (!a || !b) return 0;
-    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
+    if (a.major !== b.major) return a.major > b.major ? 1 : -1;
+    if (a.minor !== b.minor) return a.minor > b.minor ? 1 : -1;
+    if (a.patch !== b.patch) return a.patch > b.patch ? 1 : -1;
+    if (!a.prerelease && b.prerelease) return 1;
+    if (a.prerelease && !b.prerelease) return -1;
+    if (a.prerelease && b.prerelease) {
+      return a.prerelease.localeCompare(b.prerelease, undefined, { numeric: true, sensitivity: 'base' });
+    }
     return 0;
   }
 
-  function installedFor(ext: any): any { return installedExtensions.find((installed) => installed.id === ext.id); }
+  $: installedMap = (() => {
+    const map = new Map<string, any>();
+    for (const ext of installedExtensions || []) {
+      if (ext && ext.id) {
+        map.set(ext.id, ext);
+        map.set(ext.id.toLowerCase(), ext);
+      }
+    }
+    return map;
+  })();
+
+  function installedFor(ext: any): any {
+    if (!ext || !ext.id) return null;
+    return installedMap.get(ext.id) || installedMap.get(ext.id.toLowerCase()) || null;
+  }
   function updateFor(ext: any): any { return updates.find((u) => u.id === ext.id); }
   function hasUpdate(ext: any): boolean {
     const installed = installedFor(ext);
@@ -171,6 +198,7 @@
       const installed = await DownloadAndInstallExtension(url);
       if (installed) {
         await loadInstalled();
+        galleryExtensions = [...galleryExtensions];
         toast.success('Extension installed successfully!');
       }
     } catch (e: any) {
@@ -198,6 +226,7 @@
     try {
       await UninstallExtension(ext.id);
       await loadInstalled();
+      galleryExtensions = [...galleryExtensions];
       toast.success('Extension uninstalled.');
     } catch (e: any) {
       toast.error('Failed to uninstall extension: ' + e);
@@ -215,6 +244,7 @@
     const unsubComplete = EventsOn('extension:reload:complete', async () => {
       reloading = false;
       await loadInstalled();
+      galleryExtensions = [...galleryExtensions];
       try {
         updates = await fetchUpdates();
       } catch { /* ignore */ }
@@ -301,14 +331,13 @@
         on:action={() => setTab('gallery')}
       />
     {:else}
-      <div class="grid">
+      <div class="grid installed-grid">
         {#each installedExtensions as ext}
           {@const badge = trustBadge(ext.trust)}
           {@const grad  = extGradient(ext.name)}
           {@const dot   = statusColor(ext.status)}
 
-          <div class="card ext-card">
-            <div class="card-accent" style="background: {grad};"></div>
+          <div class="card ext-card installed-card">
             <div class="card-body">
               <div class="ext-header">
                 <div class="ext-icon" style={!ext.iconUrl ? `background: ${grad};` : ''}>
@@ -397,7 +426,6 @@
           {@const grad = extGradient(ext.name)}
           
           <div class="card ext-card">
-            <div class="card-accent" style="background: {grad};"></div>
             <div class="card-body">
               <div class="ext-header">
                 <div class="ext-icon" style={!ext.iconUrl ? `background: ${grad};` : ''}>
@@ -427,7 +455,7 @@
                     Requires Aether {requiresNewerLauncher(ext)}+
                   </div>
                   <button class="btn btn-secondary" disabled title="Update Aether to install this extension">Incompatible</button>
-                {:else if installedFor(ext)}
+                {:else if installedMap.has(ext.id) || installedMap.has(ext.id.toLowerCase())}
                   {#if hasUpdate(ext)}
                     <button class="btn btn-primary" on:click={() => handleRemoteInstall(ext.url, ext.id)} disabled={isInstalling}>
                       {installingId === ext.id ? "Updating..." : "Update to v" + ext.version}
@@ -571,18 +599,56 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    transition: border-color 0.15s ease, transform 0.15s ease;
   }
 
-  .card-accent {
-    height: 4px;
-    width: 100%;
+  .installed-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+
+  .installed-card .card-body {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .installed-card .ext-header {
+    gap: 12px;
+  }
+
+  .installed-card .ext-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .installed-card .ext-icon-letter {
+    font-size: 16px;
+  }
+
+  .installed-card .ext-title {
+    font-size: 14px;
+  }
+
+  .installed-card .ext-desc {
+    font-size: 12px;
+    -webkit-line-clamp: 1;
+  }
+
+  .installed-card .ext-footer {
+    padding-top: 8px;
+  }
+
+  .installed-card .btn {
+    padding: 5px 12px;
+    font-size: 12px;
   }
 
   .card-body {
-    padding: 20px;
+    padding: 18px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
     flex: 1;
   }
 

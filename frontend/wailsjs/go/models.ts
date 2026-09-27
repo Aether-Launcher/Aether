@@ -111,8 +111,51 @@ export namespace instance {
 
 }
 
+export namespace logger {
+	
+	export class LogEntry {
+	    timestamp: string;
+	    level: string;
+	    target: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.timestamp = source["timestamp"];
+	        this.level = source["level"];
+	        this.target = source["target"];
+	        this.message = source["message"];
+	    }
+	}
+
+}
+
 export namespace main {
 	
+	export class AetherReleaseNote {
+	    tagName: string;
+	    name: string;
+	    body: string;
+	    publishedAt: string;
+	    htmlUrl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AetherReleaseNote(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tagName = source["tagName"];
+	        this.name = source["name"];
+	        this.body = source["body"];
+	        this.publishedAt = source["publishedAt"];
+	        this.htmlUrl = source["htmlUrl"];
+	    }
+	}
 	export class JavaRuntimeStatus {
 	    version: number;
 	    installed: boolean;
@@ -131,6 +174,28 @@ export namespace main {
 	        this.isSystem = source["isSystem"];
 	    }
 	}
+	export class MinecraftNewsItem {
+	    title: string;
+	    tag: string;
+	    date: string;
+	    text: string;
+	    image: string;
+	    readMoreUrl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MinecraftNewsItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.tag = source["tag"];
+	        this.date = source["date"];
+	        this.text = source["text"];
+	        this.image = source["image"];
+	        this.readMoreUrl = source["readMoreUrl"];
+	    }
+	}
 	export class ModLoaderInfo {
 	    id: string;
 	    name: string;
@@ -145,6 +210,26 @@ export namespace main {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.description = source["description"];
+	    }
+	}
+	export class ScreenshotItem {
+	    instanceId: string;
+	    instanceName: string;
+	    fileName: string;
+	    dataUrl: string;
+	    modTime: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScreenshotItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.instanceId = source["instanceId"];
+	        this.instanceName = source["instanceName"];
+	        this.fileName = source["fileName"];
+	        this.dataUrl = source["dataUrl"];
+	        this.modTime = source["modTime"];
 	    }
 	}
 
@@ -222,6 +307,10 @@ export namespace settings {
 	    autoCheckUpdates: boolean;
 	    includeBetaUpdates: boolean;
 	    activeTheme?: string;
+	    showRecentInstances: boolean;
+	    showScreenshots: boolean;
+	    showServicesHealth: boolean;
+	    showNewsFeed: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new GlobalSettings(source);
@@ -238,6 +327,10 @@ export namespace settings {
 	        this.autoCheckUpdates = source["autoCheckUpdates"];
 	        this.includeBetaUpdates = source["includeBetaUpdates"];
 	        this.activeTheme = source["activeTheme"];
+	        this.showRecentInstances = source["showRecentInstances"];
+	        this.showScreenshots = source["showScreenshots"];
+	        this.showServicesHealth = source["showServicesHealth"];
+	        this.showNewsFeed = source["showNewsFeed"];
 	    }
 	}
 

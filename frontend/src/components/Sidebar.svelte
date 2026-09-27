@@ -1,20 +1,21 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime';
-  import { GetExtensionSidebarPages, GetConnectivityStatus } from '../../wailsjs/go/main/App';
+  import { GetExtensionSidebarPages, GetConnectivityStatus, GetSettings } from '../../wailsjs/go/main/App';
   import { themeAssets } from '../stores/theme';
   import AccountManager from './AccountManager.svelte';
   import Icon from './Icon.svelte';
   import UpdateBanner from './UpdateBanner.svelte';
 
   export let activePage: string = 'home';
+  export let isMacOS: boolean = false;
 
   const dispatch = createEventDispatcher();
 
   const topNav = [
     { id: 'home',       label: 'Home',       icon: 'home'       },
     { id: 'instances',  label: 'Instances',  icon: 'instances'  },
-    { id: 'extensions', label: 'Extensions', icon: 'extensions' },
+    { id: 'extensions', label: 'Marketplace', icon: 'extensions' },
   ];
 
   const bottomNav = [
@@ -27,6 +28,16 @@
   let connectivity: any = null;
   let checkingConnectivity = false;
   let connTimer: any = null;
+  let isDevMode = false;
+
+  async function updateDevMode() {
+    try {
+      const sets = await GetSettings();
+      isDevMode = !!sets?.developerMode;
+    } catch {
+      isDevMode = false;
+    }
+  }
 
   async function refreshConnectivity() {
     checkingConnectivity = true;
@@ -40,8 +51,11 @@
   }
 
   onMount(async () => {
+    updateDevMode();
     refreshConnectivity();
     connTimer = setInterval(refreshConnectivity, 60000);
+    window.addEventListener('aether:settings-updated', updateDevMode);
+    EventsOn('settings:updated', updateDevMode);
 
     // Fetch extension UI tabs registered during backend startup
     try {
@@ -92,6 +106,8 @@
   onDestroy(() => {
     EventsOff('extension:sidebar:add');
     EventsOff('extension:sidebar:reset');
+    EventsOff('settings:updated');
+    window.removeEventListener('aether:settings-updated', updateDevMode);
     if (connTimer) clearInterval(connTimer);
   });
 
@@ -105,10 +121,12 @@
   }
 </script>
 
-<aside class="sidebar">
-  <div class="logo">
-    <img src={$themeAssets['sidebar-logo'] || '/logo.png'} alt="Logo" class="sidebar-logo" />
-    Aether
+<aside class="sidebar" class:macos={isMacOS}>
+  <div class="sidebar-header" style="--wails-draggable: drag">
+    <div class="logo">
+      <img src={$themeAssets['sidebar-logo'] || '/logo.png'} alt="Logo" class="sidebar-logo" />
+      <span>Aether</span>
+    </div>
   </div>
 
   <nav class="top-nav">
@@ -181,6 +199,19 @@
     </span>
   </button>
 
+  {#if isDevMode}
+    <button
+      class="dev-logs-btn"
+      on:click={() => window.dispatchEvent(new CustomEvent('aether:toggle-terminal-logs'))}
+      title="Developer Terminal Logs (Ctrl+Shift+L)"
+    >
+      <span class="dev-logs-icon">
+        <Icon name="terminal" size={14} />
+      </span>
+      <span class="dev-logs-label">Dev Logs</span>
+    </button>
+  {/if}
+
   <UpdateBanner />
 
   <AccountManager />
@@ -194,7 +225,7 @@
     background-color: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
-    padding: 24px 12px;
+    padding: 0 12px 16px 12px;
     box-sizing: border-box;
     border-right: 1px solid rgba(255, 255, 255, 0.05);
     /* Fix #11: sidebar must be independently contained so Settings/account
@@ -203,20 +234,35 @@
     flex-shrink: 0;
   }
 
+  .sidebar.macos {
+    padding-top: 28px;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    padding: 0 4px;
+    margin-bottom: 12px;
+    user-select: none;
+    -webkit-user-select: none;
+    flex-shrink: 0;
+  }
+
   .logo {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 22px;
+    gap: 10px;
+    font-size: 19px;
     font-weight: 700;
-    margin-bottom: 36px;
-    padding: 0 12px;
     letter-spacing: -0.5px;
+    padding: 0 8px;
+    pointer-events: none;
   }
 
   .sidebar-logo {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     object-fit: contain;
   }
 
@@ -348,5 +394,44 @@
     padding: 4px 12px;
     font-weight: 600;
     margin-top: 2px;
+  }
+
+  .dev-logs-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    margin-bottom: 8px;
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .dev-logs-btn:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+    border-color: rgba(79, 156, 249, 0.35);
+    color: var(--text-primary);
+  }
+
+  .dev-logs-icon {
+    display: flex;
+    align-items: center;
+    color: var(--accent, #4f9cf9);
+  }
+
+  .dev-logs-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

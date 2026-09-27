@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime, GetThemes, SelectAndInstallTheme, SetActiveTheme, UninstallTheme } from '../../wailsjs/go/main/App.js';
+  import { GetSettings, SaveSettings, GetJavaStatus, DownloadJavaRuntime, GetThemes, SelectAndInstallTheme, SetActiveTheme, UninstallTheme, GetLauncherVersion } from '../../wailsjs/go/main/App.js';
   import { EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { BrowserOpenURL } from '../../wailsjs/runtime/runtime.js';
   import Dropdown from '../components/Dropdown.svelte';
@@ -16,6 +16,10 @@
     customJvmArgs: '',
     autoCheckUpdates: true,
     includeBetaUpdates: false,
+    showRecentInstances: false,
+    showScreenshots: false,
+    showServicesHealth: false,
+    showNewsFeed: false,
   };
 
   let saving = false;
@@ -27,6 +31,19 @@
   let themes: any[] = [];
   let installingTheme = false;
   let themeBusyId = '';
+  let currentVersion = '';
+
+  function triggerUpdateCheck() {
+    window.dispatchEvent(new CustomEvent('aether:check-updates'));
+  }
+
+  function openTerminalLogs() {
+    window.dispatchEvent(new CustomEvent('aether:open-terminal-logs'));
+  }
+
+  function onDevModeToggle() {
+    window.dispatchEvent(new CustomEvent('aether:settings-updated'));
+  }
 
   const memoryOptions = [
     { label: '2 GB', value: '2048' },
@@ -71,6 +88,7 @@ onMount(async () => {
     try {
       const s = await GetSettings();
       settings = { ...settings, ...s };
+      currentVersion = await GetLauncherVersion();
       await loadJavaStatuses();
       await loadThemes();
     } catch (e) {
@@ -166,6 +184,7 @@ onMount(async () => {
     try {
       await SaveSettings(settings);
       saveSuccess = true;
+      window.dispatchEvent(new CustomEvent('aether:settings-updated'));
     } catch (e) {
       console.error("Failed to save settings:", e);
     } finally {
@@ -202,6 +221,56 @@ onMount(async () => {
           <div class="label-content">
             <div class="label-title">Close launcher on game start</div>
             <div class="label-desc">Aether will hide itself when Minecraft opens and reappear when it closes.</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Home Dashboard Section -->
+    <div class="settings-card card">
+      <h2>Home Dashboard</h2>
+      <p class="section-hint">Choose which widgets appear on the Home dashboard overview.</p>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="show-recent-instances">
+          <input id="show-recent-instances" type="checkbox" bind:checked={settings.showRecentInstances} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">Recent Instances & Quick-Play</div>
+            <div class="label-desc">Show quick-launch cards for your recently played instances.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="show-screenshots">
+          <input id="show-screenshots" type="checkbox" bind:checked={settings.showScreenshots} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">Screenshot Showcase</div>
+            <div class="label-desc">Show a gallery of in-game screenshots with a full-size lightbox viewer.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="show-services-health">
+          <input id="show-services-health" type="checkbox" bind:checked={settings.showServicesHealth} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">Live Services Status</div>
+            <div class="label-desc">Show reachability and latency indicators for Mojang & Minecraft servers.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label" for="show-news-feed">
+          <input id="show-news-feed" type="checkbox" bind:checked={settings.showNewsFeed} />
+          <span class="custom-checkbox"></span>
+          <div class="label-content">
+            <div class="label-title">News & Updates Feed</div>
+            <div class="label-desc">Show official Minecraft patch notes and Aether launcher releases.</div>
           </div>
         </label>
       </div>
@@ -318,7 +387,12 @@ onMount(async () => {
 
     <!-- Updates Section -->
     <div class="settings-card card">
-      <h2>Updates</h2>
+      <div class="card-header-row">
+        <h2>Updates</h2>
+        {#if currentVersion}
+          <span class="version-badge">{currentVersion === 'dev' ? 'dev' : 'v' + currentVersion.replace(/^v+/i, '')}</span>
+        {/if}
+      </div>
 
       <div class="form-group checkbox-group">
         <label class="checkbox-label" for="auto-check-updates">
@@ -341,6 +415,12 @@ onMount(async () => {
           </div>
         </label>
       </div>
+
+      <div class="update-action-row">
+        <button class="btn btn-secondary" on:click={triggerUpdateCheck}>
+          Check for Updates Now
+        </button>
+      </div>
     </div>
 
     <!-- Advanced Section -->
@@ -349,13 +429,18 @@ onMount(async () => {
 
       <div class="form-group checkbox-group">
         <label class="checkbox-label" for="developer-mode">
-          <input id="developer-mode" type="checkbox" bind:checked={settings.developerMode} />
+          <input id="developer-mode" type="checkbox" bind:checked={settings.developerMode} on:change={onDevModeToggle} />
           <span class="custom-checkbox"></span>
           <div class="label-content">
             <div class="label-title">Developer Mode</div>
-            <div class="label-desc">Enable developer tools, logs, and advanced extension debugging features.</div>
+            <div class="label-desc">Enable developer tools, live terminal logs, and advanced extension debugging features.</div>
           </div>
         </label>
+        {#if settings.developerMode}
+          <button class="btn btn-secondary btn-sm" on:click={openTerminalLogs} style="margin-left: auto;">
+            &gt;_ View Terminal Logs (Ctrl+Shift+L)
+          </button>
+        {/if}
       </div>
 
       <div class="form-group checkbox-group warning">
@@ -441,6 +526,12 @@ onMount(async () => {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-lg);
+  }
+
+  .section-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: -8px 0 4px 0;
   }
 
   .settings-card h2 {
@@ -714,5 +805,34 @@ onMount(async () => {
   .bug-report-btn:hover:not(:disabled) {
     border-color: #5865F2;
     background: rgba(88, 101, 242, 0.1);
+  }
+
+  .card-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-md, 16px);
+  }
+
+  .card-header-row h2 {
+    margin: 0;
+  }
+
+  .version-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .update-action-row {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    justify-content: flex-end;
   }
 </style>

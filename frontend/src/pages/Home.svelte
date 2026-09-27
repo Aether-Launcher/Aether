@@ -1,9 +1,13 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy, beforeUpdate } from 'svelte';
-import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
+import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus, GetSettings } from '../../wailsjs/go/main/App.js';
 import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { gameStore } from '../stores/gameStore.js';
   import EmptyState from '../components/EmptyState.svelte';
+  import RecentInstancesWidget from '../components/RecentInstancesWidget.svelte';
+  import ScreenshotsWidget from '../components/ScreenshotsWidget.svelte';
+  import ServicesStatusWidget from '../components/ServicesStatusWidget.svelte';
+  import NewsFeedWidget from '../components/NewsFeedWidget.svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -20,13 +24,42 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   let checkingConnectivity = false;
   let installError = '';
 
+  let launcherSettings: any = {
+    showRecentInstances: false,
+    showScreenshots: false,
+    showServicesHealth: false,
+    showNewsFeed: false,
+  };
+
+  async function loadSettings() {
+    try {
+      const s = await GetSettings();
+      if (s) {
+        launcherSettings = { ...launcherSettings, ...s };
+      }
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
+  }
+
+  $: hasRightWidgets = Boolean(
+    launcherSettings.showRecentInstances ||
+    launcherSettings.showScreenshots ||
+    launcherSettings.showServicesHealth ||
+    launcherSettings.showNewsFeed
+  );
+
   // Derive from global store — survives navigation
   $: launchState = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.state : 'Idle';
   $: logs = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.logs.slice(-10) : [];
 
   onMount(async () => {
     await loadHome();
+    await loadSettings();
     refreshConnectivity();
+
+    const onSettingsUpdate = () => { loadSettings(); };
+    window.addEventListener('aether:settings-updated', onSettingsUpdate);
 
     // instance:state and instance:log are handled globally in gameStore.
     // Install progress is page-local — only relevant while Home is mounted.
@@ -61,6 +94,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
       u1();
       u2();
       u3();
+      window.removeEventListener('aether:settings-updated', onSettingsUpdate);
     };
   });
 
@@ -202,25 +236,6 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
   $: artGradient = currentInstance ? instanceGradient(currentInstance.name) : '';
 
-  function formatLastPlayed(dateStr: string): string {
-    if (!dateStr || dateStr === 'Never' || dateStr === 'Never played') return 'Never';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return 'Never';
-      const now = new Date();
-      const diffMs = now.getTime() - d.getTime();
-      if (diffMs < 0) return 'Just now';
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      if (diffDays === 0) return 'Today';
-      if (diffDays === 1) return 'Yesterday';
-      if (diffDays < 7) return `${diffDays} days ago`;
-      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-      return d.toLocaleDateString();
-    } catch {
-      return 'Never';
-    }
-  }
-
   /**
    * Normalise a raw memory string from the instance config into a human-friendly label.
    * Handles: '4G', '4g', '4096', '4096M', '4096m', '2048', etc.
@@ -278,173 +293,156 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
 <div class="page">
   {#if currentInstance}
-    <div class="content-wrapper">
-      
-      <!-- ── Active Instance ─────────────────────────────────── -->
-      <div class="section">
-        <div class="section-label">{launchState === 'Running' ? 'Now Playing' : 'Current Instance'}</div>
+    <div class={hasRightWidgets ? "dashboard-grid" : "dashboard-single"}>
 
-        <div class="launch-container">
-          <div class="instance-header">
-            <div class="instance-art" style="background: {artGradient};">
-              <span class="instance-art-letter">
-                {currentInstance.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
+      <!-- ── LEFT COLUMN ──────────────────────────────────────── -->
+      <div class="dash-left">
 
-            <div class="instance-info">
-              <div class="instance-name">{currentInstance.name}</div>
-              <div class="instance-meta">
-                <span>{currentInstance.version}</span> •
-                <span>{currentInstance.loader}</span> •
-                <span>{formatMemory(currentInstance.memory)}</span>
-              </div>
-            </div>
-          </div>
+        <!-- Active Instance -->
+        <div class="section">
+          <div class="section-label">{launchState === 'Running' ? 'Now Playing' : 'Current Instance'}</div>
 
-          {#if !currentInstance.installed}
-            <div class="conn-row">
-              <div class="conn-status" class:conn-offline={connectivity?.overall === 'offline'} class:conn-degraded={connectivity?.overall === 'degraded'}>
-                <span class="conn-dot"></span>
-                <span class="conn-text">
-                  {#if checkingConnectivity || !connectivity}
-                    Checking connection…
-                  {:else if connectivity.overall === 'online'}
-                    Minecraft services online
-                  {:else if connectivity.overall === 'degraded'}
-                    Some services unreachable — install may fail
-                  {:else}
-                    Minecraft services unreachable
-                  {/if}
+          <div class="launch-container">
+            <div class="instance-header">
+              <div class="instance-art" style="background: {artGradient};">
+                <span class="instance-art-letter">
+                  {currentInstance.name.charAt(0).toUpperCase()}
                 </span>
-                <button class="btn btn-secondary btn-sm conn-refresh" on:click={refreshConnectivity} disabled={checkingConnectivity}>
-                  {checkingConnectivity ? 'Checking…' : 'Retry'}
-                </button>
               </div>
-              {#if connectivity?.overall === 'offline'}
-                <p class="conn-warning">Aether can't reach Minecraft servers. Your instance is saved — installation will work once you're back online.</p>
-              {/if}
-            </div>
-          {/if}
 
-          <div class="actions-row">
-            {#if currentInstance.installed}
-              <button
-                class="btn btn-primary play-btn"
-                on:click={handlePlay}
-                disabled={launchState === 'Running'}
-              >
-                {launchState === 'Running' ? 'Running' : 'Play'}
-              </button>
-              <button class="btn btn-secondary" on:click={() => dispatch('navigate', `instance-details:${currentInstance.id}`)}>
-                Settings
-              </button>
-            {:else}
-              <div class="install-col">
+              <div class="instance-info">
+                <div class="instance-name">{currentInstance.name}</div>
+                <div class="instance-meta">
+                  <span>{currentInstance.version}</span> •
+                  <span>{currentInstance.loader}</span> •
+                  <span>{formatMemory(currentInstance.memory)}</span>
+                </div>
+              </div>
+            </div>
+
+            {#if !currentInstance.installed}
+              <div class="conn-row">
+                <div class="conn-status" class:conn-offline={connectivity?.overall === 'offline'} class:conn-degraded={connectivity?.overall === 'degraded'}>
+                  <span class="conn-dot"></span>
+                  <span class="conn-text">
+                    {#if checkingConnectivity || !connectivity}
+                      Checking connection…
+                    {:else if connectivity.overall === 'online'}
+                      Minecraft services online
+                    {:else if connectivity.overall === 'degraded'}
+                      Some services unreachable — install may fail
+                    {:else}
+                      Minecraft services unreachable
+                    {/if}
+                  </span>
+                  <button class="btn btn-secondary btn-sm conn-refresh" on:click={refreshConnectivity} disabled={checkingConnectivity}>
+                    {checkingConnectivity ? 'Checking…' : 'Retry'}
+                  </button>
+                </div>
+                {#if connectivity?.overall === 'offline'}
+                  <p class="conn-warning">Aether can't reach Minecraft servers. Your instance is saved — installation will work once you're back online.</p>
+                {/if}
+              </div>
+            {/if}
+
+            <div class="actions-row">
+              {#if currentInstance.installed}
                 <button
                   class="btn btn-primary play-btn"
-                  on:click={handleInstall}
-                  disabled={installStatusText === 'Installing...' || (installProgress > 0 && installProgress < 100) || connectivity?.overall === 'offline'}
+                  on:click={handlePlay}
+                  disabled={launchState === 'Running'}
                 >
-                  {installStatusText === '' || installStatusText === 'Error' ? 'Install' : 'Installing...'}
+                  {launchState === 'Running' ? 'Running' : 'Play'}
                 </button>
-                {#if installProgress > 0 && installProgress < 100}
-                  <div class="progress-track">
-                    <div class="progress-fill" style="width: {installProgress}%; background: {artGradient};"></div>
-                  </div>
-                {/if}
-              </div>
-            {/if}
-
-            {#if javaStatus}
-              <div class="java-status">
-                <span class="java-status-label">{javaStatus.message}</span>
-                {#if javaStatus.progress !== undefined}
-                  <div class="progress-track">
-                    <div class="progress-fill" style="width: {javaStatus.progress}%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
-                  </div>
-                {/if}
-              </div>
-            {/if}
-
-            {#if launchState !== 'Idle' && launchState !== ''}
-              <span class="status-label">{launchState}</span>
-            {/if}
-          </div>
-
-          {#if installError}
-            <div class="install-error">{installError}</div>
-          {/if}
-
-          {#if logs.length > 0}
-            <div class="log-panel">
-              {#each logs as log}
-                <div class="log-line">{formatLog(log)}</div>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- ── Recently Played ──────────────────────────────────── -->
-      {#if recentInstances.length > 0}
-        <div class="section">
-          <div class="section-label">Recently Played</div>
-
-          <div class="recent-list">
-            {#each recentInstances as inst}
-              {@const grad = instanceGradient(inst.name)}
-              <div class="recent-row">
-                <div class="recent-art" style="background: {grad};">
-                  <span class="recent-art-letter">{inst.name.charAt(0).toUpperCase()}</span>
-                </div>
-
-                <div class="recent-info">
-                  <div class="recent-name">{inst.name}</div>
-                  <div class="recent-meta">
-                    {inst.version} • {inst.loader}
-                    <span class="recent-time">· {formatLastPlayed(inst.lastPlayed)}</span>
-                  </div>
-                </div>
-
-                <button
-                  class="btn btn-secondary recent-play-btn"
-                  on:click={() => handleQuickPlay(inst)}
-                  title="Launch {inst.name}"
-                  disabled={!inst.installed || ($gameStore.instanceId === inst.id && ($gameStore.state === 'Starting...' || $gameStore.state === 'Running'))}
-                >
-                  {#if !inst.installed}
-                    Not installed
-                  {:else if $gameStore.instanceId === inst.id && $gameStore.state === 'Starting...'}
-                    Starting...
-                  {:else if $gameStore.instanceId === inst.id && $gameStore.state === 'Running'}
-                    Playing
-                  {:else}
-                    Play
+                <button class="btn btn-secondary" on:click={() => dispatch('navigate', `instance-details:${currentInstance.id}`)}>
+                  Settings
+                </button>
+              {:else}
+                <div class="install-col">
+                  <button
+                    class="btn btn-primary play-btn"
+                    on:click={handleInstall}
+                    disabled={installStatusText === 'Installing...' || (installProgress > 0 && installProgress < 100) || connectivity?.overall === 'offline'}
+                  >
+                    {installStatusText === '' || installStatusText === 'Error' ? 'Install' : 'Installing...'}
+                  </button>
+                  {#if installProgress > 0 && installProgress < 100}
+                    <div class="progress-track">
+                      <div class="progress-fill" style="width: {installProgress}%; background: {artGradient};"></div>
+                    </div>
                   {/if}
-                </button>
+                </div>
+              {/if}
+
+              {#if javaStatus}
+                <div class="java-status">
+                  <span class="java-status-label">{javaStatus.message}</span>
+                  {#if javaStatus.progress !== undefined}
+                    <div class="progress-track">
+                      <div class="progress-fill" style="width: {javaStatus.progress}%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
+              {#if launchState !== 'Idle' && launchState !== ''}
+                <span class="status-label">{launchState}</span>
+              {/if}
+            </div>
+
+            {#if installError}
+              <div class="install-error">{installError}</div>
+            {/if}
+
+            {#if logs.length > 0}
+              <div class="log-panel">
+                {#each logs as log}
+                  <div class="log-line">{formatLog(log)}</div>
+                {/each}
               </div>
-            {/each}
+            {/if}
           </div>
         </div>
-        
-        <div class="divider"></div>
-      {/if}
 
-      <!-- ── Extension Updates ────────────────────────────────── -->
-      <div class="section">
-        <div class="section-label">Extension Updates</div>
-        <div class="updates-box">
-          {#if extensions.length === 0}
-            <span class="updates-text">No extensions installed.</span>
-            <button class="btn btn-secondary btn-sm" on:click={() => dispatch('navigate', 'extensions')}>Browse Gallery</button>
-          {:else}
-            <span class="updates-text">All extensions are up to date.</span>
+        <div class="divider"></div>
+
+        <!-- Extension Updates -->
+        <div class="section">
+          <div class="section-label">Extension Updates</div>
+          <div class="updates-box">
+            {#if extensions.length === 0}
+              <span class="updates-text">No extensions installed.</span>
+              <button class="btn btn-secondary btn-sm" on:click={() => dispatch('navigate', 'extensions')}>Browse Gallery</button>
+            {:else}
+              <span class="updates-text">All extensions are up to date.</span>
+            {/if}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── RIGHT COLUMN ─────────────────────────────────────── -->
+      {#if hasRightWidgets}
+        <div class="dash-right">
+          {#if launcherSettings.showRecentInstances}
+            <RecentInstancesWidget
+              instances={recentInstances}
+              activeInstanceId={currentInstance?.id || ''}
+              on:play={({ detail }) => handleQuickPlay(detail)}
+              on:navigate={({ detail }) => dispatch('navigate', detail)}
+            />
+          {/if}
+          {#if launcherSettings.showScreenshots}
+            <ScreenshotsWidget />
+          {/if}
+          {#if launcherSettings.showServicesHealth}
+            <ServicesStatusWidget />
+          {/if}
+          {#if launcherSettings.showNewsFeed}
+            <NewsFeedWidget />
           {/if}
         </div>
-      </div>
+      {/if}
 
     </div>
   {:else}
@@ -468,12 +466,39 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     overflow-y: auto;
   }
 
-  /* Wraps the entire layout to keep it max-width and handle spacing */
-  .content-wrapper {
+  /* Dashboard layout */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 480px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+    width: 100%;
+  }
+
+  .dashboard-single {
     display: flex;
     flex-direction: column;
-    max-width: 560px;
+    max-width: 580px;
     width: 100%;
+  }
+
+  .dash-left {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .dash-right {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  @media (max-width: 900px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   /* ── Structural Separator ── */
@@ -700,80 +725,6 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     white-space: nowrap;
   }
 
-  /* ── Recently Played ── */
-  .recent-list {
-    display: flex;
-    flex-direction: column;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: var(--border-radius);
-    overflow: hidden;
-  }
-
-  .recent-row {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    padding: 12px var(--spacing-md);
-    background: var(--panel-bg);
-    transition: background var(--transition-fast);
-  }
-
-  .recent-row:not(:last-child) {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  }
-
-  .recent-row:hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .recent-art {
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
-  }
-
-  .recent-art-letter {
-    font-size: 16px;
-    font-weight: 800;
-    color: rgba(255, 255, 255, 0.9);
-    line-height: 1;
-  }
-
-  .recent-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .recent-name {
-    font-size: 14px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .recent-meta {
-    font-size: 12px;
-    color: var(--text-meta);
-  }
-
-  .recent-time {
-    color: var(--text-secondary);
-  }
-
-  .recent-play-btn {
-    flex-shrink: 0;
-    font-size: 12px;
-    padding: 6px 14px;
-  }
 
   /* ── Extension Updates ── */
   .updates-box {

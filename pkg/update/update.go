@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	repoAPI   = "https://api.github.com/repos/wayback09/Aether"
-	repoDownload = "https://github.com/wayback09/Aether/releases/download"
+	repoAPI      = "https://api.github.com/repos/Aether-Launcher/Aether"
+	repoDownload = "https://github.com/Aether-Launcher/Aether/releases/download"
 )
 
 // Info describes an available update.
@@ -53,44 +53,51 @@ var httpClient = &http.Client{}
 // true, the newest release on the beta channel (pre-releases included) is
 // considered; otherwise only the latest stable release is.
 func Check(ctx context.Context, currentVersion string, includeBeta bool) (*Info, error) {
-	var releases []githubRelease
-	url := repoAPI + "/releases/latest"
-	if includeBeta {
-		url = repoAPI + "/releases?per_page=15"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, repoAPI+"/releases?per_page=15", nil)
+	if err != nil {
+		return nil, fmt.Errorf("update check failed: %w", err)
 	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "Aether-Launcher")
 
-	resp, err := httpClient.Get(url)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("update check failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("update check failed: GitHub API returned %s", resp.Status)
 	}
 
-	if includeBeta {
-		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
-			return nil, fmt.Errorf("failed to parse releases response: %w", err)
-		}
-		if len(releases) == 0 {
-			return nil, nil
-		}
-		// /releases returns newest first; the first is the candidate.
-		candidate := releases[0]
-		if extensions.CompareVersions(candidate.TagName, currentVersion) <= 0 {
-			return nil, nil
-		}
-		return buildInfo(candidate)
+	var releases []githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return nil, fmt.Errorf("failed to parse releases response: %w", err)
 	}
-
-	var latest githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&latest); err != nil {
-		return nil, fmt.Errorf("failed to parse latest release response: %w", err)
-	}
-	if extensions.CompareVersions(latest.TagName, currentVersion) <= 0 {
+	if len(releases) == 0 {
 		return nil, nil
 	}
-	return buildInfo(latest)
+
+	var candidate *githubRelease
+	for i := range releases {
+		if includeBeta || !releases[i].Prerelease {
+			candidate = &releases[i]
+			break
+		}
+	}
+	if candidate == nil {
+		// No release matching channel criteria (e.g. no stable release published yet)
+		return nil, nil
+	}
+
+	if extensions.CompareVersions(candidate.TagName, currentVersion) <= 0 {
+		return nil, nil
+	}
+
+	return buildInfo(*candidate)
 }
 
 func buildInfo(r githubRelease) (*Info, error) {
