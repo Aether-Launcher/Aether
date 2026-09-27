@@ -555,6 +555,7 @@ func (a *App) SelectAndImportInstance() (string, error) {
 		instance.FormatMultiMC:    "Prism/MultiMC",
 		instance.FormatCurseForge: "CurseForge",
 		instance.FormatModrinth:   "Modrinth",
+		instance.FormatGeneric:    "Minecraft folder",
 	}[instance.DetectFormat(source)]
 
 	return fmt.Sprintf("%s (%s)", inst.Name, launcher), nil

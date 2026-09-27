@@ -20,6 +20,10 @@ const (
 	FormatMultiMC    Format = "multimc"
 	FormatCurseForge Format = "curseforge"
 	FormatModrinth   Format = "modrinth"
+	// FormatGeneric is a plain Minecraft game directory (mods + saves/config/
+	// options) with no launcher metadata at all, e.g. Theseus forks that keep
+	// profile state in an app database instead of profile.json.
+	FormatGeneric    Format = "generic"
 	FormatUnknown    Format = ""
 )
 
@@ -96,6 +100,151 @@ type modrinthIndex struct {
 	Dependencies map[string]string `json:"dependencies"`
 }
 
+// readJSONFile reads path and unmarshals it as JSON, tolerating invalid
+// UTF-8 bytes. Some launchers write Windows-encoded strings (e.g. mod
+// author names) into metadata files; Go's encoding/json rejects the whole
+// file on a single bad byte, so sanitize first.
+func readJSONFile(path string, v any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal([]byte(strings.ToValidUTF8(string(data), "")), v)
+}
+
+// looksLikeGameDir reports whether source resembles a Minecraft game
+// directory even without launcher metadata.
+func looksLikeGameDir(source string) bool {
+	for _, modsDir := range []string{"mods", filepath.Join(".minecraft", "mods")} {
+		if st, err := os.Stat(filepath.Join(source, modsDir)); err != nil || !st.IsDir() {
+			continue
+		}
+		for _, marker := range []string{"options.txt", "servers.dat", "servers.dat_old", "saves", "config", "resourcepacks", "usercache.json"} {
+			if _, err := os.Stat(filepath.Join(source, marker)); err == nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// versionFromCrashLogs scans debug/ and crash-reports/ text files for the
+// standard "Minecraft Version: X" crash-report line.
+func versionFromCrashLogs(source string) string {
+	verRe := regexpMustCompile(`(?m)^Minecraft Version:\s*(\S+)`)
+	for _, dir := range []string{"debug", "crash-reports"} {
+		entries, err := os.ReadDir(filepath.Join(source, dir))
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := strings.ToLower(e.Name())
+			if !strings.HasSuffix(name, ".txt") && !strings.HasSuffix(name, ".log") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(source, dir, e.Name()))
+			if err != nil || len(data) > 256*1024 {
+				continue
+			}
+			if m := verRe.FindStringSubmatch(string(data)); m != nil {
+				return strings.Trim(m[1], "()")
+			}
+		}
+	}
+	return ""
+}
+
+// versionFromJarNames votes on the Minecraft version from loader/mod jar
+// filename suffixes like "+26.1" or "+mc26.2" (Modrinth naming convention).
+func versionFromJarNames(source string) string {
+	verRe := regexpMustCompile(`\+(?:mc)?(\d{1,3}\.\d{1,3}(?:\.\d{1,3})?)(?:[-.]|$)`)
+	votes := map[string]int{}
+	order := []string{}
+	collect := func(dir string) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".jar") {
+				continue
+			}
+			if m := verRe.FindStringSubmatch(e.Name()); m != nil {
+				if _, ok := votes[m[1]]; !ok {
+					order = append(order, m[1])
+				}
+				votes[m[1]]++
+			}
+		}
+	}
+	collect(filepath.Join(source, ".fabric", "processedMods"))
+	collect(filepath.Join(source, "mods"))
+	best, bestVotes := "", 0
+	for _, v := range order {
+		if votes[v] > bestVotes {
+			best, bestVotes = v, votes[v]
+		}
+	}
+	return best
+}
+
+// detectLoaderFromFiles infers the mod loader from on-disk markers.
+func detectLoaderFromFiles(source string) string {
+	jarNames := []string{}
+	collect := func(dir string) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(strings.ToLower(e.Name()), ".jar") {
+				jarNames = append(jarNames, strings.ToLower(e.Name()))
+			}
+		}
+	}
+	collect(filepath.Join(source, ".fabric", "processedMods"))
+	collect(filepath.Join(source, "mods"))
+	joined := strings.Join(jarNames, "\n")
+	has := func(sub string) bool { return strings.Contains(joined, sub) }
+	// Check in specificity order; note "neoforge" contains "forge".
+	if _, err := os.Stat(filepath.Join(source, ".quilt")); err == nil {
+		return "Quilt"
+	}
+	if has("quilt-loader") || has("qfapi") || has("quilted-fabric") {
+		return "Quilt"
+	}
+	if has("neoforge") {
+		return "NeoForge"
+	}
+	if strings.HasPrefix(joined, "forge-") || has("-forge-") || has("minecraftforge") {
+		return "Forge"
+	}
+	if _, err := os.Stat(filepath.Join(source, ".fabric")); err == nil {
+		return "Fabric"
+	}
+	if has("fabric-") {
+		return "Fabric"
+	}
+	return "Vanilla"
+}
+
+// parseGeneric extracts version/loader from a metadata-less game directory.
+func parseGeneric(source string) (version, loader, name, memory string, err error) {
+	loader = "Vanilla"
+	version = versionFromCrashLogs(source)
+	if version == "" {
+		version = versionFromJarNames(source)
+	}
+	loader = detectLoaderFromFiles(source)
+	if version == "" {
+		return "", "", "", "", fmt.Errorf("could not determine Minecraft version from this folder (no crash logs or versioned jars found)")
+	}
+	return version, loader, "", "", nil
+}
+
 // DetectFormat identifies which launcher produced the given instance folder.
 func DetectFormat(source string) Format {
 	if _, err := os.Stat(filepath.Join(source, "instance.json")); err == nil {
@@ -104,35 +253,32 @@ func DetectFormat(source string) Format {
 	if _, err := os.Stat(filepath.Join(source, "mmc-pack.json")); err == nil {
 		return FormatMultiMC
 	}
-	if data, err := os.ReadFile(filepath.Join(source, "manifest.json")); err == nil {
-		var m curseforgeManifest
-		if json.Unmarshal(data, &m) == nil && m.Minecraft.Version != "" {
-			return FormatCurseForge
-		}
+	var m curseforgeManifest
+	if readJSONFile(filepath.Join(source, "manifest.json"), &m) == nil && m.Minecraft.Version != "" {
+		return FormatCurseForge
 	}
 	// CurseForge App installs keep minecraftinstance.json instead of manifest.json.
-	if data, err := os.ReadFile(filepath.Join(source, "minecraftinstance.json")); err == nil {
-		var ci cfInstance
-		if json.Unmarshal(data, &ci) == nil {
-			return FormatCurseForge
-		}
+	var ci cfInstance
+	if readJSONFile(filepath.Join(source, "minecraftinstance.json"), &ci) == nil {
+		return FormatCurseForge
 	}
-	if data, err := os.ReadFile(filepath.Join(source, "profile.json")); err == nil {
-		var p modrinthProfile
-		if json.Unmarshal(data, &p) == nil && (p.GameVersion != "" || p.GameVersion2 != "" || p.Loader != "") {
+	var p modrinthProfile
+	if readJSONFile(filepath.Join(source, "profile.json"), &p) == nil && (p.GameVersion != "" || p.GameVersion2 != "" || p.Loader != "") {
+		return FormatModrinth
+	}
+	var idx modrinthIndex
+	if readJSONFile(filepath.Join(source, "modrinth.index.json"), &idx) == nil {
+		if _, ok := idx.Dependencies["minecraft"]; ok {
+			return FormatModrinth
+		}
+		if strings.EqualFold(idx.Game, "minecraft") {
 			return FormatModrinth
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(source, "modrinth.index.json")); err == nil {
-		var idx modrinthIndex
-		if json.Unmarshal(data, &idx) == nil {
-			if _, ok := idx.Dependencies["minecraft"]; ok {
-				return FormatModrinth
-			}
-			if strings.EqualFold(idx.Game, "minecraft") {
-				return FormatModrinth
-			}
-		}
+	// Last resort: a plain Minecraft game directory with no launcher metadata
+	// (e.g. Theseus forks that keep profile state in an app database).
+	if looksLikeGameDir(source) {
+		return FormatGeneric
 	}
 	return FormatUnknown
 }
@@ -211,6 +357,16 @@ func ImportInstance(source, targetRoot string, onProgress ImportProgress) (*Inst
 			inst.Memory = memory
 		}
 		inst.ID = baseName
+	case FormatGeneric:
+		// Folder name is the only name source; memory keeps the default.
+		version, loader, _, _, err := parseGeneric(source)
+		if err != nil {
+			return nil, err
+		}
+		inst.Version = version
+		inst.Loader = loader
+		inst.Name = baseName
+		inst.ID = baseName
 	}
 
 	if inst.Version == "" {
@@ -245,12 +401,8 @@ func ImportInstance(source, targetRoot string, onProgress ImportProgress) (*Inst
 // parseMultiMC reads mmc-pack.json (version + loader components) and
 // instance.cfg (display name, memory).
 func parseMultiMC(source string) (version, loader, name, memory string, err error) {
-	data, err := os.ReadFile(filepath.Join(source, "mmc-pack.json"))
-	if err != nil {
-		return "", "", "", "", err
-	}
 	var pack mmcPack
-	if err := json.Unmarshal(data, &pack); err != nil {
+	if err := readJSONFile(filepath.Join(source, "mmc-pack.json"), &pack); err != nil {
 		return "", "", "", "", fmt.Errorf("invalid mmc-pack.json: %w", err)
 	}
 	loader = "Vanilla"
@@ -291,24 +443,18 @@ func parseMultiMC(source string) (version, loader, name, memory string, err erro
 // the canonical loader ID, and the profile name (may be empty).
 func parseCurseForge(source string) (version, loader, name string, err error) {
 	loader = "Vanilla"
-	if data, readErr := os.ReadFile(filepath.Join(source, "manifest.json")); readErr == nil {
-		var m curseforgeManifest
-		if json.Unmarshal(data, &m) == nil && m.Minecraft.Version != "" {
-			version = m.Minecraft.Version
-			if len(m.Minecraft.ModLoaders) > 0 {
-				loader = normalizeLoaderID(m.Minecraft.ModLoaders[0].ID)
-			}
-			return version, loader, "", nil
+	var m curseforgeManifest
+	if readJSONFile(filepath.Join(source, "manifest.json"), &m) == nil && m.Minecraft.Version != "" {
+		version = m.Minecraft.Version
+		if len(m.Minecraft.ModLoaders) > 0 {
+			loader = normalizeLoaderID(m.Minecraft.ModLoaders[0].ID)
 		}
+		return version, loader, "", nil
 	}
 
-	data, readErr := os.ReadFile(filepath.Join(source, "minecraftinstance.json"))
-	if readErr != nil {
-		return "", "", "", fmt.Errorf("no manifest.json or minecraftinstance.json found")
-	}
 	var ci cfInstance
-	if err := json.Unmarshal(data, &ci); err != nil {
-		return "", "", "", fmt.Errorf("invalid minecraftinstance.json: %w", err)
+	if err := readJSONFile(filepath.Join(source, "minecraftinstance.json"), &ci); err != nil {
+		return "", "", "", fmt.Errorf("no manifest.json or minecraftinstance.json found")
 	}
 	name = ci.Name
 	version = ci.GameVersion
@@ -334,14 +480,13 @@ func parseModrinth(source string) (version, loader, name, memory string, err err
 	loader = "Vanilla"
 
 	// Try profile.json first (local Modrinth App instances)
-	if data, readErr := os.ReadFile(filepath.Join(source, "profile.json")); readErr == nil {
-		var p modrinthProfile
-		if json.Unmarshal(data, &p) == nil {
-			name = p.Name
-			version = p.GameVersion
-			if version == "" {
-				version = p.GameVersion2
-			}
+	var p modrinthProfile
+	if readJSONFile(filepath.Join(source, "profile.json"), &p) == nil {
+		name = p.Name
+		version = p.GameVersion
+		if version == "" {
+			version = p.GameVersion2
+		}
 		raw := strings.TrimSpace(p.Loader)
 		if raw == "" {
 			raw = strings.TrimSpace(p.ModLoader)
@@ -350,25 +495,23 @@ func parseModrinth(source string) (version, loader, name, memory string, err err
 			raw = strings.TrimSpace(p.ModLoader2)
 		}
 		loader = normalizeLoaderID(raw)
-			if p.Memory > 0 {
-				memory = fmt.Sprintf("%dM", p.Memory)
-			}
-			if version != "" {
-				return version, loader, name, memory, nil
-			}
+		if p.Memory > 0 {
+			memory = fmt.Sprintf("%dM", p.Memory)
+		}
+		if version != "" {
+			return version, loader, name, memory, nil
 		}
 	}
 
 	// Fall back to modrinth.index.json (exported modpacks)
-	if data, readErr := os.ReadFile(filepath.Join(source, "modrinth.index.json")); readErr == nil {
-		var idx modrinthIndex
-		if json.Unmarshal(data, &idx) == nil {
-			if name == "" {
-				name = idx.Name
-			}
-			if v, ok := idx.Dependencies["minecraft"]; ok {
-				version = v
-			}
+	var idx modrinthIndex
+	if readJSONFile(filepath.Join(source, "modrinth.index.json"), &idx) == nil {
+		if name == "" {
+			name = idx.Name
+		}
+		if v, ok := idx.Dependencies["minecraft"]; ok {
+			version = v
+		}
 		for dep := range idx.Dependencies {
 			if dep == "minecraft" {
 				continue
@@ -376,7 +519,6 @@ func parseModrinth(source string) (version, loader, name, memory string, err err
 			if got := normalizeLoaderID(dep); got != "Vanilla" {
 				loader = got
 			}
-		}
 		}
 	}
 
@@ -474,7 +616,7 @@ func copyPlanFor(format Format) copyPlan {
 			return rel, true
 		}}
 	case FormatCurseForge:
-		skipped := map[string]bool{"logs": true, "crash-reports": true}
+		skipped := map[string]bool{"logs": true, "crash-reports": true, "downloads": true, ".curseclient": true}
 		return copyPlan{remap: func(rel string) (string, bool) {
 			root := rel
 			if i := strings.IndexByte(rel, '/'); i > 0 {
@@ -490,6 +632,30 @@ func copyPlanFor(format Format) copyPlan {
 			}
 			if strings.HasPrefix(rel, "overrides/") {
 				return strings.TrimPrefix(rel, "overrides/"), true
+			}
+			return rel, true
+		}}
+	case FormatGeneric:
+		skipped := map[string]bool{
+			"logs": true, "crash-reports": true, "debug": true,
+			"downloads": true, "bin": true, "libraries": true,
+			"natives": true, ".fabric": true, ".quilt": true,
+			"cache": true, ".curseclient": true,
+		}
+		return copyPlan{remap: func(rel string) (string, bool) {
+			root := rel
+			if i := strings.IndexByte(rel, '/'); i > 0 {
+				root = rel[:i]
+			}
+			if skipped[root] {
+				return "", false
+			}
+			// Strip .minecraft/ prefix (some launcher layouts)
+			if strings.HasPrefix(rel, ".minecraft/") {
+				return strings.TrimPrefix(rel, ".minecraft/"), true
+			}
+			if rel == ".minecraft" {
+				return "", false
 			}
 			return rel, true
 		}}
