@@ -535,7 +535,7 @@ func (a *App) SelectAndImportInstance() (string, error) {
 	}
 
 	if instance.DetectFormat(source) == instance.FormatUnknown {
-		return "", fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, Modrinth, or CurseForge instance folder")
+		return "", fmt.Errorf("this doesn't look like an Aether, Prism/MultiMC, Modrinth, or CurseForge instance folder (expected one of: instance.json, mmc-pack.json, profile.json, modrinth.index.json, manifest.json, minecraftinstance.json) — make sure you selected the instance folder itself, not the launcher root")
 	}
 
 	instancesDir := filepath.Join(fs.GetDataDir(), "instances")

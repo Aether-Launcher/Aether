@@ -74,8 +74,8 @@ func TestImportMultiMC(t *testing.T) {
 	if inst.Version != "1.21.11" {
 		t.Fatalf("version: got %q, want %q", inst.Version, "1.21.11")
 	}
-	if inst.Loader != "fabric" {
-		t.Fatalf("loader: got %q, want %q", inst.Loader, "fabric")
+	if inst.Loader != "Fabric" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "Fabric")
 	}
 	if inst.Name != "My World" {
 		t.Fatalf("name: got %q, want %q", inst.Name, "My World")
@@ -113,8 +113,8 @@ func TestImportMultiMCForge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inst.Loader != "forge" {
-		t.Fatalf("loader: got %q, want %q", inst.Loader, "forge")
+	if inst.Loader != "Forge" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "Forge")
 	}
 }
 
@@ -136,8 +136,8 @@ func TestImportCurseForge(t *testing.T) {
 	if inst.Version != "1.20.1" {
 		t.Fatalf("version: got %q, want %q", inst.Version, "1.20.1")
 	}
-	if inst.Loader != "forge" {
-		t.Fatalf("loader: got %q, want %q", inst.Loader, "forge")
+	if inst.Loader != "Forge" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "Forge")
 	}
 
 	target := filepath.Join(targetRoot, inst.ID)
@@ -162,8 +162,8 @@ func TestImportCurseForgeOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inst.Loader != "neoforge" {
-		t.Fatalf("loader: got %q, want %q", inst.Loader, "neoforge")
+	if inst.Loader != "NeoForge" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "NeoForge")
 	}
 	target := filepath.Join(targetRoot, inst.ID)
 	if _, err := os.Stat(filepath.Join(target, "config", "client.toml")); err != nil {
@@ -293,8 +293,8 @@ func TestImportModrinthProfile(t *testing.T) {
 	if inst.Version != "1.21.1" {
 		t.Fatalf("version: got %q, want %q", inst.Version, "1.21.1")
 	}
-	if inst.Loader != "fabric" {
-		t.Fatalf("loader: got %q, want %q", inst.Loader, "fabric")
+	if inst.Loader != "Fabric" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "Fabric")
 	}
 	if inst.Name != "My Modrinth" {
 		t.Fatalf("name: got %q, want %q", inst.Name, "My Modrinth")
@@ -333,8 +333,8 @@ func TestImportModrinthIndex(t *testing.T) {
 	if inst.Version != "1.20.1" {
 		t.Fatalf("version: got %q, want %q", inst.Version, "1.20.1")
 	}
-	if inst.Loader != "forge" {
-		t.Fatalf("loader: got %q, want %q", inst.Loader, "forge")
+	if inst.Loader != "Forge" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "Forge")
 	}
 	if inst.Name != "Cool Pack" {
 		t.Fatalf("name: got %q, want %q", inst.Name, "Cool Pack")
@@ -363,8 +363,8 @@ func TestImportModrinthDotMinecraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inst.Loader != "quilt" {
-		t.Fatalf("loader: got %q, want %q", inst.Loader, "quilt")
+	if inst.Loader != "Quilt" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "Quilt")
 	}
 
 	target := filepath.Join(targetRoot, inst.ID)
@@ -373,5 +373,69 @@ func TestImportModrinthDotMinecraft(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(target, "options.txt")); err != nil {
 		t.Fatalf("expected .minecraft/options.txt to be remapped: %v", err)
+	}
+}
+
+func TestNormalizeLoaderID(t *testing.T) {
+	cases := map[string]string{
+		"":                "Vanilla",
+		"vanilla":         "Vanilla",
+		"minecraft":       "Vanilla",
+		"fabric":          "Fabric",
+		"fabric-loader-0.15.0": "Fabric",
+		"forge-47.2.0":    "Forge",
+		"Forge":           "Forge",
+		"neoforge-21.1.44": "NeoForge",
+		"net.neoforged":   "NeoForge",
+		"quilt-loader-0.24.0": "Quilt",
+		"something-else":  "Vanilla",
+	}
+	for in, want := range cases {
+		if got := normalizeLoaderID(in); got != want {
+			t.Fatalf("normalizeLoaderID(%q): got %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestDetectFormatCFInstanceJson(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "cfapp")
+	writeTestFile(t, filepath.Join(src, "minecraftinstance.json"), `{"name":"My CF Profile","gameVersionId":92087,"baseModLoader":{"name":"forge-47.2.0","minecraftVersion":"1.20.1","forgeVersion":"47.2.0"},"isVanilla":false}`)
+	if got := DetectFormat(src); got != FormatCurseForge {
+		t.Fatalf("curseforge app: got %q, want %q", got, FormatCurseForge)
+	}
+}
+
+func TestImportCFInstanceJson(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "CF Profile")
+	writeTestFile(t, filepath.Join(src, "minecraftinstance.json"), `{"name":"My CF Profile","gameVersionId":92087,"baseModLoader":{"name":"forge-47.2.0","minecraftVersion":"1.20.1","forgeVersion":"47.2.0"},"isVanilla":false}`)
+	writeTestFile(t, filepath.Join(src, "mods", "mod.jar"), "jar")
+	writeTestFile(t, filepath.Join(src, "config", "x.toml"), "toml")
+
+	targetRoot := t.TempDir()
+	inst, err := ImportInstance(src, targetRoot, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inst.Version != "1.20.1" {
+		t.Fatalf("version: got %q, want %q", inst.Version, "1.20.1")
+	}
+	if inst.Loader != "Forge" {
+		t.Fatalf("loader: got %q, want %q", inst.Loader, "Forge")
+	}
+	if inst.Name != "My CF Profile" {
+		t.Fatalf("name: got %q, want %q", inst.Name, "My CF Profile")
+	}
+	target := filepath.Join(targetRoot, inst.ID)
+	if _, err := os.Stat(filepath.Join(target, "mods", "mod.jar")); err != nil {
+		t.Fatalf("expected mods/mod.jar: %v", err)
+	}
+}
+
+func TestImportCFInstanceJsonVanillaNoVersion(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "vanilla-cf")
+	writeTestFile(t, filepath.Join(src, "minecraftinstance.json"), `{"name":"Vanilla CF","gameVersionId":92087,"isVanilla":true}`)
+	if _, err := ImportInstance(src, t.TempDir(), nil); err == nil {
+		t.Fatal("expected error when version cannot be determined")
 	}
 }
