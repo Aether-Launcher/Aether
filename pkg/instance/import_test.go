@@ -478,6 +478,79 @@ func TestImportGenericNoVersion(t *testing.T) {
 	}
 }
 
+func TestImportReusesCFSharedFiles(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "Instances", "My Pack")
+	writeTestFile(t, filepath.Join(src, "minecraftinstance.json"), `{"name":"My Pack","gameVersion":"1.20.1","baseModLoader":{"name":"forge-47.2.0","minecraftVersion":"1.20.1"},"isVanilla":false}`)
+	writeTestFile(t, filepath.Join(src, "mods", "mod.jar"), "jar")
+	// Shared CF layout: <root>/Install/{versions,libraries,assets}
+	writeTestFile(t, filepath.Join(root, "Install", "versions", "1.20.1", "1.20.1.jar"), "clientjar")
+	writeTestFile(t, filepath.Join(root, "Install", "libraries", "com", "example", "lib.jar"), "lib")
+	writeTestFile(t, filepath.Join(root, "Install", "assets", "indexes", "5.json"), "{}")
+	writeTestFile(t, filepath.Join(root, "Install", "assets", "objects", "ab", "abcd1234"), "obj")
+
+	targetRoot := t.TempDir()
+	// Call reuse directly for determinism (ImportInstance would use the real assets dir).
+	inst := &Instance{ID: "x", Name: "My Pack", Version: "1.20.1", Loader: "Forge"}
+	target := filepath.Join(targetRoot, "x")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+	assets := t.TempDir()
+	reuseSharedGameFiles(src, FormatCurseForge, inst, target, assets, nil)
+
+	if _, err := os.Stat(filepath.Join(target, "bin", "1.20.1.jar")); err != nil {
+		t.Fatalf("expected shared client jar: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "libraries", "com", "example", "lib.jar")); err != nil {
+		t.Fatalf("expected shared library: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(assets, "indexes", "5.json")); err != nil {
+		t.Fatalf("expected shared asset index: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(assets, "objects", "ab", "abcd1234")); err != nil {
+		t.Fatalf("expected shared asset object: %v", err)
+	}
+}
+
+func TestImportReusesTheseusSharedFiles(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "profiles", "Pack")
+	writeTestFile(t, filepath.Join(src, "mods", "mod.jar"), "jar")
+	writeTestFile(t, filepath.Join(src, "options.txt"), "version:1\n")
+	writeTestFile(t, filepath.Join(src, "debug", "d.txt"), "Minecraft Version: 26.2\n")
+	writeTestFile(t, filepath.Join(root, "meta", "versions", "26.2", "26.2.jar"), "clientjar")
+	writeTestFile(t, filepath.Join(root, "meta", "libraries", "net", "lib.jar"), "lib")
+
+	inst := &Instance{ID: "y", Name: "Pack", Version: "26.2", Loader: "Fabric"}
+	target := filepath.Join(t.TempDir(), "y")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+	assets := t.TempDir()
+	reuseSharedGameFiles(src, FormatGeneric, inst, target, assets, nil)
+
+	if _, err := os.Stat(filepath.Join(target, "bin", "26.2.jar")); err != nil {
+		t.Fatalf("expected shared client jar: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "libraries", "net", "lib.jar")); err != nil {
+		t.Fatalf("expected shared library: %v", err)
+	}
+}
+
+func TestReuseMissingSharedIsNoop(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "lonely")
+	writeTestFile(t, filepath.Join(src, "mods", "mod.jar"), "jar")
+	inst := &Instance{ID: "z", Name: "lonely", Version: "1.20.1", Loader: "Vanilla"}
+	target := filepath.Join(t.TempDir(), "z")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Must not error when no shared layout exists.
+	reuseSharedGameFiles(src, FormatCurseForge, inst, target, t.TempDir(), nil)
+	reuseSharedGameFiles(src, FormatGeneric, inst, target, t.TempDir(), nil)
+}
+
 func TestNormalizeLoaderID(t *testing.T) {
 	cases := map[string]string{
 		"":                "Vanilla",
