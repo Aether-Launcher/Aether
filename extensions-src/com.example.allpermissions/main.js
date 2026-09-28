@@ -44,10 +44,10 @@ async function demonstrateInstanceApis() {
 
     if (instances && instances.length > 0) {
       const instanceIdToPatch = instances[0].id;
-      console.log(\`Instance API: Attempting to patch instance: \${instanceIdToPatch}\`);
+      console.log(`Instance API: Attempting to patch instance: ${instanceIdToPatch}`);
       try {
         await Aether.instances.patch(instanceIdToPatch, { version: '1.19.2' });
-        console.log(\`Instance API: patch() called successfully for instance: \${instanceIdToPatch}\`);
+        console.log(`Instance API: patch() called successfully for instance: ${instanceIdToPatch}`);
       } catch (error) {
         console.error('Instance API: Error calling patch():', error);
       }
@@ -82,7 +82,7 @@ async function demonstrateSkinExportApi() {
     let exportedSkinPath;
     try {
       exportedSkinPath = await Aether.skin.export(skinDataBase64);
-      console.log(\`Skin Export API: export() called successfully. Path: \${exportedSkinPath}\`);
+      console.log(`Skin Export API: export() called successfully. Path: ${exportedSkinPath}`);
     } catch(error) {
       console.error('Skin Export API: Error calling export():', error);
     }
@@ -99,7 +99,7 @@ async function demonstrateNetworkApi() {
     try {
       // Ensure the URL is correct and accessible
       const url = 'https://api.github.com/users/wailsapp';
-      console.log(\`Network API: Calling http.get() for URL: \${url}\`);
+      console.log(`Network API: Calling http.get() for URL: ${url}`);
       response = await Aether.http.get(url);
       console.log('Network API: http.get() received response.');
       
@@ -126,9 +126,9 @@ async function demonstrateFsDownloadApi() {
     const savePath = 'wails_readme.md'; // Relative path within the extension's data directory
     let downloadedFilePath;
     try {
-      console.log(\`File System API: Calling fs.download() for URL: \${downloadUrl}\`);
+      console.log(`File System API: Calling fs.download() for URL: ${downloadUrl}`);
       downloadedFilePath = await Aether.fs.download(downloadUrl, savePath);
-      console.log(\`File System API: fs.download() called successfully. Path: \${downloadedFilePath}\`);
+      console.log(`File System API: fs.download() called successfully. Path: ${downloadedFilePath}`);
     } catch (error) {
       console.error('File System API: Error calling fs.download():', error);
     }
