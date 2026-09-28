@@ -141,11 +141,21 @@ func NewSandbox(
 	deleteScreenshot func(instanceID, fileName string) error,
 	openScreenshot func(instanceID, fileName string) error,
 	getScreenshotData func(instanceID, fileName string) (string, error),
+	listWorlds func(instanceID string) ([]map[string]interface{}, error),
+	launchToServer func(instanceID, host string, port int) error,
+	launchToWorld func(instanceID, world string) error,
 ) *Sandbox {
 	if emit == nil {
 		emit = func(_ context.Context, _ string, _ ...interface{}) {}
 	}
 	vm := goja.New()
+	// Honor `json` tags when exporting Go structs (ServerEntry, ServerInfo,
+	// ServerStatus, PingResult...). Without this, vm.ToValue exposes
+	// capitalized Go field names ("Name", "IP") while every doc and extension
+	// expects the lowercase JSON names ("name", "ip") — a mismatch that
+	// surfaces as mysteriously null fields in extension UIs. Untagged structs
+	// keep the previous field-name behavior.
+	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 	sb := &Sandbox{
 		ctx:           ctx,
 		vm:            vm,
@@ -327,7 +337,7 @@ func NewSandbox(
 
 	// Instance and mod capabilities are independently controlled. The legacy
 	// instances:patch permission is accepted by HasAnyPermission for migration.
-	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install", "resourcepacks:install", "shaderpacks:install", "screenshots:read", "screenshots:write") {
+	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install", "resourcepacks:install", "shaderpacks:install", "screenshots:read", "screenshots:write", "saves:list", "instances:launch") {
 		instancesObj := vm.NewObject()
 
 		if manifest.HasAnyPermission("instances:list") {
@@ -613,6 +623,51 @@ func NewSandbox(
 			})
 		}
 
+		// Capability: saves:list — singleplayer world metadata (level.dat
+		// names). Read-only; reveals world names but no file contents.
+		if manifest.HasAnyPermission("saves:list") {
+			instancesObj.Set("listWorlds", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				if listWorlds == nil {
+					panic(vm.NewGoError(fmt.Errorf("listWorlds not available")))
+				}
+				worlds, err := listWorlds(instanceID)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(worlds)
+			})
+		}
+
+		// Capability: instances:launch — start the game, optionally
+		// quick-connecting to a server or world. Granted at install time;
+		// no per-click confirm so Play buttons stay one click.
+		if manifest.HasAnyPermission("instances:launch") {
+			instancesObj.Set("launchToServer", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				host := call.Argument(1).String()
+				port := int(call.Argument(2).ToInteger())
+				if launchToServer == nil {
+					panic(vm.NewGoError(fmt.Errorf("launchToServer not available")))
+				}
+				if err := launchToServer(instanceID, host, port); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			instancesObj.Set("launchToWorld", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				world := call.Argument(1).String()
+				if launchToWorld == nil {
+					panic(vm.NewGoError(fmt.Errorf("launchToWorld not available")))
+				}
+				if err := launchToWorld(instanceID, world); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+		}
+
 		aetherObj.Set("instances", instancesObj)
 	}
 
@@ -650,6 +705,29 @@ func NewSandbox(
 					"protocol":      res.Protocol,
 					"latencyMs":     res.LatencyMs,
 				})
+			})
+
+			// Bulk list with live status: pings run concurrently in Go with a
+			// per-server budget and the result is cached per servers.dat
+			// content, so page revisits are instant. Prefer this over
+			// list()+ping() loops, which stall on each dead server in turn.
+			serversObj.Set("listWithStatus", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				timeoutMs := 3000
+				if len(call.Arguments) > 1 {
+					timeoutMs = int(call.Argument(1).ToInteger())
+				}
+				if timeoutMs < 500 {
+					timeoutMs = 500
+				}
+				if timeoutMs > 10000 {
+					timeoutMs = 10000
+				}
+				rows, err := servers.ListServersWithStatus(instanceID, time.Duration(timeoutMs)*time.Millisecond)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(rows)
 			})
 		}
 

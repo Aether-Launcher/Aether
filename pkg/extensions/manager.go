@@ -427,6 +427,28 @@ func (m *Manager) reloadSandboxes() {
 			func(instanceID, fileName string) (string, error) {
 				return getInstanceScreenshotData(instanceID, fileName)
 			},
+			func(instanceID string) ([]map[string]interface{}, error) {
+				worlds, err := instance.ListWorlds(instanceID)
+				if err != nil {
+					return nil, err
+				}
+				out := make([]map[string]interface{}, 0, len(worlds))
+				for _, w := range worlds {
+					out = append(out, map[string]interface{}{
+						"id":         w.ID,
+						"name":       w.Name,
+						"lastPlayed": w.LastPlayed,
+						"gameMode":   w.GameMode,
+					})
+				}
+				return out, nil
+			},
+			func(instanceID, host string, port int) error {
+				return instance.LaunchToServer(m.ctx, instanceID, host, port)
+			},
+			func(instanceID, world string) error {
+				return instance.LaunchToWorld(m.ctx, instanceID, world)
+			},
 		)
 		newSandboxes[id] = sandbox
 
