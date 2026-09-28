@@ -308,13 +308,14 @@ func asString(v any) string {
 	return ""
 }
 
-// ParseServersDat parses raw servers.dat bytes into server entries.
-func ParseServersDat(data []byte) ([]ServerEntry, error) {
+// ParseRootCompound parses raw (already decompressed) NBT bytes into the
+// root compound map. Callers gunzip first when reading files like level.dat.
+func ParseRootCompound(data []byte) (map[string]any, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("nbt: empty input")
 	}
-	if len(data) > 4*1024*1024 {
-		return nil, fmt.Errorf("nbt: servers.dat exceeds 4 MiB")
+	if len(data) > 64*1024*1024 {
+		return nil, fmt.Errorf("nbt: input exceeds 64 MiB")
 	}
 	n := &reader{r: bytes.NewReader(data)}
 	rootType, err := n.u8()
@@ -330,6 +331,18 @@ func ParseServersDat(data []byte) ([]ServerEntry, error) {
 	root, err := n.readCompound()
 	if err != nil {
 		return nil, fmt.Errorf("nbt: %w", err)
+	}
+	return root, nil
+}
+
+// ParseServersDat parses raw servers.dat bytes into server entries.
+func ParseServersDat(data []byte) ([]ServerEntry, error) {
+	if len(data) > 4*1024*1024 {
+		return nil, fmt.Errorf("nbt: servers.dat exceeds 4 MiB")
+	}
+	root, err := ParseRootCompound(data)
+	if err != nil {
+		return nil, err
 	}
 	rawList, ok := root["servers"].([]any)
 	if !ok {

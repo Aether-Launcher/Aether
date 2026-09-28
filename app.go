@@ -613,6 +613,23 @@ func (a *App) LaunchInstance(id string) error {
 	return instance.Launch(a.ctx, target)
 }
 
+// ListInstanceWorlds returns the singleplayer worlds of an instance.
+func (a *App) ListInstanceWorlds(id string) ([]instance.WorldInfo, error) {
+	return instance.ListWorlds(id)
+}
+
+// LaunchInstanceToServer launches an instance and auto-connects to a
+// multiplayer server (vanilla --server/--port flags).
+func (a *App) LaunchInstanceToServer(id string, host string, port int) error {
+	return instance.LaunchToServer(a.ctx, id, host, port)
+}
+
+// LaunchInstanceToWorld launches an instance and auto-loads a singleplayer
+// world (Mojang Quick Play, requires Minecraft 1.20+).
+func (a *App) LaunchInstanceToWorld(id string, world string) error {
+	return instance.LaunchToWorld(a.ctx, id, world)
+}
+
 // InstallInstance triggers the Mojang download pipeline
 func (a *App) InstallInstance(id string) error {
 	instances := instance.GetInstances()
