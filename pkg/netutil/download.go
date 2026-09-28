@@ -75,19 +75,7 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 
 		if attemptErr == nil {
 			// Success — rename temp file to final destination
-			if err := os.Rename(tempDest, dest); err != nil {
-				// On Windows another process may have already written dest
-				// (concurrent download of identical libs).
-				// If the destination now exists and its checksum is valid, we're done.
-				if len(expectedSha1) > 0 && expectedSha1[0] != "" {
-					if ok, _ := verifySha1(dest, expectedSha1[0]); ok {
-						_ = os.Remove(tempDest) // best-effort cleanup of temp file
-						return nil
-					}
-				} else if _, statErr := os.Stat(dest); statErr == nil {
-					_ = os.Remove(tempDest)
-					return nil
-				}
+			if err := renameWithRetry(tempDest, dest, firstSha1(expectedSha1)); err != nil {
 				_ = os.Remove(tempDest)
 				return fmt.Errorf("failed to rename temp file: %w", err)
 			}
@@ -212,6 +200,41 @@ func downloadAttempt(ctx context.Context, url, tempDest string, onProgress Progr
 	}
 
 	return nil
+}
+
+// firstSha1 returns the expected SHA1 or "" when none was given.
+func firstSha1(expectedSha1 []string) string {
+	if len(expectedSha1) > 0 {
+		return expectedSha1[0]
+	}
+	return ""
+}
+
+// renameWithRetry renames tempDest to dest, tolerating transient Windows
+// file locks (antivirus/indexer often hold a freshly-closed file for a few
+// milliseconds, failing the rename with "Access is denied") and a concurrent
+// writer winning the race. If the destination already exists and verifies,
+// the temp file is discarded and success is returned.
+func renameWithRetry(tempDest, dest, expectedSha1 string) error {
+	var lastErr error
+	for r := 0; r < 6; r++ {
+		if err := os.Rename(tempDest, dest); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		if expectedSha1 != "" {
+			if ok, _ := verifySha1(dest, expectedSha1); ok {
+				_ = os.Remove(tempDest)
+				return nil
+			}
+		} else if _, statErr := os.Stat(dest); statErr == nil {
+			_ = os.Remove(tempDest)
+			return nil
+		}
+		time.Sleep(time.Duration(50*(r+1)) * time.Millisecond)
+	}
+	return lastErr
 }
 
 // verifySha1 computes the SHA1 of the file at path and compares it to expected.
