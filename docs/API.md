@@ -176,6 +176,35 @@ Requires `discord:presence` permission. Works only if Discord desktop is running
 
 Legacy planned names `instance:launch`/`instance:stop` remain supported as aliases for `instance:state` with `Running`/`Stopped`.
 
+## Multiplayer Servers (`servers:list`, `servers:manage`)
+
+Extensions can read the multiplayer server list and manage extension-owned
+server directories. Server hosting processes (`start`/`stop`) are a planned
+v2 addition and are not available yet.
+
+Requires `servers:list` and/or `servers:manage`.
+
+- `Aether.servers.list(instanceId)`
+  - Returns the instance's `servers.dat` entries: `[{ name, ip, hidden, hasIcon }]`.
+- `Aether.servers.ping(hostport)`
+  - Pings a server (`"mc.example.com"` or `"mc.example.com:25566"`, default port 25565) using the status protocol.
+  - Returns `{ online, host, port, motd, playersOnline, playersMax, version, protocol, latencyMs }`.
+  - Unreachable servers yield `{ online: false }`, not an error. Only malformed input throws.
+  - Gated on `servers:list` because targets are user-entered — the `network:http` host allow-list cannot apply.
+- `Aether.servers.create(id, name?)`
+  - Creates `servers/<id>/` with a starter `server.properties`. Returns `{ id, name }`.
+- `Aether.servers.listServers()`
+  - Returns `[{ id, name }]` for every managed server directory.
+- `Aether.servers.delete(instanceId)`
+  - Deletes `servers/<id>/` after the standard user confirmation.
+- `Aether.servers.readFile(instanceId, relpath)`
+  - Returns a text file inside `servers/<id>/` as UTF-8 (5 MiB cap).
+- `Aether.servers.writeFile(instanceId, relpath, base64Data)`
+  - Writes base64 content inside `servers/<id>/` (5 MiB cap, atomic write).
+
+Paths stay inside `servers/<id>/` (traversal rejected), and single files are
+capped at 5 MiB.
+
 ## API Version Negotiation
 Extensions may declare an `api` version in their manifest. The current launcher does not negotiate API versions or enforce `minApi` and `maxApi` ranges; those fields are planned compatibility metadata.
 
@@ -194,6 +223,8 @@ Current permissions recognized by the runtime:
 - `launcher:modloader`
 - `skin:export`
 - `discord:presence`
+- `servers:list`
+- `servers:manage`
 
 The legacy `instances:patch` permission is still recognized for migration and grants the current instance/mod capabilities. New extensions should use the granular permissions above.
 

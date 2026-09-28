@@ -126,6 +126,45 @@ func TestSandboxGranularModPermissionAndConfirmation(t *testing.T) {
 	}
 }
 
+func TestSandboxServersCapabilityGating(t *testing.T) {
+	mk := func(perms ...string) *Sandbox {
+		return NewSandbox(context.Background(),
+			Manifest{ID: "com.test.servers", Permissions: perms},
+			"http://localhost",
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	}
+
+	listOnly := mk("servers:list")
+	if err := listOnly.Execute(`
+		if (typeof Aether.servers !== "object") throw new Error("servers missing");
+		if (typeof Aether.servers.list !== "function") throw new Error("list missing");
+		if (typeof Aether.servers.ping !== "function") throw new Error("ping missing");
+		if (typeof Aether.servers.create !== "undefined") throw new Error("create must be absent");
+		if (typeof Aether.servers.delete !== "undefined") throw new Error("delete must be absent");
+	`); err != nil {
+		t.Fatalf("servers:list gating: %v", err)
+	}
+
+	manageOnly := mk("servers:manage")
+	if err := manageOnly.Execute(`
+		if (typeof Aether.servers !== "object") throw new Error("servers missing");
+		if (typeof Aether.servers.create !== "function") throw new Error("create missing");
+		if (typeof Aether.servers.listServers !== "function") throw new Error("listServers missing");
+		if (typeof Aether.servers.delete !== "function") throw new Error("delete missing");
+		if (typeof Aether.servers.readFile !== "function") throw new Error("readFile missing");
+		if (typeof Aether.servers.writeFile !== "function") throw new Error("writeFile missing");
+		if (typeof Aether.servers.list !== "undefined") throw new Error("list must be absent");
+		if (typeof Aether.servers.ping !== "undefined") throw new Error("ping must be absent");
+	`); err != nil {
+		t.Fatalf("servers:manage gating: %v", err)
+	}
+
+	none := mk("instances:list")
+	if err := none.Execute(`if (typeof Aether.servers !== "undefined") throw new Error("servers must be absent");`); err != nil {
+		t.Fatalf("no-servers-permission gating: %v", err)
+	}
+}
+
 // TestSandboxModLoaderCallbackNonNil guards against the regression where
 // registerModLoader produced a config with a nil Callback (due to a
 // goja.Value.ToObject path), which later panicked at launch.

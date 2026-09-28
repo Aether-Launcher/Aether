@@ -18,6 +18,7 @@ import (
 	"Aether/pkg/discord"
 	"Aether/pkg/fs"
 	"Aether/pkg/netutil"
+	"Aether/pkg/servers"
 	"github.com/dop251/goja"
 )
 
@@ -613,6 +614,100 @@ func NewSandbox(
 		}
 
 		aetherObj.Set("instances", instancesObj)
+	}
+
+	// Capability: servers:list + servers:manage — multiplayer server lists
+	// (servers.dat) and extension-managed server directories.
+	if manifest.HasAnyPermission("servers:list", "servers:manage") {
+		serversObj := vm.NewObject()
+
+		if manifest.HasAnyPermission("servers:list") {
+			serversObj.Set("list", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				entries, err := servers.ReadInstanceServers(instanceID)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(entries)
+			})
+			// Ping is gated on servers:list: target hosts are user-entered,
+			// so the network:http host allow-list cannot apply.
+			serversObj.Set("ping", func(call goja.FunctionCall) goja.Value {
+				hostport := call.Argument(0).String()
+				res, err := servers.Ping(hostport)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(map[string]interface{}{
+					"online":        res.Online,
+					"host":          res.Host,
+					"port":          res.Port,
+					"motd":          res.MOTD,
+					"playersOnline": res.PlayersOnline,
+					"playersMax":    res.PlayersMax,
+					"version":       res.Version,
+					"protocol":      res.Protocol,
+					"latencyMs":     res.LatencyMs,
+				})
+			})
+		}
+
+		if manifest.HasAnyPermission("servers:manage") {
+			serversObj.Set("create", func(call goja.FunctionCall) goja.Value {
+				id := call.Argument(0).String()
+				name := ""
+				if len(call.Arguments) > 1 {
+					name = call.Argument(1).String()
+				}
+				info, err := servers.CreateServer(id, name)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(map[string]interface{}{"id": info.ID, "name": info.Name})
+			})
+			serversObj.Set("listServers", func(call goja.FunctionCall) goja.Value {
+				list, err := servers.ListServers()
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(list)
+			})
+			serversObj.Set("delete", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "delete server",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied server deletion")))
+				}
+				if err := servers.DeleteServer(instanceID); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			serversObj.Set("readFile", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				rel := call.Argument(1).String()
+				content, err := servers.ReadServerFile(instanceID, rel)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(content)
+			})
+			serversObj.Set("writeFile", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				rel := call.Argument(1).String()
+				b64 := call.Argument(2).String()
+				if err := servers.WriteServerFile(instanceID, rel, b64); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+		}
+
+		aetherObj.Set("servers", serversObj)
 	}
 
 	// Capability: launcher:modloader
