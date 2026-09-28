@@ -616,9 +616,10 @@ func NewSandbox(
 		aetherObj.Set("instances", instancesObj)
 	}
 
-	// Capability: servers:list + servers:manage — multiplayer server lists
-	// (servers.dat) and extension-managed server directories.
-	if manifest.HasAnyPermission("servers:list", "servers:manage") {
+	// Capability: servers:list + servers:manage + servers:process —
+	// multiplayer server lists (servers.dat), extension-managed server
+	// directories, and supervised server processes.
+	if manifest.HasAnyPermission("servers:list", "servers:manage", "servers:process") {
 		serversObj := vm.NewObject()
 
 		if manifest.HasAnyPermission("servers:list") {
@@ -704,6 +705,93 @@ func NewSandbox(
 					panic(vm.NewGoError(err))
 				}
 				return goja.Undefined()
+			})
+		}
+
+		if manifest.HasAnyPermission("servers:process") {
+			serversObj.Set("start", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				var opts servers.StartOptions
+				if len(call.Arguments) > 1 {
+					if exported, ok := call.Argument(1).Export().(map[string]interface{}); ok {
+						if s, ok := exported["mcVersion"].(string); ok {
+							opts.MCVersion = s
+						}
+						if f, ok := exported["memoryMB"].(float64); ok {
+							opts.MemoryMB = int(f)
+						}
+						if s, ok := exported["jarName"].(string); ok {
+							opts.JarName = s
+						}
+						if arr, ok := exported["extraArgs"].([]any); ok {
+							for _, a := range arr {
+								if s, ok := a.(string); ok {
+									opts.ExtraArgs = append(opts.ExtraArgs, s)
+								}
+							}
+						}
+					}
+				}
+				st, err := servers.StartServer(sb.ctx, instanceID, opts)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(st)
+			})
+			serversObj.Set("stop", func(call goja.FunctionCall) goja.Value {
+				if err := servers.StopServer(call.Argument(0).String()); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			serversObj.Set("status", func(call goja.FunctionCall) goja.Value {
+				st, err := servers.Status(call.Argument(0).String())
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(st)
+			})
+			serversObj.Set("send", func(call goja.FunctionCall) goja.Value {
+				if err := servers.SendCommand(call.Argument(0).String(), call.Argument(1).String()); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			serversObj.Set("eulaStatus", func(call goja.FunctionCall) goja.Value {
+				accepted, err := servers.EulaAccepted(call.Argument(0).String())
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(accepted)
+			})
+			serversObj.Set("acceptEula", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "accept server EULA",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied EULA acceptance")))
+				}
+				if err := servers.SetEulaAccepted(instanceID); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			serversObj.Set("recentLogs", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				n := 100
+				if len(call.Arguments) > 1 {
+					if f, ok := call.Argument(1).Export().(float64); ok && f > 0 {
+						n = int(f)
+					}
+				}
+				logs, err := servers.RecentLogs(instanceID, n)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(logs)
 			})
 		}
 

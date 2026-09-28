@@ -99,6 +99,7 @@ Extensions operate under a principle of least privilege. You must explicitly req
 - `discord:presence`: Update Discord Rich Presence via `Aether.discord.setActivity` / `clearActivity` and subscribe to `Aether.events.on('instance:state')`.
 - `servers:list`: Read `servers.dat` from instances and ping servers (`Aether.servers.list` / `Aether.servers.ping`).
 - `servers:manage`: Create, list, delete, and read/write files inside `servers/<id>/` directories. Deleting a server asks for user confirmation.
+- `servers:process`: Start, stop, query, and send console input to supervised server processes (`Aether.servers.start` / `stop` / `status` / `send`), with log streaming via `server:log`. EULA acceptance requires explicit user confirmation (`Aether.servers.acceptEula`). Max 2 concurrent servers.
 
 The legacy `instances:patch` permission remains supported for migration and grants the current instance/mod capabilities. New extensions should use the granular permissions above.
 

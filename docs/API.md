@@ -205,6 +205,29 @@ Requires `servers:list` and/or `servers:manage`.
 Paths stay inside `servers/<id>/` (traversal rejected), and single files are
 capped at 5 MiB.
 
+### Server Processes (`servers:process`)
+Supervised game-server processes (Paper/Purpur/vanilla jars). The launcher
+owns the child process: extensions can start, stop, query, and send console
+input, but never receive handles, PIDs for reuse, or shell access. Output
+streams into `server:log` events; transitions emit `server:state`.
+
+- `Aether.servers.start(id, opts?)`
+  - `opts`: `{ mcVersion?, memoryMB?, jarName?, extraArgs?[] }`. Memory defaults
+    to 2048, clamped to 512–16384. `jarName` defaults to auto-detect
+    (`paper-*.jar`, `purpur-*.jar`, then `server.jar`). `mcVersion` defaults
+    to detection from the jar filename.
+  - Fails with an EULA error when `eula.txt` is not accepted — show a
+    confirmation dialog, then call `acceptEula` and retry. Never accept silently.
+  - Fails when the server is already running, when 2 servers already run, or
+    when the configured port is in use. Requires a compatible Java, which the
+    launcher resolves (managed → system → download).
+- `Aether.servers.stop(id)` — sends `stop` for graceful shutdown, kills after 10 s.
+- `Aether.servers.status(id)` — `{ id, running, pid?, startedAt?, port?, mcVersion? }`.
+- `Aether.servers.send(id, command)` — writes a console line to stdin (4 KB cap).
+- `Aether.servers.acceptEula(id)` — writes `eula=true`. Call only after explicit user confirmation.
+- `Aether.servers.eulaStatus(id)` — `true` when `eula.txt` accepts the EULA.
+- `Aether.servers.recentLogs(id, n?)` — last buffered log lines, newest last.
+
 ## API Version Negotiation
 Extensions may declare an `api` version in their manifest. The current launcher does not negotiate API versions or enforce `minApi` and `maxApi` ranges; those fields are planned compatibility metadata.
 
@@ -225,6 +248,7 @@ Current permissions recognized by the runtime:
 - `discord:presence`
 - `servers:list`
 - `servers:manage`
+- `servers:process`
 
 The legacy `instances:patch` permission is still recognized for migration and grants the current instance/mod capabilities. New extensions should use the granular permissions above.
 

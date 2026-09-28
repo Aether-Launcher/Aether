@@ -163,6 +163,18 @@ func TestSandboxServersCapabilityGating(t *testing.T) {
 	if err := none.Execute(`if (typeof Aether.servers !== "undefined") throw new Error("servers must be absent");`); err != nil {
 		t.Fatalf("no-servers-permission gating: %v", err)
 	}
+
+	proc := mk("servers:process")
+	if err := proc.Execute(`
+		if (typeof Aether.servers !== "object") throw new Error("servers missing");
+		for (const fn of ["start", "stop", "status", "send", "acceptEula", "eulaStatus", "recentLogs"]) {
+			if (typeof Aether.servers[fn] !== "function") throw new Error(fn + " missing");
+		}
+		if (typeof Aether.servers.list !== "undefined") throw new Error("list must be absent");
+		if (typeof Aether.servers.create !== "undefined") throw new Error("create must be absent");
+	`); err != nil {
+		t.Fatalf("servers:process gating: %v", err)
+	}
 }
 
 // TestSandboxModLoaderCallbackNonNil guards against the regression where
