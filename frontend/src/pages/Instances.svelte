@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import { GetInstances, GetAvailableVersions, CreateInstance, GetModLoaders, SelectAndImportInstance, GetConnectivityStatus } from '../../wailsjs/go/main/App.js';
+  import { GetInstances, GetAvailableVersions, CreateInstance, GetModLoaders, SelectAndImportInstance, GetConnectivityStatus, GetInstanceIcons } from '../../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime.js';
   import Dropdown from '../components/Dropdown.svelte';
   import EmptyState from '../components/EmptyState.svelte';
@@ -28,9 +28,30 @@
     }
   }
 
+  let instanceIcons: Record<string, string> = {};
+
   async function loadInstances() {
     const res = await GetInstances();
     instances = res || [];
+    try {
+      instanceIcons = (await GetInstanceIcons()) || {};
+    } catch {
+      instanceIcons = {};
+    }
+  }
+
+  function artGradient(name: string): string {
+    const gradients = [
+      'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+      'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+      'linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)',
+      'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+      'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+      'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+    ];
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+    return gradients[Math.abs(h) % gradients.length];
   }
 
   async function loadVersions() {
@@ -152,14 +173,23 @@
     <div class="grid">
       {#each instances as instance}
         <div class="card instance-card">
-          <div class="card-content">
-            <div class="instance-title">{instance.name}</div>
-            <div class="instance-meta">
-              {instance.version} • {instance.loader}
+          <div class="card-top">
+            <div class="card-content">
+              <div class="instance-title">{instance.name}</div>
+              <div class="instance-meta">
+                {instance.version} • {instance.loader}
+              </div>
+              <div class="instance-last-played">
+                Last played: {instance.lastPlayed}
+              </div>
             </div>
-            <div class="instance-last-played">
-              Last played: {instance.lastPlayed}
-            </div>
+            {#if instanceIcons[instance.id]}
+              <img src={instanceIcons[instance.id]} alt="Instance icon" class="card-art" />
+            {:else}
+              <div class="card-art card-art-fallback" style="background: {artGradient(instance.name)};">
+                <span>{instance.name.charAt(0).toUpperCase()}</span>
+              </div>
+            {/if}
           </div>
           <div class="card-actions">
             <button class="btn btn-primary" on:click={() => dispatch('navigate', `home:instance:${instance.id}`)}>Play</button>
@@ -296,10 +326,35 @@
     gap: var(--spacing-md);
   }
 
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
   .card-content {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card-art {
+    width: 72px;
+    height: 72px;
+    border-radius: 12px;
+    flex-shrink: 0;
+    object-fit: cover;
+  }
+
+  .card-art-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.9);
   }
 
   .instance-title {
