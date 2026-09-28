@@ -3,6 +3,7 @@
 import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus, GetSettings } from '../../wailsjs/go/main/App.js';
 import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { gameStore } from '../stores/gameStore.js';
+  import { toast } from '../stores/toast';
   import EmptyState from '../components/EmptyState.svelte';
   import RecentInstancesWidget from '../components/RecentInstancesWidget.svelte';
   import ScreenshotsWidget from '../components/ScreenshotsWidget.svelte';
@@ -156,6 +157,14 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     try {
       await LaunchInstance(currentInstance.id);
     } catch (err) {
+      const msg = String(err);
+      // Uninstalled instance (e.g. every install attempt failed): tell the
+      // user to press Install instead of leaving a bare "Error" state.
+      if (msg.includes('version.json not found') || msg.includes('is the instance installed')) {
+        toast.error('Instance is not installed yet — press Install first, then Play.');
+      } else {
+        toast.error('Failed to launch: ' + msg);
+      }
       gameStore.update(s => ({ ...s, state: 'Error' }));
       console.error(err);
     }
