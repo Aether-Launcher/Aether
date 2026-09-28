@@ -384,6 +384,12 @@ func ImportInstance(source, targetRoot string, onProgress ImportProgress) (*Inst
 		return nil, fmt.Errorf("failed to import instance: %w", err)
 	}
 
+	// Reuse already-downloaded vanilla artifacts (client jar, libraries,
+	// assets) from the source launcher's shared directories when they exist.
+	// The Install pipeline skips files that already verify, so this turns a
+	// full re-download into a fast local copy (or a no-op when absent).
+	reuseSharedGameFiles(source, format, inst, target, fs.GetAssetsDir(), onProgress)
+
 	// Installed state is recomputed from bin/<version>.jar on load; foreign
 	// imports always re-download binaries via the Install flow.
 	inst.Installed = false
@@ -697,6 +703,100 @@ func copyPlanFor(format Format) copyPlan {
 		}}
 	}
 	return copyPlan{remap: func(rel string) (string, bool) { return rel, true }}
+}
+
+// sharedGameRoots locates the source launcher's shared vanilla artifacts:
+//   - CurseForge: <mcRoot>/Install/{versions,libraries,assets}, where the
+//     selected folder is <mcRoot>/Instances/<name>.
+//   - Theseus-likes (Modrinth App + forks): <dataDir>/meta/{versions,
+//     libraries,assets}, where the selected folder is <dataDir>/profiles/<name>.
+func sharedGameRoots(source string, format Format) (versionsDir, librariesDir, assetsDir string, ok bool) {
+	grandparent := filepath.Dir(filepath.Dir(source))
+	switch format {
+	case FormatCurseForge:
+		root := filepath.Join(grandparent, "Install")
+		if dirExists(filepath.Join(root, "versions")) {
+			return filepath.Join(root, "versions"), filepath.Join(root, "libraries"), filepath.Join(root, "assets"), true
+		}
+	case FormatModrinth, FormatGeneric:
+		root := grandparent
+		if dirExists(filepath.Join(root, "meta", "versions")) {
+			return filepath.Join(root, "meta", "versions"), filepath.Join(root, "meta", "libraries"), filepath.Join(root, "meta", "assets"), true
+		}
+	}
+	return "", "", "", false
+}
+
+func dirExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.IsDir()
+}
+
+// copyDirTree copies a whole directory tree (regular files only) from src to
+// dst, creating directories as needed. Missing src is a no-op (nil return).
+func copyDirTree(src, dst string, onProgress ImportProgress, label string) error {
+	if !dirExists(src) {
+		return nil
+	}
+	return filepath.WalkDir(src, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		dest := filepath.Join(dst, filepath.FromSlash(rel))
+		if entry.IsDir() {
+			return os.MkdirAll(dest, 0755)
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			return err
+		}
+		if err := copyFile(path, dest); err != nil {
+			return err
+		}
+		if onProgress != nil {
+			onProgress(0, 0, label+rel)
+		}
+		return nil
+	})
+}
+
+// reuseSharedGameFiles copies already-downloaded vanilla artifacts from the
+// source launcher's shared folders into Aether's layout. Everything is
+// best-effort: any missing piece is simply left for the Install pipeline to
+// download, which skips files that already exist and verify.
+func reuseSharedGameFiles(source string, format Format, inst *Instance, target, assetsDir string, onProgress ImportProgress) {
+	versionsDir, librariesDir, sharedAssets, ok := sharedGameRoots(source, format)
+	if !ok || inst.Version == "" {
+		return
+	}
+	// Client jar: <versions>/<v>/<v>.jar -> <target>/bin/<v>.jar
+	jarSrc := filepath.Join(versionsDir, inst.Version, inst.Version+".jar")
+	jarDst := filepath.Join(target, "bin", inst.Version+".jar")
+	if st, err := os.Stat(jarSrc); err == nil && !st.IsDir() {
+		if err := os.MkdirAll(filepath.Dir(jarDst), 0755); err == nil {
+			if copyFile(jarSrc, jarDst) == nil && onProgress != nil {
+				onProgress(0, 0, "shared client jar")
+			}
+		}
+	}
+	// Libraries live in Mojang group-path layout in both launchers, matching
+	// what Aether's Install pipeline expects under <target>/libraries.
+	_ = copyDirTree(librariesDir, filepath.Join(target, "libraries"), onProgress, "shared libraries: ")
+	// Assets are content-addressed (indexes/ + objects/), shared across all
+	// Aether instances. The pipeline skips objects whose size already matches.
+	if dirExists(sharedAssets) {
+		_ = copyDirTree(filepath.Join(sharedAssets, "indexes"), filepath.Join(assetsDir, "indexes"), onProgress, "shared assets: ")
+		_ = copyDirTree(filepath.Join(sharedAssets, "objects"), filepath.Join(assetsDir, "objects"), onProgress, "shared assets: ")
+	}
 }
 
 // copyPlan decides how source paths map into the target instance.
