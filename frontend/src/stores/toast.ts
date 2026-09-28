@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -13,9 +13,15 @@ function createToastStore() {
   const { subscribe, update } = writable<ToastMessage[]>([]);
 
   function show(message: string, type: ToastType = 'info', duration: number = 3000) {
+    // Dedupe: don't stack an identical toast that's already visible
+    // (e.g. repeated Play clicks on an uninstalled instance).
+    const self = { subscribe };
+    if (get(self).some(t => t.type === type && t.message === message)) {
+      return;
+    }
     const id = Math.random().toString(36).substring(2, 9);
     const toast = { id, message, type, duration };
-    
+
     update(toasts => [...toasts, toast]);
 
     if (duration > 0) {
