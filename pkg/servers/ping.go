@@ -169,18 +169,26 @@ func splitHostPort(hostport string) (string, int, error) {
 // Ping queries a Minecraft server's status. Unreachable/refusing servers
 // yield Online=false with a nil error; only invalid input errors.
 func Ping(hostport string) (PingResult, error) {
+	return PingWithTimeout(hostport, 5*time.Second, 8*time.Second)
+}
+
+// PingWithTimeout is Ping with an explicit budget: dialTimeout bounds TCP
+// connect, deadline bounds the whole status exchange afterwards. Bulk
+// callers (server lists) pass a smaller budget so one dead server can't
+// stall the entire list.
+func PingWithTimeout(hostport string, dialTimeout, deadline time.Duration) (PingResult, error) {
 	host, port, err := splitHostPort(hostport)
 	if err != nil {
 		return PingResult{}, err
 	}
 	res := PingResult{Online: false, Host: host, Port: port}
 
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), 5*time.Second)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), dialTimeout)
 	if err != nil {
 		return res, nil
 	}
 	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(8 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(deadline))
 
 	// Handshake (next state: status).
 	hs := &bytes.Buffer{}
