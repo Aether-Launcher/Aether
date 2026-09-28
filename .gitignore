@@ -29,3 +29,4 @@ go.work
 .aether/
 website/
 dist-themes/
+dist-extensions/
