@@ -433,9 +433,11 @@ modalInstall.addEventListener("click", async () => {
 // Modpack install modal
 // ────────────────────────────────────────────────────────────────────────────
 let _packVersions = [];
+let _packIconUrl = "";
 
 function openPackModal(hit) {
-  packModalIcon.src = hit.icon_url || "";
+  _packIconUrl = hit.icon_url || "";
+  packModalIcon.src = _packIconUrl;
   packModalIcon.alt = hit.title;
   packModalName.textContent = hit.title;
   packModalAuthor.textContent = "by " + (hit.author || "");
@@ -509,6 +511,7 @@ packModalInstall.addEventListener("click", async () => {
         type: "install_modpack",
         packUrl: mrpackFile.url,
         packName,
+        packIcon: _packIconUrl,
       },
       5 * 60 * 1000
     );

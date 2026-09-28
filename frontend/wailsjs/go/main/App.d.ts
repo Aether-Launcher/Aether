@@ -48,6 +48,10 @@ export function GetExtensions():Promise<Array<extensions.Extension>>;
 
 export function GetInstances():Promise<Array<instance.Instance>>;
 
+export function GetInstanceIcon(arg1:string):Promise<string>;
+
+export function GetInstanceIcons():Promise<{[key: string]: string}>;
+
 export function GetJavaStatus():Promise<Array<main.JavaRuntimeStatus>>;
 
 export function GetLauncherVersion():Promise<string>;
@@ -76,9 +80,13 @@ export function OpenScreenshot(arg1:string,arg2:string):Promise<void>;
 
 export function OpenScreenshotsFolder(arg1:string):Promise<void>;
 
+export function PickInstanceIcon(arg1:string):Promise<string>;
+
 export function ReloadExtensions():Promise<void>;
 
 export function RemoveAccount(arg1:string):Promise<void>;
+
+export function RemoveInstanceIcon(arg1:string):Promise<void>;
 
 export function ResolveExtensionConfirmation(arg1:string,arg2:boolean):Promise<void>;
 

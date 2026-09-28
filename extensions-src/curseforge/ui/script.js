@@ -747,7 +747,8 @@ packInstallBtn.addEventListener('click', async () => {
     const result = await sendMessage({
         type: 'install_modpack',
         packUrl: file.downloadUrl,
-        packName: packName
+        packName: packName,
+        packIcon: (currentMod && currentMod.icon) || ''
     });
 
     if (result.success) {

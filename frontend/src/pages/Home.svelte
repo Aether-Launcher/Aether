@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy, beforeUpdate } from 'svelte';
-import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus, GetSettings } from '../../wailsjs/go/main/App.js';
+import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus, GetSettings, GetInstanceIcons } from '../../wailsjs/go/main/App.js';
 import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { gameStore } from '../stores/gameStore.js';
   import { toast } from '../stores/toast';
@@ -16,6 +16,8 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   export let activeInstanceId: string = '';
 
   let currentInstance: any = null;
+  let instanceIcons: Record<string, string> = {};
+  $: currentIconUrl = currentInstance ? (instanceIcons[currentInstance.id] || '') : '';
   let recentInstances: any[] = [];
   let extensions: any[] = [];
   let installProgress = 0;
@@ -137,6 +139,11 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
     const exts = await GetExtensions();
     extensions = exts || [];
+    try {
+      instanceIcons = (await GetInstanceIcons()) || {};
+    } catch {
+      instanceIcons = {};
+    }
   }
 
   async function loadAndInstall(id: string) {
@@ -313,11 +320,15 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
           <div class="launch-container">
             <div class="instance-header">
-              <div class="instance-art" style="background: {artGradient};">
-                <span class="instance-art-letter">
-                  {currentInstance.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              {#if currentIconUrl}
+                <img src={currentIconUrl} alt="Instance icon" class="instance-art instance-art-img" />
+              {:else}
+                <div class="instance-art" style="background: {artGradient};">
+                  <span class="instance-art-letter">
+                    {currentInstance.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              {/if}
 
               <div class="instance-info">
                 <div class="instance-name">{currentInstance.name}</div>
@@ -560,6 +571,10 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     font-weight: 800;
     color: rgba(255, 255, 255, 0.9);
     line-height: 1;
+  }
+
+  .instance-art-img {
+    object-fit: cover;
   }
 
   .instance-info {
