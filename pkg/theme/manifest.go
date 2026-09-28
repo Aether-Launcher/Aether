@@ -1,7 +1,7 @@
 package theme
 
 // Manifest represents the structure of a theme's package.json.
-// A .theme file is just a zip archive (renamed) containing this manifest
+// A .theme file is a renamed zip archive containing this manifest
 // alongside a CSS overwrite file and, optionally, an overwrite.json asset map.
 type Manifest struct {
 	ID          string `json:"id"`
