@@ -47,6 +47,14 @@ The capability is present for compatibility, but `Aether.ui.openDialog()` is cur
   - **enable** (Boolean): True to enable, false to disable.
   - Disabling a mod renames it to `.jar.disabled`. Enabling it renames it back to `.jar`.
 
+### Worlds and Quick Launch (`saves:list`, `instances:launch`)
+- `Aether.instances.listWorlds(instanceId)` (requires `saves:list`)
+  - Returns singleplayer worlds from the instance's `saves/` folder: `[{ id, name, lastPlayed, gameMode }]`, most recently played first. `name` comes from `level.dat`; worlds with an unreadable `level.dat` still appear under their folder name.
+- `Aether.instances.launchToServer(instanceId, host, port)` (requires `instances:launch`)
+  - Launches the game and auto-connects via the vanilla `--server`/`--port` flags (all versions). Hosts must not contain whitespace or start with `-`; ports are clamped to 1–65535.
+- `Aether.instances.launchToWorld(instanceId, world)` (requires `instances:launch`)
+  - Launches the game and auto-loads a singleplayer world via Mojang Quick Play (`--quickPlaySingleplayer`). Requires Minecraft 1.20+; older instances return an error. `world` is the saves folder name, confined to `saves/` (traversal rejected) and must contain a `level.dat`.
+
 ### Mod Loader Registration (`launcher:modloader`)
 Allows the extension to register a custom mod loader that Aether can use to launch instances.
 
@@ -191,6 +199,13 @@ Requires `servers:list` and/or `servers:manage`.
   - Returns `{ online, host, port, motd, playersOnline, playersMax, version, protocol, latencyMs }`.
   - Unreachable servers yield `{ online: false }`, not an error. Only malformed input throws.
   - Gated on `servers:list` because targets are user-entered — the `network:http` host allow-list cannot apply.
+- `Aether.servers.listWithStatus(instanceId, timeoutMs?)`
+  - Bulk list: `servers.dat` entries with live status attached — `[{ name, ip, hidden, online, host, port, motd, playersOnline, playersMax, version, latencyMs }]`.
+  - Pings run concurrently in Go (max 6) with a per-server budget (`timeoutMs`, default 3000, clamped 500–10000), so one dead server can't stall the list.
+  - Results are cached per `servers.dat` content (mtime+size, 45 s TTL): revisits are instant, in-game edits invalidate immediately.
+  - Prefer this over `list()`+`ping()` loops — the sandbox is single-threaded and sequential pings take seconds per dead server.
+
+All struct shapes crossing the bridge expose lowercase `json` names (`row.name`, never `row.Name`) — guaranteed by the sandbox field mapper and pinned by `TestSandboxStructKeysUseJSONTags`.
 - `Aether.servers.create(id, name?)`
   - Creates `servers/<id>/` with a starter `server.properties`. Returns `{ id, name }`.
 - `Aether.servers.listServers()`
@@ -249,6 +264,8 @@ Current permissions recognized by the runtime:
 - `servers:list`
 - `servers:manage`
 - `servers:process`
+- `saves:list`
+- `instances:launch`
 
 The legacy `instances:patch` permission is still recognized for migration and grants the current instance/mod capabilities. New extensions should use the granular permissions above.
 

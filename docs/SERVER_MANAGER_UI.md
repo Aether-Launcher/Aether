@@ -53,11 +53,21 @@ test extensions in `dist-extensions/` for working examples of this pattern.
 
 ## 3. IPC protocol (UI ↔ main.js)
 
-Copy this verbatim. Every request carries an incrementing `requestId` and an
-`__aether: true` marker; responses echo `requestId` and carry either a result
-or `error`. Never use `"*"` as the target origin — compute it from
-`window.location` (the local extension server). Reject any inbound message
-whose `event.source !== window.parent` or `msg.__aether !== true`.
+Copy this verbatim. Every request carries an incrementing `requestId`;
+responses echo `requestId` and carry either a result or `error`. Two
+hard-won rules (both learned from real timeout bugs — do not "improve"
+them):
+
+1. **`targetOrigin` MUST be `"*"`.** Inside the iframe, `window.location`
+   is the *iframe's own* origin (`http://127.0.0.1:port`) while
+   `window.parent` is the Wails webview (`wails://…`). A computed origin
+   never matches, so `postMessage` silently drops every request and all
+   you see is `Request timed out`. Correlation via `requestId` is the
+   actual security boundary (same pattern as the shipped Modrinth UI).
+2. **Do NOT require a marker on inbound messages.** `ExtensionView`
+   forwards backend payloads as-is — responses carry NO `__aether`
+   marker. Filtering on one drops every reply (same timeout symptom).
+   Only the `requestId` correlation applies.
 
 ```javascript
 const pending = {};
@@ -68,12 +78,9 @@ function sendMessage(payload, timeoutMs) {
   return new Promise((resolve, reject) => {
     const id = ++reqCounter;
     payload.requestId = id;
-    payload.__aether = true;
     pending[id] = { resolve, reject };
-    const targetOrigin =
-      window.location.protocol + '//' + window.location.hostname +
-      (window.location.port ? ':' + window.location.port : '');
-    window.parent.postMessage(payload, targetOrigin);
+    // "*" is correct here — see rule 1 above.
+    window.parent.postMessage(payload, "*");
     setTimeout(() => {
       if (pending[id]) {
         delete pending[id];
@@ -85,8 +92,8 @@ function sendMessage(payload, timeoutMs) {
 
 window.addEventListener('message', (e) => {
   const msg = e.data;
-  if (!msg || !msg.requestId) return;
-  if (e.source !== window.parent || msg.__aether !== true) return;
+  // No marker check — see rule 2 above.
+  if (!msg || msg.requestId == null) return;
   const p = pending[msg.requestId];
   if (!p) return;
   delete pending[msg.requestId];
