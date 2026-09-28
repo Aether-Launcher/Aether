@@ -31,6 +31,13 @@ const (
 // file count, and the current file's mapped destination path.
 type ImportProgress func(done, total int, file string)
 
+var (
+	crashVersionRe = regexp.MustCompile(`(?m)^Minecraft Version:\s*(\S+)`)
+	jarVersionRe   = regexp.MustCompile(`\+(?:mc)?(\d{1,3}\.\d{1,3}(?:\.\d{1,3})?)(?:[-.]|$)`)
+	invalidIDRe    = regexp.MustCompile(`[^a-z0-9._-]+`)
+	dashRunRe      = regexp.MustCompile(`-+`)
+)
+
 // mmcPack mirrors the Prism/MultiMC mmc-pack.json structure.
 type mmcPack struct {
 	Components []struct {
@@ -131,7 +138,7 @@ func looksLikeGameDir(source string) bool {
 // versionFromCrashLogs scans debug/ and crash-reports/ text files for the
 // standard "Minecraft Version: X" crash-report line.
 func versionFromCrashLogs(source string) string {
-	verRe := regexpMustCompile(`(?m)^Minecraft Version:\s*(\S+)`)
+	verRe := crashVersionRe
 	for _, dir := range []string{"debug", "crash-reports"} {
 		entries, err := os.ReadDir(filepath.Join(source, dir))
 		if err != nil {
@@ -160,7 +167,7 @@ func versionFromCrashLogs(source string) string {
 // versionFromJarNames votes on the Minecraft version from loader/mod jar
 // filename suffixes like "+26.1" or "+mc26.2" (Modrinth naming convention).
 func versionFromJarNames(source string) string {
-	verRe := regexpMustCompile(`\+(?:mc)?(\d{1,3}\.\d{1,3}(?:\.\d{1,3})?)(?:[-.]|$)`)
+	verRe := jarVersionRe
 	votes := map[string]int{}
 	order := []string{}
 	collect := func(dir string) {
@@ -556,9 +563,9 @@ func slug(name string) string {
 		return "imported-instance"
 	}
 	// Keep only allow-list characters; other runs become a single dash.
-	s = regexpMustCompile(`[^a-z0-9._-]+`).ReplaceAllString(s, "-")
+	s = invalidIDRe.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-._")
-	s = regexpMustCompile(`-+`).ReplaceAllString(s, "-")
+	s = dashRunRe.ReplaceAllString(s, "-")
 	if s == "" {
 		return "imported-instance"
 	}
@@ -570,13 +577,6 @@ func slug(name string) string {
 		s = strings.TrimRight(s, "-._")
 	}
 	return s
-}
-
-// regexpMustCompile is a tiny helper to avoid importing regexp at top for a single use.
-// Defined here to keep import list minimal for tests that don't need regexp.
-func regexpMustCompile(expr string) *regexp.Regexp {
-	r, _ := regexp.Compile(expr)
-	return r
 }
 
 // copyPlanFor returns the copy rules for a launcher format.
@@ -771,7 +771,7 @@ func copyDirTree(src, dst string, onProgress ImportProgress, label string) error
 
 // reuseSharedGameFiles copies already-downloaded vanilla artifacts from the
 // source launcher's shared folders into Aether's layout. Everything is
-// best-effort: any missing piece is simply left for the Install pipeline to
+// best-effort: any missing piece is left for the Install pipeline to
 // download, which skips files that already exist and verify.
 func reuseSharedGameFiles(source string, format Format, inst *Instance, target, assetsDir string, onProgress ImportProgress) {
 	versionsDir, librariesDir, sharedAssets, ok := sharedGameRoots(source, format)

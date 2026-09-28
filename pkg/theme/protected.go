@@ -21,8 +21,8 @@ var AllowedAssetKeys = map[string]bool{
 }
 
 // LockedAssetKeys can NEVER be set by a theme, even though they look like
-// asset keys. They exist purely so InstallFromArchive can explain *why* a key
-// was rejected (as opposed to it just not existing). The launcher's app icon,
+// asset keys. They exist so InstallFromArchive can explain *why* a key
+// was rejected. The launcher's app icon,
 // tray icon, and displayed name are not runtime-swappable assets at all — the
 // icon is baked into the binary at build time and the "Aether" name is a
 // hardcoded string in the frontend that themes have no channel to reach.
@@ -146,14 +146,9 @@ func normalizeCSS(css string) string {
 			continue
 		}
 
-		if c == '\\' && !inString && i+1 < len(css) {
-			// Potential unicode escape \XXXX or \XXXXXX - handled in next pass.
-		}
-
 		sb.WriteByte(c)
 	}
 
-	// Decode unicode escapes \XXXX or \XXXXXX
 	result := sb.String()
 	var out strings.Builder
 	out.Grow(len(result))
@@ -167,7 +162,6 @@ func normalizeCSS(css string) string {
 				next == 'c' || next == 'd' || next == 'e' || next == 'f' ||
 				next == 'A' || next == 'B' || next == 'C' || next == 'D' ||
 				next == 'E' || next == 'F' {
-				// Parse hex digits (1-6)
 				j := i + 1
 				hexStr := ""
 				for j < len(runes) && len(hexStr) < 6 {
@@ -192,7 +186,6 @@ func normalizeCSS(css string) string {
 		out.WriteRune(runes[i])
 	}
 
-	// Collapse whitespace: replace runs of whitespace with single space
 	result = out.String()
 	var final strings.Builder
 	final.Grow(len(result))
@@ -212,15 +205,13 @@ func normalizeCSS(css string) string {
 	return strings.TrimSpace(final.String())
 }
 
-// isOverlayBlocked checks if a rule body contains overlay/phishing patterns
+// isOverlayBlocked reports whether a rule body can cover the app window
+// (fixed/absolute positioning plus a full-viewport box plus stacking).
+// The z-index check is intentionally coarse.
 func isOverlayBlocked(body string) bool {
-	// position: fixed|absolute + inset:0 + high z-index
 	if positionFixed.MatchString(body) {
 		if strings.Contains(body, "inset:") || strings.Contains(body, "top:") || strings.Contains(body, "left:") {
-			// Check for high z-index
 			if strings.Contains(body, "z-index:") {
-				// crude check - look for large z-index values
-				// More robust: parse z-index value
 				return true
 			}
 		}
@@ -229,29 +220,21 @@ func isOverlayBlocked(body string) bool {
 	return false
 }
 
-// SanitizeCSS strips the small set of things a theme is not allowed to do and
-// returns the cleaned CSS plus a human-readable list of what (if anything)
-// was removed, so the installer can surface it to the user.
-//
-// Pipeline:
-// 1. Normalize (strip comments, decode escapes, collapse whitespace)
-// 2. Truncate to 256KB
-// 3. Run global prohibitions (@import, url(), position:fixed overlay)
-// 4. Run per-rule brace-aware pass with #aether-root scoping
+// SanitizeCSS strips what themes may not do and returns the cleaned CSS plus
+// warnings for the installer to surface. Order matters: normalize first so
+// regexes can't be dodged with comments or escapes, then truncate, then
+// global prohibitions, then the per-rule pass with #aether-root scoping.
 func SanitizeCSS(css string) (string, []string) {
 	var warnings []string
 
-	// 1. Normalize first (before any regex matching)
 	css = normalizeCSS(css)
 
-	// 2. Truncate to 256KB (post-normalization, before sanitization)
 	if len(css) > MaxThemeCSSBytes {
 		css = css[:MaxThemeCSSBytes]
 		warnings = append(warnings, "theme.css exceeded the size limit and was truncated")
 	}
 
-	// Global prohibitions (before rule parsing)
-	if importRuleRe.MatchString(css) {
+		if importRuleRe.MatchString(css) {
 		css = importRuleRe.ReplaceAllString(css, "")
 		warnings = append(warnings, "@import rules are not allowed and were removed")
 	}
@@ -259,7 +242,6 @@ func SanitizeCSS(css string) (string, []string) {
 	// Block url() entirely - use overwrite.json for images
 	if urlRe.MatchString(css) {
 		warnings = append(warnings, "url() is not allowed in theme.css; use overwrite.json for images")
-		// Remove url() declarations entirely
 		css = regexp.MustCompile(`(?i)url\s*\([^)]*\)`).ReplaceAllString(css, "/* url() removed */")
 	}
 
@@ -279,12 +261,9 @@ func SanitizeCSS(css string) (string, []string) {
 	return cleaned, warnings
 }
 
-// sanitizeRules walks top-level CSS rules (including once inside @media
-// blocks) using brace-depth tracking, drops rules that target protected
-// window-control selectors, and strips `content` from rules whose selector
-// looks like it renders the brand name/logo, and strips app-lockout
-// `pointer-events: none` from locked selector rules.
-// Also prefixes selectors with #aether-root for scoping.
+// sanitizeRules drops rules targeting protected selectors, strips blocked
+// declarations from the rest, and prefixes every kept selector with
+// #aether-root. Recurses into @media/@supports bodies.
 func sanitizeRules(css string) (string, []string) {
 	var out strings.Builder
 	var warnings []string
@@ -296,7 +275,6 @@ func sanitizeRules(css string) (string, []string) {
 	i := 0
 	n := len(css)
 	for i < n {
-		// Find the next rule boundary: selector text up to '{'
 		braceIdx := strings.IndexByte(css[i:], '{')
 		if braceIdx == -1 {
 			out.WriteString(css[i:])
@@ -305,8 +283,6 @@ func sanitizeRules(css string) (string, []string) {
 		braceIdx += i
 		selector := css[i:braceIdx]
 
-		// Find the matching closing brace for this rule (depth-aware, so
-		// @media { ... } blocks with nested rules aren't cut short).
 		depth := 1
 		j := braceIdx + 1
 		for j < n && depth > 0 {
@@ -338,17 +314,13 @@ func sanitizeRules(css string) (string, []string) {
 			strippedPointerEvents++
 		}
 
-		// Check for overlay patterns
 		if isOverlayBlocked(body) {
 			body = positionFixed.ReplaceAllString(body, "")
 			strippedOverlay++
 		}
 
-		// Prefix selector with #aether-root for scoping
 		scopedSelector := scopeSelector(selector)
 
-		// Recurse into @media / @supports blocks so nested rules get the
-		// same treatment.
 		trimmedSelector := strings.TrimSpace(normalizedSelector)
 		if strings.HasPrefix(trimmedSelector, "@media") ||
 			strings.HasPrefix(trimmedSelector, "@supports") {
@@ -385,8 +357,7 @@ func sanitizeRules(css string) (string, []string) {
 	return out.String(), warnings
 }
 
-// scopeSelector prefixes all simple selectors with #aether-root
-// Handles comma-separated selectors, pseudo-classes, pseudo-elements
+// scopeSelector prefixes selectors with #aether-root, preserving at-rules.
 func scopeSelector(selector string) string {
 	parts := strings.Split(selector, ",")
 	var scoped []string
@@ -395,7 +366,6 @@ func scopeSelector(selector string) string {
 		if part == "" {
 			continue
 		}
-		// Skip @media, @supports, @keyframes, @font-face, @layer, etc.
 		trimmed := strings.TrimSpace(part)
 		if strings.HasPrefix(trimmed, "@") {
 			continue
