@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { GetInstances, UpdateInstance, DeleteInstance, LaunchInstance } from '../../wailsjs/go/main/App.js';
+  import { GetInstances, UpdateInstance, DeleteInstance, LaunchInstance, OpenInstanceFolder } from '../../wailsjs/go/main/App.js';
   import Dropdown from '../components/Dropdown.svelte';
   import ConfirmDialog from '../lib/components/ConfirmDialog.svelte';
 
@@ -88,6 +88,15 @@
     dispatch('navigate', 'home'); // switch to home to see status
   }
 
+  async function openFolder() {
+    if (!instance) return;
+    try {
+      await OpenInstanceFolder(instance.id);
+    } catch (e: any) {
+      console.error("Failed to open instance folder:", e);
+    }
+  }
+
   // Consistent gradient generator based on ID
   function generateGradient(id: string) {
     let hash = 0;
@@ -144,6 +153,7 @@
       <div class="actions">
         <button class="btn btn-danger" on:click={deleteInstance}>Delete Instance</button>
         <div class="right-actions">
+          <button class="btn btn-secondary" on:click={openFolder}>Open Folder</button>
           <button class="btn btn-secondary" on:click={launch}>Play</button>
           <button class="btn btn-primary" on:click={saveChanges}>Save Changes</button>
         </div>

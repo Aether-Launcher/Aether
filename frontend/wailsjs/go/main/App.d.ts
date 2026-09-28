@@ -70,6 +70,8 @@ export function LaunchInstance(arg1:string):Promise<void>;
 
 export function LoginOffline(arg1:string):Promise<auth.Account>;
 
+export function OpenInstanceFolder(arg1:string):Promise<void>;
+
 export function OpenScreenshot(arg1:string,arg2:string):Promise<void>;
 
 export function OpenScreenshotsFolder(arg1:string):Promise<void>;
