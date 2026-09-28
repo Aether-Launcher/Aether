@@ -20,6 +20,8 @@
     "launcher:modloader",
     "skin:export",
     "network:http",
-    "fs:download"
+    "fs:download",
+    "saves:list",
+    "instances:launch"
   ]
 }
