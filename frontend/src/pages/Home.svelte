@@ -350,7 +350,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
                 <button
                   class="btn btn-primary play-btn"
                   on:click={handlePlay}
-                  disabled={launchState === 'Running'}
+                  disabled={launchState === 'Running' || (launchState && launchState.indexOf('Installing') === 0)}
                 >
                   {launchState === 'Running' ? 'Running' : 'Play'}
                 </button>

@@ -640,7 +640,15 @@ func (a *App) InstallInstance(id string) error {
 	assetsDir := fs.GetAssetsDir()
 	engine := mojang.NewDownloadEngine(a.ctx, target.ID, basePath)
 
+	// Refuse to start a second pipeline for the same instance: concurrent
+	// pipelines write the same library files and corrupt each other's
+	// downloads (rename collisions, checksum mismatches).
+	if !mojang.ClaimInstall(target.ID) {
+		return fmt.Errorf("installation already in progress for %s", target.ID)
+	}
+
 	go func() {
+		defer mojang.ReleaseInstall(target.ID)
 		if err := engine.Install(info, assetsDir); err != nil {
 			msg := fmt.Sprintf("Installation failed: %v", err)
 			fmt.Printf("Install error: %v\n", err)

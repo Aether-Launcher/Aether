@@ -352,9 +352,17 @@ func (m *Manager) reloadSandboxes() {
 					return "", fmt.Errorf("modpack install failed: %w", err)
 				}
 
-				// Option A: Auto-trigger Minecraft installation pipeline in background
-				go func() {
-					info, err := mojang.GetVersionInfo(inst.Version)
+			// Option A: Auto-trigger Minecraft installation pipeline in background.
+			// Shares the per-instance claim with App.InstallInstance so a manual
+			// Install click can't start a second pipeline for the same instance.
+			go func() {
+				if !mojang.ClaimInstall(inst.ID) {
+					fmt.Printf("[Mrpack] install already in progress for %s, skipping duplicate pipeline\n", inst.ID)
+					return
+				}
+				defer mojang.ReleaseInstall(inst.ID)
+
+				info, err := mojang.GetVersionInfo(inst.Version)
 					if err != nil {
 						fmt.Printf("[Mrpack] auto-install failed to fetch version info: %v\n", err)
 						return
