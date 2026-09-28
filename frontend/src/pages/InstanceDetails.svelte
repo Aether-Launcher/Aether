@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { GetInstances, UpdateInstance, DeleteInstance, LaunchInstance, OpenInstanceFolder } from '../../wailsjs/go/main/App.js';
+  import { GetInstances, UpdateInstance, DeleteInstance, LaunchInstance, OpenInstanceFolder, PickInstanceIcon, RemoveInstanceIcon, GetInstanceIcon } from '../../wailsjs/go/main/App.js';
   import Dropdown from '../components/Dropdown.svelte';
   import ConfirmDialog from '../lib/components/ConfirmDialog.svelte';
 
@@ -37,12 +37,43 @@
     });
   }
 
+  let iconDataUrl = '';
+  let pickingIcon = false;
+
   async function loadInstance() {
     const all = await GetInstances();
     instance = all.find((i: any) => i.id === instanceId);
     if (instance) {
       editName = instance.name;
       editMemory = instance.memory || '2048';
+      try {
+        iconDataUrl = await GetInstanceIcon(instance.id) || '';
+      } catch {
+        iconDataUrl = '';
+      }
+    }
+  }
+
+  async function pickIcon() {
+    if (!instance || pickingIcon) return;
+    pickingIcon = true;
+    try {
+      const url = await PickInstanceIcon(instance.id);
+      if (url) iconDataUrl = url;
+    } catch (e: any) {
+      console.error("Failed to set instance icon:", e);
+    } finally {
+      pickingIcon = false;
+    }
+  }
+
+  async function removeIcon() {
+    if (!instance) return;
+    try {
+      await RemoveInstanceIcon(instance.id);
+      iconDataUrl = '';
+    } catch (e: any) {
+      console.error("Failed to remove instance icon:", e);
     }
   }
 
@@ -120,7 +151,11 @@
       </button>
 
       <div class="header-content">
-        <div class="art-square" style="background: {generateGradient(instance.id)}"></div>
+        {#if iconDataUrl}
+          <img src={iconDataUrl} alt="Instance icon" class="art-square art-square-img" />
+        {:else}
+          <div class="art-square" style="background: {generateGradient(instance.id)}"></div>
+        {/if}
         <div class="info">
           <h1>{instance.name}</h1>
           <p class="meta">
@@ -148,6 +183,29 @@
         <!-- svelte-ignore a11y-label-has-associated-control -->
         <label>Memory Allocation</label>
         <Dropdown options={memoryOptions} bind:value={editMemory} />
+      </div>
+
+      <div class="form-group">
+        <!-- svelte-ignore a11y-label-has-associated-control -->
+        <label>Icon</label>
+        <div class="icon-row">
+          {#if iconDataUrl}
+            <img src={iconDataUrl} alt="Instance icon" class="icon-preview" />
+          {:else}
+            <div class="icon-preview icon-fallback" style="background: {generateGradient(instance.id)}">
+              <span>{instance.name.charAt(0).toUpperCase()}</span>
+            </div>
+          {/if}
+          <div class="icon-actions">
+            <button class="btn btn-secondary" on:click={pickIcon} disabled={pickingIcon}>
+              {pickingIcon ? 'Choosing…' : 'Choose from disk'}
+            </button>
+            {#if iconDataUrl}
+              <button class="btn btn-secondary" on:click={removeIcon}>Remove</button>
+            {/if}
+          </div>
+        </div>
+        <div class="label-desc">PNG or JPEG, up to 5 MB. Modpack installs use the pack's icon automatically.</div>
       </div>
 
       <div class="actions">
@@ -196,6 +254,10 @@
     height: 96px;
     border-radius: 16px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .art-square-img {
+    object-fit: cover;
   }
 
   .info h1 {
@@ -261,6 +323,41 @@
 
   .input:focus {
     border-color: var(--accent-color);
+  }
+
+  .icon-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .icon-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .icon-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .icon-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .label-desc {
+    font-size: 12px;
+    color: var(--text-meta);
+    line-height: 1.4;
   }
 
   .actions {

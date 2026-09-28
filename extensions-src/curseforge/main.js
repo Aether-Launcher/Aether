@@ -60,7 +60,8 @@ Aether.ui.onMessage(function (msg) {
     try {
       var instanceId = Aether.instances.installModpack(
         msg.packUrl,
-        msg.packName
+        msg.packName,
+        msg.packIcon || ""
       );
       Aether.ui.postMessage({
         type: "install_modpack_result",

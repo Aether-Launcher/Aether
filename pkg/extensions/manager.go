@@ -341,7 +341,7 @@ func (m *Manager) reloadSandboxes() {
 			},
 			m.emit,
 			m.requestConfirmation,
-			func(packURL, packName string) (string, error) {
+			func(packURL, packName, iconURL string) (string, error) {
 				parsedURL, err := neturl.Parse(packURL)
 				if err != nil || parsedURL.Scheme != "https" || parsedURL.Hostname() == "" {
 					return "", fmt.Errorf("modpack downloads require an HTTPS URL")
@@ -350,6 +350,13 @@ func (m *Manager) reloadSandboxes() {
 				inst, err := instance.InstallMrpack(context.Background(), packURL, packName, targetRoot, nil)
 				if err != nil {
 					return "", fmt.Errorf("modpack install failed: %w", err)
+				}
+
+				// Best-effort pack icon: the pack still installs if this fails.
+				if iconURL != "" {
+					if err := instance.SetIconFromURL(context.Background(), inst.ID, iconURL); err != nil {
+						fmt.Printf("[Mrpack] pack icon skipped for %s: %v\n", inst.ID, err)
+					}
 				}
 
 			// Option A: Auto-trigger Minecraft installation pipeline in background.

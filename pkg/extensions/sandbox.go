@@ -133,7 +133,7 @@ func NewSandbox(
 	toggleMod func(instanceID, jarName string, enable bool) error,
 	emit func(ctx context.Context, event string, data ...interface{}),
 	confirm func(action map[string]interface{}) bool,
-	installModpack func(packURL, packName string) (string, error),
+	installModpack func(packURL, packName, iconURL string) (string, error),
 	installResourcePack func(instanceID, fileName, downloadURL string) (string, error),
 	installShaderPack func(instanceID, fileName, downloadURL string) (string, error),
 	listScreenshots func(instanceID string) ([]map[string]interface{}, error),
@@ -447,6 +447,13 @@ func NewSandbox(
 			instancesObj.Set("installModpack", func(call goja.FunctionCall) goja.Value {
 				packURL := call.Argument(0).String()
 				packName := call.Argument(1).String()
+				// Optional third argument: pack icon URL (may be absent).
+				iconURL := ""
+				if arg := call.Argument(2); arg != nil && !goja.IsUndefined(arg) && !goja.IsNull(arg) {
+					if s := arg.String(); s != "" && s != "undefined" {
+						iconURL = s
+					}
+				}
 
 				if !isAllowedURL(packURL) {
 					panic(vm.NewGoError(fmt.Errorf("access denied to URL: %s", packURL)))
@@ -463,7 +470,7 @@ func NewSandbox(
 				}) {
 					panic(vm.NewGoError(fmt.Errorf("user denied modpack installation")))
 				}
-				instanceID, err := installModpack(packURL, packName)
+				instanceID, err := installModpack(packURL, packName, iconURL)
 				if err != nil {
 					panic(vm.NewGoError(err))
 				}

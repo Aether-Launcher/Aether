@@ -822,6 +822,50 @@ func (a *App) OpenScreenshot(instanceID, fileName string) error {
 	return cmd.Start()
 }
 
+// PickInstanceIcon opens a file dialog for a PNG/JPEG image, validates it,
+// and saves it as the instance's custom icon. Returns the icon as a data:
+// URL for immediate display.
+func (a *App) PickInstanceIcon(instanceID string) (string, error) {
+	file, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Choose Instance Icon",
+		Filters: []runtime.FileFilter{
+			{
+				DisplayName: "Images (*.png;*.jpg;*.jpeg)",
+				Pattern:     "*.png;*.jpg;*.jpeg",
+			},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	if file == "" {
+		// User cancelled
+		return "", nil
+	}
+	if err := instance.SetIconFromFile(instanceID, file); err != nil {
+		return "", err
+	}
+	return instance.GetInstanceIcon(instanceID)
+}
+
+// RemoveInstanceIcon deletes an instance's custom icon, reverting to default art.
+func (a *App) RemoveInstanceIcon(instanceID string) error {
+	return instance.RemoveInstanceIcon(instanceID)
+}
+
+// GetInstanceIcon returns the instance's custom icon as a data: URL,
+// or "" when it uses default art.
+func (a *App) GetInstanceIcon(instanceID string) string {
+	url, _ := instance.GetInstanceIcon(instanceID)
+	return url
+}
+
+// GetInstanceIcons returns id -> data URL for every instance with a custom
+// icon, so lists can render icons with a single backend call.
+func (a *App) GetInstanceIcons() map[string]string {
+	return instance.GetInstanceIcons()
+}
+
 // OpenInstanceFolder opens the instance's root folder in Explorer / Finder.
 func (a *App) OpenInstanceFolder(instanceID string) error {
 	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
