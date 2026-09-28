@@ -822,6 +822,27 @@ func (a *App) OpenScreenshot(instanceID, fileName string) error {
 	return cmd.Start()
 }
 
+// OpenInstanceFolder opens the instance's root folder in Explorer / Finder.
+func (a *App) OpenInstanceFolder(instanceID string) error {
+	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
+	if err != nil {
+		return err
+	}
+	if st, err := os.Stat(instanceDir); err != nil || !st.IsDir() {
+		return fmt.Errorf("instance folder not found: %s", instanceID)
+	}
+	var cmd *exec.Cmd
+	switch stdruntime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", instanceDir)
+	case "darwin":
+		cmd = exec.Command("open", instanceDir)
+	default:
+		cmd = exec.Command("xdg-open", instanceDir)
+	}
+	return cmd.Start()
+}
+
 // OpenScreenshotsFolder opens the screenshots folder of an instance in Explorer / Finder.
 func (a *App) OpenScreenshotsFolder(instanceID string) error {
 	instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)

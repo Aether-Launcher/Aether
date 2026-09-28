@@ -122,6 +122,10 @@ export function LoginOffline(arg1) {
   return window['go']['main']['App']['LoginOffline'](arg1);
 }
 
+export function OpenInstanceFolder(arg1) {
+  return window['go']['main']['App']['OpenInstanceFolder'](arg1);
+}
+
 export function OpenScreenshot(arg1, arg2) {
   return window['go']['main']['App']['OpenScreenshot'](arg1, arg2);
 }
