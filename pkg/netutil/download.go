@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 )
 
@@ -33,6 +34,9 @@ var defaultClient = &http.Client{
 // ProgressCallback is called periodically with the downloaded bytes and total bytes.
 type ProgressCallback func(downloaded, total int64)
 
+// tmpCounter makes temp filenames unique per DownloadFile call.
+var tmpCounter uint64
+
 // DownloadFile downloads a file from url to dest, with support for resuming (Range requests)
 // and exponential backoff retries. If expectedSha1 is non-empty, the downloaded file's
 // SHA1 is verified and the file is deleted and an error returned on mismatch.
@@ -55,7 +59,13 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 		}
 	}
 
-	tempDest := dest + ".tmp"
+	// Unique temp file per call: concurrent pipelines downloading the same
+	// library must never share a .tmp, or they corrupt each other's bytes
+	// (rename collisions on Windows, half-written checksum reads).
+	tempDest := fmt.Sprintf("%s.tmp-%d-%d", dest, os.Getpid(), atomic.AddUint64(&tmpCounter, 1))
+	// Clean up a stale legacy "<dest>.tmp" from older builds (nothing current
+	// uses the shared name anymore).
+	_ = os.Remove(dest + ".tmp")
 	maxRetries := 5
 
 	var lastErr error
@@ -66,8 +76,8 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 		if attemptErr == nil {
 			// Success — rename temp file to final destination
 			if err := os.Rename(tempDest, dest); err != nil {
-				// On Windows another goroutine may have already renamed the same
-				// .tmp file to dest (concurrent download of identical libs).
+				// On Windows another process may have already written dest
+				// (concurrent download of identical libs).
 				// If the destination now exists and its checksum is valid, we're done.
 				if len(expectedSha1) > 0 && expectedSha1[0] != "" {
 					if ok, _ := verifySha1(dest, expectedSha1[0]); ok {
@@ -82,28 +92,33 @@ func DownloadFile(ctx context.Context, url string, dest string, onProgress Progr
 				return fmt.Errorf("failed to rename temp file: %w", err)
 			}
 
-			// Verify checksum after successful download
+			// Verify checksum after successful download. A mismatch is
+			// retried (transient corruption) instead of aborting the call.
 			if len(expectedSha1) > 0 && expectedSha1[0] != "" {
 				if ok, gotHash := verifySha1(dest, expectedSha1[0]); !ok {
 					_ = os.Remove(dest)
-					return fmt.Errorf("checksum mismatch for %s: expected %s got %s", filepath.Base(dest), expectedSha1[0], gotHash)
+					lastErr = fmt.Errorf("checksum mismatch for %s: expected %s got %s", filepath.Base(dest), expectedSha1[0], gotHash)
+				} else {
+					return nil
 				}
+			} else {
+				return nil
 			}
-
-			return nil
+		} else {
+			lastErr = attemptErr
 		}
-
-		lastErr = attemptErr
 
 		// Exponential backoff: 1s, 2s, 4s, 8s…
 		select {
 		case <-ctx.Done():
+			_ = os.Remove(tempDest)
 			return ctx.Err()
 		case <-time.After(time.Duration(1<<i) * time.Second):
 			// Retry after delay
 		}
 	}
 
+	_ = os.Remove(tempDest)
 	return fmt.Errorf("failed to download %s after %d retries, last error: %w", filepath.Base(dest), maxRetries, lastErr)
 }
 

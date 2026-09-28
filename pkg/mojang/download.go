@@ -19,6 +19,32 @@ type DownloadEngine struct {
 	basePath string
 }
 
+var (
+	installMu     sync.Mutex
+	installActive = map[string]bool{}
+)
+
+// ClaimInstall marks an install pipeline as running for the given instance.
+// It returns false when a pipeline for the same instance is already running,
+// in which case the caller must not start another one. Every successful
+// claim must be paired with ReleaseInstall.
+func ClaimInstall(id string) bool {
+	installMu.Lock()
+	defer installMu.Unlock()
+	if installActive[id] {
+		return false
+	}
+	installActive[id] = true
+	return true
+}
+
+// ReleaseInstall clears the running mark for the given instance.
+func ReleaseInstall(id string) {
+	installMu.Lock()
+	defer installMu.Unlock()
+	delete(installActive, id)
+}
+
 func NewDownloadEngine(ctx context.Context, instanceID, basePath string) *DownloadEngine {
 	return &DownloadEngine{
 		ctx:      ctx,
