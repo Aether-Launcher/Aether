@@ -47,6 +47,11 @@ jobs:
             echo "::error::No release tag (neither dispatch input nor release event)."
             exit 1
           fi
+          # Tags are v-prefixed (v1.0.0-beta.19); tolerate a bare input.
+          case "$TAG" in
+            v*) ;;
+            *) TAG="v$TAG" ;;
+          esac
           if [ -z "${WEBHOOK_URL:-}" ]; then
             echo "::error::DISCORD_WEBHOOK_URL secret is not set."
             exit 1
