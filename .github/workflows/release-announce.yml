@@ -1,0 +1,145 @@
+name: Announce Release to Discord
+
+# Posts a rich release embed to Discord via channel webhook — the same format
+# as AetherBot's release announcements, with zero hosting (runs on Actions).
+#
+# SOP: upload ALL release assets BEFORE hitting Publish. The event payload
+# only carries already-uploaded assets, so publishing early posts an
+# asset-less embed.
+#
+# Setup (once per repo):
+#   1. Discord channel settings → Integrations → Webhooks → New Webhook → copy URL.
+#   2. Repo Settings → Secrets → Actions → add DISCORD_WEBHOOK_URL.
+#   3. (Optional) Repo Settings → Variables → Actions → add RELEASE_ROLE_ID
+#      (numeric role id) to mention a role on every announcement.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to announce (e.g. v1.0.0-beta.19)'
+        required: true
+
+jobs:
+  announce:
+    name: Post Discord embed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for previous-tag lookup)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Build and post embed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ROLE_ID: ${{ vars.RELEASE_ROLE_ID }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [ -z "${TAG:-}" ]; then
+            echo "::error::No release tag (neither dispatch input nor release event)."
+            exit 1
+          fi
+          if [ -z "${WEBHOOK_URL:-}" ]; then
+            echo "::error::DISCORD_WEBHOOK_URL secret is not set."
+            exit 1
+          fi
+          REPO="${GITHUB_REPOSITORY}"
+          echo "Announcing $REPO@$TAG"
+
+          REL=$(curl -sSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+          if [ "$(echo "$REL" | jq -r '.tag_name // empty')" != "$TAG" ]; then
+            echo "::error::Release $TAG not found via API."
+            echo "$REL" | jq -c '{message, documentation_url} | del(.. | nulls)'
+            exit 1
+          fi
+
+          NAME=$(echo "$REL" | jq -r '.name // empty')
+          if [ -z "$NAME" ]; then
+            NAME="$TAG"
+          fi
+          BODY=$(echo "$REL" | jq -r '.body // ""')
+          PRERELEASE=$(echo "$REL" | jq -r '.prerelease')
+          HTML_URL=$(echo "$REL" | jq -r '.html_url')
+          PUBLISHED_AT=$(echo "$REL" | jq -r '.published_at')
+
+          # Previous tag for the Full Changelog compare link.
+          PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          if [ -n "$PREV" ]; then
+            COMPARE="https://github.com/$REPO/compare/${PREV}...${TAG}"
+            if ! grep -qi "full changelog" <<< "$BODY"; then
+              BODY="${BODY}
+
+          Full Changelog: $COMPARE"
+            fi
+          fi
+
+          PUBLISHED_FMT=$(date -u -d "$PUBLISHED_AT" +"%B %-d, %Y" 2>/dev/null || echo "$PUBLISHED_AT")
+          if [ "$PRERELEASE" = "true" ]; then
+            COLOR=15760137; EMOJI="🧪"; STATUS="🧪 Prerelease"
+          else
+            COLOR=6000622; EMOJI="🚀"; STATUS="✅ Stable"
+          fi
+          CONTENT=""
+          if [ -n "${ROLE_ID:-}" ]; then
+            CONTENT="<@&$ROLE_ID>"
+          fi
+
+          ASSET_COUNT=$(echo "$REL" | jq '(.assets // []) | length')
+          ASSET_LINES=$(echo "$REL" | jq -r '(.assets // [])[:8] | map("• [\(.name)](\(.browser_download_url)) — \((.size / 1048576 * 10 | round / 10)) MB") | join("\n")')
+
+          PAYLOAD=$(jq -n \
+            --arg content "$CONTENT" \
+            --arg title "$EMOJI $NAME" \
+            --arg url "$HTML_URL" \
+            --arg body "$BODY" \
+            --argjson color "$COLOR" \
+            --arg status "$STATUS" \
+            --arg tag "\`$TAG\`" \
+            --arg published "$PUBLISHED_FMT" \
+            --arg assets "$ASSET_LINES" \
+            --argjson acount "$ASSET_COUNT" \
+            --arg ts "$PUBLISHED_AT" \
+            '{
+              content: $content,
+              embeds: [{
+                title: $title,
+                url: $url,
+                description: ($body | .[0:3800]),
+                color: $color,
+                author: { name: "Aether Release" },
+                fields: (
+                  [
+                    { name: "Status", value: $status, inline: true },
+                    { name: "Tag", value: $tag, inline: true },
+                    { name: "Published", value: $published, inline: true }
+                  ] + (if $acount > 0 then [{
+                    name: "📦 Assets (\($acount))",
+                    value: ($assets | .[0:1024]),
+                    inline: false
+                  }] else [] end)
+                ),
+                footer: { text: "AetherBot • Aether Extension Ecosystem" },
+                timestamp: $ts
+              }]
+            }')
+
+          CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL")
+          if [ "$CODE" != "200" ] && [ "$CODE" != "204" ]; then
+            echo "::error::Discord webhook returned HTTP $CODE."
+            exit 1
+          fi
+          echo "Posted $TAG to Discord (HTTP $CODE)."
