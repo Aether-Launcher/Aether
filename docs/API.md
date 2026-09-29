@@ -108,21 +108,28 @@ Aether.ui.postMessage({ type: 'download_progress', percent: 50 });
 Because the frontend runs in an isolated `<iframe>`, you use standard Web APIs (`window.postMessage`) to talk to the bridge, and listen for responses via `window.addEventListener('message')`.
 
 ```javascript
-// Send a message to your backend script
-// Uses computed target origin instead of '*' to prevent message spoofing
-const targetOrigin = window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+// Send a message to your backend script. Every request carries an
+// incrementing requestId; responses echo it back for correlation.
+let requestId = 0;
+const pending = {};
 window.parent.postMessage({
-    action: 'download_mod',
+    type: 'download_mod',
+    requestId: ++requestId,
     instanceId: 'fabric-1.20',
     jarName: 'my-mod.jar',
     url: 'https://example.com/mod.jar',
-    __aether: true // Marker so the backend only responds to our messages
-}, targetOrigin);
+    // targetOrigin is "*" on purpose: window.location is the iframe's own
+    // origin while window.parent is the Wails webview, so a computed
+    // origin never matches and messages are silently dropped.
+    // requestId correlation is the actual boundary.
+}, '*');
 
-// Listen for responses or pushed messages from the backend script
-// Only accept messages from the launcher parent with our __aether marker
+// Listen for responses or pushed messages from the backend script.
+// Backend payloads are forwarded as-is (no marker) — match ONLY on
+// requestId, or every reply is dropped.
 window.addEventListener('message', (event) => {
-    if (event.source !== window.parent || event.data.__aether !== true) return;
+    const msg = event.data;
+    if (!msg || msg.requestId == null || !pending[msg.requestId]) return;
     if (event.data.status === 'success') {
         console.log("Mod downloaded to: ", event.data.path);
     }

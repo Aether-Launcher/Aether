@@ -64,9 +64,13 @@ h2 {
 }
 
 .list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 8px;
+}
+
+.list > * {
+  min-width: 0;
 }
 
 .empty {
