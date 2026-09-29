@@ -74,16 +74,16 @@ export function GetExtensions() {
   return window['go']['main']['App']['GetExtensions']();
 }
 
-export function GetInstances() {
-  return window['go']['main']['App']['GetInstances']();
-}
-
 export function GetInstanceIcon(arg1) {
   return window['go']['main']['App']['GetInstanceIcon'](arg1);
 }
 
 export function GetInstanceIcons() {
   return window['go']['main']['App']['GetInstanceIcons']();
+}
+
+export function GetInstances() {
+  return window['go']['main']['App']['GetInstances']();
 }
 
 export function GetJavaStatus() {
@@ -124,6 +124,18 @@ export function InstallInstance(arg1) {
 
 export function LaunchInstance(arg1) {
   return window['go']['main']['App']['LaunchInstance'](arg1);
+}
+
+export function LaunchInstanceToServer(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LaunchInstanceToServer'](arg1, arg2, arg3);
+}
+
+export function LaunchInstanceToWorld(arg1, arg2) {
+  return window['go']['main']['App']['LaunchInstanceToWorld'](arg1, arg2);
+}
+
+export function ListInstanceWorlds(arg1) {
+  return window['go']['main']['App']['ListInstanceWorlds'](arg1);
 }
 
 export function LoginOffline(arg1) {

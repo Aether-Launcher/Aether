@@ -46,11 +46,11 @@ export function GetExtensionUpdates():Promise<Array<extensions.ExtensionUpdate>>
 
 export function GetExtensions():Promise<Array<extensions.Extension>>;
 
-export function GetInstances():Promise<Array<instance.Instance>>;
-
 export function GetInstanceIcon(arg1:string):Promise<string>;
 
-export function GetInstanceIcons():Promise<{[key: string]: string}>;
+export function GetInstanceIcons():Promise<Record<string, string>>;
+
+export function GetInstances():Promise<Array<instance.Instance>>;
 
 export function GetJavaStatus():Promise<Array<main.JavaRuntimeStatus>>;
 
@@ -71,6 +71,12 @@ export function GetThemes():Promise<Array<theme.Info>>;
 export function InstallInstance(arg1:string):Promise<void>;
 
 export function LaunchInstance(arg1:string):Promise<void>;
+
+export function LaunchInstanceToServer(arg1:string,arg2:string,arg3:number):Promise<void>;
+
+export function LaunchInstanceToWorld(arg1:string,arg2:string):Promise<void>;
+
+export function ListInstanceWorlds(arg1:string):Promise<Array<instance.WorldInfo>>;
 
 export function LoginOffline(arg1:string):Promise<auth.Account>;
 

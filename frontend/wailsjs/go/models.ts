@@ -108,6 +108,24 @@ export namespace instance {
 	        this.installed = source["installed"];
 	    }
 	}
+	export class WorldInfo {
+	    id: string;
+	    name: string;
+	    lastPlayed?: number;
+	    gameMode?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorldInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.lastPlayed = source["lastPlayed"];
+	        this.gameMode = source["gameMode"];
+	    }
+	}
 
 }
 
