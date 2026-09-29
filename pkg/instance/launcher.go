@@ -57,6 +57,13 @@ func launchLogf(format string, args ...interface{}) {
 
 // Launch spawns the Minecraft process with the correct arguments
 func Launch(ctx context.Context, inst *Instance) error {
+	return launch(ctx, inst, nil)
+}
+
+// launch is the shared implementation behind Launch/LaunchToServer/
+// LaunchToWorld. extraGameArgs are appended after the version's game
+// arguments (used for --server/--port and Quick Play flags).
+func launch(ctx context.Context, inst *Instance, extraGameArgs []string) error {
 	instanceDir := filepath.Join(fs.GetDataDir(), "instances", inst.ID)
 	assetsDir := fs.GetAssetsDir()
 
@@ -165,7 +172,7 @@ func Launch(ctx context.Context, inst *Instance) error {
 	mainClass := versionInfo.MainClass
 	cpArray := strings.Split(classpath, string(os.PathListSeparator))
 	var extraJVMArgs []string
-	var extraGameArgs []string
+	var loaderGameArgs []string
 
 	if inst.Loader != "" && !strings.EqualFold(inst.Loader, "vanilla") {
 		launchLogf("Modded launch requested: loader=%q version=%s", inst.Loader, inst.Version)
@@ -225,13 +232,13 @@ func Launch(ctx context.Context, inst *Instance) error {
 			extraJVMArgs = args
 		}
 		if args, ok := stringSliceFromInterface(modified["gameArgs"]); ok {
-			extraGameArgs = args
+			loaderGameArgs = args
 		}
 
 		// Rebuild classpath variable for substitution
 		vars["${classpath}"] = strings.Join(cpArray, string(os.PathListSeparator))
 		launchLogf("Loader '%s' OK: mainClass=%s classpathEntries=%d jvmArgs=%d gameArgs=%d",
-			inst.Loader, mainClass, len(cpArray), len(extraJVMArgs), len(extraGameArgs))
+			inst.Loader, mainClass, len(cpArray), len(extraJVMArgs), len(loaderGameArgs))
 	}
 
 	// Resolve JVM arguments from version JSON
@@ -293,8 +300,13 @@ func Launch(ctx context.Context, inst *Instance) error {
 		gameArgs = strings.Fields(versionInfo.MinecraftArguments)
 	}
 	gameArgs = substituteVars(gameArgs, vars)
+	if len(loaderGameArgs) > 0 {
+		gameArgs = append(gameArgs, substituteVars(loaderGameArgs, vars)...)
+	}
+	// Quick-connect / Quick Play flags come last so they are never swallowed
+	// by loader argument handling.
 	if len(extraGameArgs) > 0 {
-		gameArgs = append(gameArgs, substituteVars(extraGameArgs, vars)...)
+		gameArgs = append(gameArgs, extraGameArgs...)
 	}
 
 	// Construct full command: java [jvm args] mainClass [game args]

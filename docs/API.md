@@ -47,6 +47,14 @@ The capability is present for compatibility, but `Aether.ui.openDialog()` is cur
   - **enable** (Boolean): True to enable, false to disable.
   - Disabling a mod renames it to `.jar.disabled`. Enabling it renames it back to `.jar`.
 
+### Worlds and Quick Launch (`saves:list`, `instances:launch`)
+- `Aether.instances.listWorlds(instanceId)` (requires `saves:list`)
+  - Returns singleplayer worlds from the instance's `saves/` folder: `[{ id, name, lastPlayed, gameMode }]`, most recently played first. `name` comes from `level.dat`; worlds with an unreadable `level.dat` still appear under their folder name.
+- `Aether.instances.launchToServer(instanceId, host, port)` (requires `instances:launch`)
+  - Launches the game and auto-connects via the vanilla `--server`/`--port` flags (all versions). Hosts must not contain whitespace or start with `-`; ports are clamped to 1–65535.
+- `Aether.instances.launchToWorld(instanceId, world)` (requires `instances:launch`)
+  - Launches the game and auto-loads a singleplayer world via Mojang Quick Play (`--quickPlaySingleplayer`). Requires Minecraft 1.20+; older instances return an error. `world` is the saves folder name, confined to `saves/` (traversal rejected) and must contain a `level.dat`.
+
 ### Mod Loader Registration (`launcher:modloader`)
 Allows the extension to register a custom mod loader that Aether can use to launch instances.
 
@@ -176,6 +184,65 @@ Requires `discord:presence` permission. Works only if Discord desktop is running
 
 Legacy planned names `instance:launch`/`instance:stop` remain supported as aliases for `instance:state` with `Running`/`Stopped`.
 
+## Multiplayer Servers (`servers:list`, `servers:manage`)
+
+Extensions can read the multiplayer server list and manage extension-owned
+server directories. Server hosting processes (`start`/`stop`) are a planned
+v2 addition and are not available yet.
+
+Requires `servers:list` and/or `servers:manage`.
+
+- `Aether.servers.list(instanceId)`
+  - Returns the instance's `servers.dat` entries: `[{ name, ip, hidden, hasIcon }]`.
+- `Aether.servers.ping(hostport)`
+  - Pings a server (`"mc.example.com"` or `"mc.example.com:25566"`, default port 25565) using the status protocol.
+  - Returns `{ online, host, port, motd, playersOnline, playersMax, version, protocol, latencyMs }`.
+  - Unreachable servers yield `{ online: false }`, not an error. Only malformed input throws.
+  - Gated on `servers:list` because targets are user-entered — the `network:http` host allow-list cannot apply.
+- `Aether.servers.listWithStatus(instanceId, timeoutMs?)`
+  - Bulk list: `servers.dat` entries with live status attached — `[{ name, ip, hidden, online, host, port, motd, playersOnline, playersMax, version, latencyMs }]`.
+  - Pings run concurrently in Go (max 6) with a per-server budget (`timeoutMs`, default 3000, clamped 500–10000), so one dead server can't stall the list.
+  - Results are cached per `servers.dat` content (mtime+size, 45 s TTL): revisits are instant, in-game edits invalidate immediately.
+  - Prefer this over `list()`+`ping()` loops — the sandbox is single-threaded and sequential pings take seconds per dead server.
+
+All struct shapes crossing the bridge expose lowercase `json` names (`row.name`, never `row.Name`) — guaranteed by the sandbox field mapper and pinned by `TestSandboxStructKeysUseJSONTags`.
+- `Aether.servers.create(id, name?)`
+  - Creates `servers/<id>/` with a starter `server.properties`. Returns `{ id, name }`.
+- `Aether.servers.listServers()`
+  - Returns `[{ id, name }]` for every managed server directory.
+- `Aether.servers.delete(instanceId)`
+  - Deletes `servers/<id>/` after the standard user confirmation.
+- `Aether.servers.readFile(instanceId, relpath)`
+  - Returns a text file inside `servers/<id>/` as UTF-8 (5 MiB cap).
+- `Aether.servers.writeFile(instanceId, relpath, base64Data)`
+  - Writes base64 content inside `servers/<id>/` (5 MiB cap, atomic write).
+
+Paths stay inside `servers/<id>/` (traversal rejected), and single files are
+capped at 5 MiB.
+
+### Server Processes (`servers:process`)
+Supervised game-server processes (Paper/Purpur/vanilla jars). The launcher
+owns the child process: extensions can start, stop, query, and send console
+input, but never receive handles, PIDs for reuse, or shell access. Output
+streams into `server:log` events; transitions emit `server:state`.
+
+- `Aether.servers.start(id, opts?)`
+  - `opts`: `{ mcVersion?, memoryMB?, jarName?, extraArgs?[] }`. Memory defaults
+    to 2048, clamped to 512–16384. `jarName` defaults to auto-detect
+    (`paper-*.jar`, `purpur-*.jar`, then `server.jar`). `mcVersion` defaults
+    to detection from the jar filename.
+  - Fails with an EULA error when `eula.txt` is not accepted — show a
+    confirmation dialog, then call `acceptEula` and retry. Never accept silently.
+  - Fails when the server is already running, when 2 servers already run, or
+    when the configured port is in use. Requires a compatible Java, which the
+    launcher resolves (managed → system → download).
+- `Aether.servers.stop(id)` — sends `stop` for graceful shutdown, kills after 10 s.
+- `Aether.servers.status(id)` — `{ id, running, pid?, startedAt?, port?, mcVersion? }`.
+- `Aether.servers.send(id, command)` — writes a console line to stdin (4 KB cap).
+- `Aether.servers.acceptEula(id)` — writes `eula=true`. Call only after explicit user confirmation.
+- `Aether.servers.eulaStatus(id)` — `true` when `eula.txt` accepts the EULA.
+- `Aether.servers.recentLogs(id, n?)` — last buffered log lines, newest last.
+
 ## API Version Negotiation
 Extensions may declare an `api` version in their manifest. The current launcher does not negotiate API versions or enforce `minApi` and `maxApi` ranges; those fields are planned compatibility metadata.
 
@@ -194,6 +261,11 @@ Current permissions recognized by the runtime:
 - `launcher:modloader`
 - `skin:export`
 - `discord:presence`
+- `servers:list`
+- `servers:manage`
+- `servers:process`
+- `saves:list`
+- `instances:launch`
 
 The legacy `instances:patch` permission is still recognized for migration and grants the current instance/mod capabilities. New extensions should use the granular permissions above.
 

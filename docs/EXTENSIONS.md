@@ -97,6 +97,11 @@ Extensions operate under a principle of least privilege. You must explicitly req
 - `launcher:modloader`: Register a launch-time mod-loader callback.
 - `skin:export`: Write base64 data below the shared `skins` directory.
 - `discord:presence`: Update Discord Rich Presence via `Aether.discord.setActivity` / `clearActivity` and subscribe to `Aether.events.on('instance:state')`.
+- `servers:list`: Read `servers.dat` from instances and ping servers (`Aether.servers.list` / `Aether.servers.ping`).
+- `servers:manage`: Create, list, delete, and read/write files inside `servers/<id>/` directories. Deleting a server asks for user confirmation.
+- `servers:process`: Start, stop, query, and send console input to supervised server processes (`Aether.servers.start` / `stop` / `status` / `send`), with log streaming via `server:log`. EULA acceptance requires explicit user confirmation (`Aether.servers.acceptEula`). Max 2 concurrent servers.
+- `saves:list`: List singleplayer worlds of an instance (`Aether.instances.listWorlds`). Read-only world metadata (names, last played, game mode).
+- `instances:launch`: Launch the game, optionally quick-connecting to a server or world (`Aether.instances.launchToServer` / `launchToWorld`). Granted at install time; launching is a visible user action so no per-click confirmation is shown.
 
 The legacy `instances:patch` permission remains supported for migration and grants the current instance/mod capabilities. New extensions should use the granular permissions above.
 

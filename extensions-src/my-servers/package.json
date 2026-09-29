@@ -1,0 +1,9 @@
+{
+  "name": "my-servers",
+  "version": "1.0.0",
+  "description": "My Servers",
+  "main": "main.js",
+  "devDependencies": {
+    "@aether/sdk": "file:../../../Aether-SDK"
+  }
+}

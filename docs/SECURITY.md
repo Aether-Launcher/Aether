@@ -16,7 +16,7 @@ If an extension needs to communicate with an external API, it must declare allow
 ```
 
 ## Capability Model
-The runtime uses a capability-based model. An extension only receives the API objects associated with its declared permissions. Calls to unavailable capabilities fail in the JavaScript runtime. The current instance capability is limited to listing instances and installing, listing, deleting, or toggling mods; it does not provide general instance JSON or log access.
+The runtime uses a capability-based model. An extension only receives the API objects associated with its declared permissions. Calls to unavailable capabilities fail in the JavaScript runtime. The current instance capability is limited to listing instances and installing, listing, deleting, or toggling mods; it does not provide general instance JSON or log access. The separate `saves:list` permission exposes singleplayer world names only, and `instances:launch` can start the game (optionally quick-connecting to a user-chosen server or world) — both are install-time grants with no access to credentials or arbitrary files.
 
 ## Registry Trust
 The extension gallery can assign trust labels such as Official, Verified, Community, or Local. These labels are registry metadata displayed by the launcher; the current application does not perform automated code analysis, quarantine extensions, or enforce a maintainer review workflow.

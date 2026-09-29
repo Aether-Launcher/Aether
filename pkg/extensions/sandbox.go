@@ -18,6 +18,7 @@ import (
 	"Aether/pkg/discord"
 	"Aether/pkg/fs"
 	"Aether/pkg/netutil"
+	"Aether/pkg/servers"
 	"github.com/dop251/goja"
 )
 
@@ -140,11 +141,21 @@ func NewSandbox(
 	deleteScreenshot func(instanceID, fileName string) error,
 	openScreenshot func(instanceID, fileName string) error,
 	getScreenshotData func(instanceID, fileName string) (string, error),
+	listWorlds func(instanceID string) ([]map[string]interface{}, error),
+	launchToServer func(instanceID, host string, port int) error,
+	launchToWorld func(instanceID, world string) error,
 ) *Sandbox {
 	if emit == nil {
 		emit = func(_ context.Context, _ string, _ ...interface{}) {}
 	}
 	vm := goja.New()
+	// Honor `json` tags when exporting Go structs (ServerEntry, ServerInfo,
+	// ServerStatus, PingResult...). Without this, vm.ToValue exposes
+	// capitalized Go field names ("Name", "IP") while every doc and extension
+	// expects the lowercase JSON names ("name", "ip") — a mismatch that
+	// surfaces as mysteriously null fields in extension UIs. Untagged structs
+	// keep the previous field-name behavior.
+	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 	sb := &Sandbox{
 		ctx:           ctx,
 		vm:            vm,
@@ -326,7 +337,7 @@ func NewSandbox(
 
 	// Instance and mod capabilities are independently controlled. The legacy
 	// instances:patch permission is accepted by HasAnyPermission for migration.
-	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install", "resourcepacks:install", "shaderpacks:install", "screenshots:read", "screenshots:write") {
+	if manifest.HasAnyPermission("instances:list", "mods:list", "mods:install", "mods:delete", "mods:toggle", "modpacks:install", "resourcepacks:install", "shaderpacks:install", "screenshots:read", "screenshots:write", "saves:list", "instances:launch") {
 		instancesObj := vm.NewObject()
 
 		if manifest.HasAnyPermission("instances:list") {
@@ -612,7 +623,257 @@ func NewSandbox(
 			})
 		}
 
+		// Capability: saves:list — singleplayer world metadata (level.dat
+		// names). Read-only; reveals world names but no file contents.
+		if manifest.HasAnyPermission("saves:list") {
+			instancesObj.Set("listWorlds", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				if listWorlds == nil {
+					panic(vm.NewGoError(fmt.Errorf("listWorlds not available")))
+				}
+				worlds, err := listWorlds(instanceID)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(worlds)
+			})
+		}
+
+		// Capability: instances:launch — start the game, optionally
+		// quick-connecting to a server or world. Granted at install time;
+		// no per-click confirm so Play buttons stay one click.
+		if manifest.HasAnyPermission("instances:launch") {
+			instancesObj.Set("launchToServer", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				host := call.Argument(1).String()
+				port := int(call.Argument(2).ToInteger())
+				if launchToServer == nil {
+					panic(vm.NewGoError(fmt.Errorf("launchToServer not available")))
+				}
+				if err := launchToServer(instanceID, host, port); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			instancesObj.Set("launchToWorld", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				world := call.Argument(1).String()
+				if launchToWorld == nil {
+					panic(vm.NewGoError(fmt.Errorf("launchToWorld not available")))
+				}
+				if err := launchToWorld(instanceID, world); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+		}
+
 		aetherObj.Set("instances", instancesObj)
+	}
+
+	// Capability: servers:list + servers:manage + servers:process —
+	// multiplayer server lists (servers.dat), extension-managed server
+	// directories, and supervised server processes.
+	if manifest.HasAnyPermission("servers:list", "servers:manage", "servers:process") {
+		serversObj := vm.NewObject()
+
+		if manifest.HasAnyPermission("servers:list") {
+			serversObj.Set("list", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				entries, err := servers.ReadInstanceServers(instanceID)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(entries)
+			})
+			// Ping is gated on servers:list: target hosts are user-entered,
+			// so the network:http host allow-list cannot apply.
+			serversObj.Set("ping", func(call goja.FunctionCall) goja.Value {
+				hostport := call.Argument(0).String()
+				res, err := servers.Ping(hostport)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(map[string]interface{}{
+					"online":        res.Online,
+					"host":          res.Host,
+					"port":          res.Port,
+					"motd":          res.MOTD,
+					"playersOnline": res.PlayersOnline,
+					"playersMax":    res.PlayersMax,
+					"version":       res.Version,
+					"protocol":      res.Protocol,
+					"latencyMs":     res.LatencyMs,
+				})
+			})
+
+			// Bulk list with live status: pings run concurrently in Go with a
+			// per-server budget and the result is cached per servers.dat
+			// content, so page revisits are instant. Prefer this over
+			// list()+ping() loops, which stall on each dead server in turn.
+			serversObj.Set("listWithStatus", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				timeoutMs := 3000
+				if len(call.Arguments) > 1 {
+					timeoutMs = int(call.Argument(1).ToInteger())
+				}
+				if timeoutMs < 500 {
+					timeoutMs = 500
+				}
+				if timeoutMs > 10000 {
+					timeoutMs = 10000
+				}
+				rows, err := servers.ListServersWithStatus(instanceID, time.Duration(timeoutMs)*time.Millisecond)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(rows)
+			})
+		}
+
+		if manifest.HasAnyPermission("servers:manage") {
+			serversObj.Set("create", func(call goja.FunctionCall) goja.Value {
+				id := call.Argument(0).String()
+				name := ""
+				if len(call.Arguments) > 1 {
+					name = call.Argument(1).String()
+				}
+				info, err := servers.CreateServer(id, name)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(map[string]interface{}{"id": info.ID, "name": info.Name})
+			})
+			serversObj.Set("listServers", func(call goja.FunctionCall) goja.Value {
+				list, err := servers.ListServers()
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(list)
+			})
+			serversObj.Set("delete", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "delete server",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied server deletion")))
+				}
+				if err := servers.DeleteServer(instanceID); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			serversObj.Set("readFile", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				rel := call.Argument(1).String()
+				content, err := servers.ReadServerFile(instanceID, rel)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(content)
+			})
+			serversObj.Set("writeFile", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				rel := call.Argument(1).String()
+				b64 := call.Argument(2).String()
+				if err := servers.WriteServerFile(instanceID, rel, b64); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+		}
+
+		if manifest.HasAnyPermission("servers:process") {
+			serversObj.Set("start", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				var opts servers.StartOptions
+				if len(call.Arguments) > 1 {
+					if exported, ok := call.Argument(1).Export().(map[string]interface{}); ok {
+						if s, ok := exported["mcVersion"].(string); ok {
+							opts.MCVersion = s
+						}
+						if f, ok := exported["memoryMB"].(float64); ok {
+							opts.MemoryMB = int(f)
+						}
+						if s, ok := exported["jarName"].(string); ok {
+							opts.JarName = s
+						}
+						if arr, ok := exported["extraArgs"].([]any); ok {
+							for _, a := range arr {
+								if s, ok := a.(string); ok {
+									opts.ExtraArgs = append(opts.ExtraArgs, s)
+								}
+							}
+						}
+					}
+				}
+				st, err := servers.StartServer(sb.ctx, instanceID, opts)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(st)
+			})
+			serversObj.Set("stop", func(call goja.FunctionCall) goja.Value {
+				if err := servers.StopServer(call.Argument(0).String()); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			serversObj.Set("status", func(call goja.FunctionCall) goja.Value {
+				st, err := servers.Status(call.Argument(0).String())
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(st)
+			})
+			serversObj.Set("send", func(call goja.FunctionCall) goja.Value {
+				if err := servers.SendCommand(call.Argument(0).String(), call.Argument(1).String()); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			serversObj.Set("eulaStatus", func(call goja.FunctionCall) goja.Value {
+				accepted, err := servers.EulaAccepted(call.Argument(0).String())
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(accepted)
+			})
+			serversObj.Set("acceptEula", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				if confirm != nil && !confirm(map[string]interface{}{
+					"action":        "accept server EULA",
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"instanceId":    instanceID,
+				}) {
+					panic(vm.NewGoError(fmt.Errorf("user denied EULA acceptance")))
+				}
+				if err := servers.SetEulaAccepted(instanceID); err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return goja.Undefined()
+			})
+			serversObj.Set("recentLogs", func(call goja.FunctionCall) goja.Value {
+				instanceID := call.Argument(0).String()
+				n := 100
+				if len(call.Arguments) > 1 {
+					if f, ok := call.Argument(1).Export().(float64); ok && f > 0 {
+						n = int(f)
+					}
+				}
+				logs, err := servers.RecentLogs(instanceID, n)
+				if err != nil {
+					panic(vm.NewGoError(err))
+				}
+				return vm.ToValue(logs)
+			})
+		}
+
+		aetherObj.Set("servers", serversObj)
 	}
 
 	// Capability: launcher:modloader

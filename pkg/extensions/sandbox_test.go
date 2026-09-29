@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"Aether/pkg/servers"
 )
 
 func TestSandboxCapabilities(t *testing.T) {
@@ -35,6 +37,9 @@ func TestSandboxCapabilities(t *testing.T) {
 		nil, // deleteScreenshot
 		nil, // openScreenshot
 		nil, // getScreenshotData
+		nil, // listWorlds
+		nil, // launchToServer
+		nil, // launchToWorld
 	)
 
 	// This should succeed without panic
@@ -72,6 +77,9 @@ func TestSandboxCapabilities(t *testing.T) {
 		nil, // deleteScreenshot
 		nil, // openScreenshot
 		nil, // getScreenshotData
+		nil, // listWorlds
+		nil, // launchToServer
+		nil, // launchToWorld
 	)
 
 	// This should throw a JS error because Aether.ui is undefined
@@ -91,7 +99,7 @@ func TestSandboxURLAllowList(t *testing.T) {
 		Hosts:       []string{"example.com"},
 	}
 	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	if err := sandbox.Execute(`Aether.http.get("https://example.com.evil.test/data");`); err == nil {
 		t.Fatal("expected a deceptive hostname to be rejected")
@@ -111,7 +119,7 @@ func TestSandboxGranularModPermissionAndConfirmation(t *testing.T) {
 		Permissions: []string{"mods:install"},
 		Hosts:       []string{"example.com"},
 	}
-	sandbox := NewSandbox(context.Background(), manifest, "http://localhost", nil, nil, nil, install, nil, nil, nil, nil, confirm, nil, nil, nil, nil, nil, nil, nil)
+	sandbox := NewSandbox(context.Background(), manifest, "http://localhost", nil, nil, nil, install, nil, nil, nil, nil, confirm, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err := sandbox.Execute(`Aether.instances.installMod("instance", "mod.jar", "https://example.com/mod.jar");`); err == nil {
 		t.Fatal("expected denied confirmation to stop mod installation")
 	}
@@ -120,9 +128,130 @@ func TestSandboxGranularModPermissionAndConfirmation(t *testing.T) {
 	}
 
 	listOnly := Manifest{ID: "com.test.list", Permissions: []string{"instances:list"}}
-	listSandbox := NewSandbox(context.Background(), listOnly, "http://localhost", nil, nil, nil, install, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	listSandbox := NewSandbox(context.Background(), listOnly, "http://localhost", nil, nil, nil, install, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err := listSandbox.Execute(`Aether.instances.installMod("instance", "mod.jar", "https://example.com/mod.jar");`); err == nil {
 		t.Fatal("expected list-only extension to lack installMod")
+	}
+}
+
+func TestSandboxLaunchCapabilityGating(t *testing.T) {
+	mk := func(perms ...string) *Sandbox {
+		return NewSandbox(context.Background(),
+			Manifest{ID: "com.test.launch", Permissions: perms},
+			"http://localhost",
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	}
+
+	saves := mk("saves:list")
+	if err := saves.Execute(`
+		if (typeof Aether.instances.listWorlds !== "function") throw new Error("listWorlds missing");
+		if (typeof Aether.instances.launchToServer !== "undefined") throw new Error("launchToServer must be absent");
+		if (typeof Aether.instances.launchToWorld !== "undefined") throw new Error("launchToWorld must be absent");
+	`); err != nil {
+		t.Fatalf("saves:list gating: %v", err)
+	}
+
+	launch := mk("instances:launch")
+	if err := launch.Execute(`
+		if (typeof Aether.instances.launchToServer !== "function") throw new Error("launchToServer missing");
+		if (typeof Aether.instances.launchToWorld !== "function") throw new Error("launchToWorld missing");
+		if (typeof Aether.instances.listWorlds !== "undefined") throw new Error("listWorlds must be absent");
+		if (typeof Aether.instances.list !== "undefined") throw new Error("list must be absent");
+	`); err != nil {
+		t.Fatalf("instances:launch gating: %v", err)
+	}
+
+	none := mk()
+	if err := none.Execute(`if (typeof Aether.instances !== "undefined") throw new Error("instances must be absent");`); err != nil {
+		t.Fatalf("no-permission gating: %v", err)
+	}
+}
+
+// TestSandboxStructKeysUseJSONTags pins the lowercase key contract: Go
+// structs crossing the bridge (ServerEntry, ServerInfo, ServerStatus) must
+// expose their `json` names ("name", "ip") — never Go field names ("Name",
+// "IP"). A regression here surfaces in extension UIs as null fields.
+func TestSandboxStructKeysUseJSONTags(t *testing.T) {
+	manifest := Manifest{ID: "com.test.keys", Permissions: []string{"servers:list"}}
+	sb := NewSandbox(context.Background(), manifest, "http://localhost",
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	// NOTE: goja keeps Go structs as-is on Export(), so the assertion must
+	// read through JS itself — exactly what extensions do.
+	check := func(name string, value interface{}, script string) {
+		t.Helper()
+		if err := sb.vm.Set("probe", value); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		v, err := sb.vm.RunString(script)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if v.String() != "true" {
+			t.Errorf("%s: key assertion failed", name)
+		}
+	}
+	check("ServerEntry",
+		servers.ServerEntry{Name: "n", IP: "h"},
+		`probe.name === "n" && probe.ip === "h" && probe.Name === undefined && probe.IP === undefined`)
+	check("ServerInfo",
+		servers.ServerInfo{ID: "i", Name: "n"},
+		`probe.id === "i" && probe.name === "n" && probe.ID === undefined`)
+	check("ServerStatus",
+		servers.ServerStatus{ID: "i", Running: true},
+		`probe.id === "i" && probe.running === true && probe.Running === undefined`)
+	check("ServerRow",
+		servers.ServerRow{Name: "n", IP: "h", Online: true},
+		`probe.name === "n" && probe.online === true && probe.Name === undefined`)
+}
+
+func TestSandboxServersCapabilityGating(t *testing.T) {
+	mk := func(perms ...string) *Sandbox {
+		return NewSandbox(context.Background(),
+			Manifest{ID: "com.test.servers", Permissions: perms},
+			"http://localhost",
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	}
+
+	listOnly := mk("servers:list")
+	if err := listOnly.Execute(`
+		if (typeof Aether.servers !== "object") throw new Error("servers missing");
+		if (typeof Aether.servers.list !== "function") throw new Error("list missing");
+		if (typeof Aether.servers.ping !== "function") throw new Error("ping missing");
+		if (typeof Aether.servers.create !== "undefined") throw new Error("create must be absent");
+		if (typeof Aether.servers.delete !== "undefined") throw new Error("delete must be absent");
+	`); err != nil {
+		t.Fatalf("servers:list gating: %v", err)
+	}
+
+	manageOnly := mk("servers:manage")
+	if err := manageOnly.Execute(`
+		if (typeof Aether.servers !== "object") throw new Error("servers missing");
+		if (typeof Aether.servers.create !== "function") throw new Error("create missing");
+		if (typeof Aether.servers.listServers !== "function") throw new Error("listServers missing");
+		if (typeof Aether.servers.delete !== "function") throw new Error("delete missing");
+		if (typeof Aether.servers.readFile !== "function") throw new Error("readFile missing");
+		if (typeof Aether.servers.writeFile !== "function") throw new Error("writeFile missing");
+		if (typeof Aether.servers.list !== "undefined") throw new Error("list must be absent");
+		if (typeof Aether.servers.ping !== "undefined") throw new Error("ping must be absent");
+	`); err != nil {
+		t.Fatalf("servers:manage gating: %v", err)
+	}
+
+	none := mk("instances:list")
+	if err := none.Execute(`if (typeof Aether.servers !== "undefined") throw new Error("servers must be absent");`); err != nil {
+		t.Fatalf("no-servers-permission gating: %v", err)
+	}
+
+	proc := mk("servers:process")
+	if err := proc.Execute(`
+		if (typeof Aether.servers !== "object") throw new Error("servers missing");
+		for (const fn of ["start", "stop", "status", "send", "acceptEula", "eulaStatus", "recentLogs"]) {
+			if (typeof Aether.servers[fn] !== "function") throw new Error(fn + " missing");
+		}
+		if (typeof Aether.servers.list !== "undefined") throw new Error("list must be absent");
+		if (typeof Aether.servers.create !== "undefined") throw new Error("create must be absent");
+	`); err != nil {
+		t.Fatalf("servers:process gating: %v", err)
 	}
 }
 
@@ -138,7 +267,7 @@ func TestSandboxModLoaderCallbackNonNil(t *testing.T) {
 		Permissions: []string{"launcher:modloader"},
 	}
 	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-		nil, onModLoader, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		nil, onModLoader, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	script := `
 		Aether.launcher.registerModLoader({
@@ -181,7 +310,7 @@ func TestModLoaderCallbackCacheIsScopedAndCleared(t *testing.T) {
 		var got ModLoaderConfig
 		manifest := Manifest{ID: id, Permissions: []string{"launcher:modloader"}}
 		sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-			nil, func(config ModLoaderConfig) { got = config }, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+			nil, func(config ModLoaderConfig) { got = config }, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err := sandbox.Execute(`Aether.launcher.registerModLoader({id: "fabric", name: "Fabric", description: "test loader"});`); err != nil {
 			t.Fatalf("registerModLoader execution failed for %s: %v", id, err)
 		}
@@ -236,7 +365,7 @@ func TestSandboxInvokeMessageSerializesConcurrentCalls(t *testing.T) {
 	install := func(string, string, string) (string, error) { return "mod.jar", nil }
 
 	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-		nil, nil, nil, install, nil, nil, nil, nil, confirm, nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, install, nil, nil, nil, nil, confirm, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	script := `
 		Aether.ui.onMessage(function(msg) {
 			if (msg.type === "install") {
@@ -281,7 +410,7 @@ func TestSandboxInvokeMessageRecoversPanics(t *testing.T) {
 		Hosts:       []string{"example.com"},
 	}
 	sandbox := NewSandbox(context.Background(), manifest, "http://localhost",
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	script := `
 		Aether.ui.onMessage(function(msg) {
