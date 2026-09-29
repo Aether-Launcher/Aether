@@ -27,11 +27,13 @@ jobs:
     name: Post Discord embed
     runs-on: ubuntu-latest
     steps:
+      # No ref override: the script only needs tag refs for the
+      # previous-tag lookup, and a full fetch provides all of them.
+      # (Pinning ref to the raw dispatch input broke on unprefixed tags.)
       - name: Checkout (full history for previous-tag lookup)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ inputs.tag || github.ref }}
 
       - name: Build and post embed
         env:
