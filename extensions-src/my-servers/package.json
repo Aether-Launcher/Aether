@@ -1,6 +1,6 @@
 {
   "name": "my-servers",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "My Servers",
   "main": "main.js",
   "devDependencies": {

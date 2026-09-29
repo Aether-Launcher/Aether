@@ -82,6 +82,7 @@ Available helpers:
 | `createLogger(name)` | Returns a namespaced logger (`log.info`, `log.warn`, `log.error`) |
 | `defineProvider(spec)` | Registers a typed Loader Provider with validation |
 | `assertPermission(perm)` | Throws a clear error if a required permission was not declared |
+| `createIframeBridge(timeoutMs?)` | Request/response IPC for sidebar iframes: `requestId` correlation, timeouts, and the correct `postMessage` rules baked in |
 
 ## Versioning
 
