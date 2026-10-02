@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/Aether-Launcher/Aether/pkg/logger"
 )
 
 // mrpackIndex mirrors the modrinth.index.json format inside a .mrpack archive.
@@ -251,13 +253,13 @@ func InstallMrpack(ctx context.Context, packURL, packName, targetRoot string, on
 			destPath := filepath.Join(instanceDir, filepath.FromSlash(mf.Path))
 			rel, relErr := filepath.Rel(instanceDir, destPath)
 			if relErr != nil || strings.HasPrefix(rel, "..") {
-				fmt.Printf("[Pack] skipping unsafe path: %s\n", mf.Path)
+				logger.Warn("Pack", fmt.Sprintf("skipping unsafe path: %s", mf.Path))
 				progress(mf.Path)
 				return
 			}
 			if mkErr := os.MkdirAll(filepath.Dir(destPath), 0755); mkErr == nil {
 				if dlErr := mrpackDownloadFile(ctx, mf.Downloads[0], destPath); dlErr != nil {
-					fmt.Printf("[Pack] failed to download %s: %v\n", mf.Path, dlErr)
+					logger.Warn("Pack", fmt.Sprintf("failed to download %s: %v", mf.Path, dlErr))
 				}
 			}
 			progress(mf.Path)

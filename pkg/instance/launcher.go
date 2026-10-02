@@ -14,12 +14,13 @@ import (
 
 	goruntime "runtime"
 
-	"Aether/pkg/auth"
-	"Aether/pkg/fs"
-	"Aether/pkg/java"
-	"Aether/pkg/mojang"
-	"Aether/pkg/netutil"
-	"Aether/pkg/settings"
+	"github.com/Aether-Launcher/Aether/pkg/auth"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/java"
+	"github.com/Aether-Launcher/Aether/pkg/logger"
+	"github.com/Aether-Launcher/Aether/pkg/mojang"
+	"github.com/Aether-Launcher/Aether/pkg/netutil"
+	"github.com/Aether-Launcher/Aether/pkg/settings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -41,7 +42,7 @@ func launchLogf(format string, args ...interface{}) {
 	launchLogMu.Lock()
 	defer launchLogMu.Unlock()
 
-	fmt.Printf("[Launcher] %s\n", msg)
+	logger.Info("Launcher", msg)
 
 	logDir := filepath.Join(fs.GetDataDir(), "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
@@ -84,23 +85,23 @@ func launch(ctx context.Context, inst *Instance, extraGameArgs []string) error {
 	if versionInfo.JavaVersion.MajorVersion > 0 {
 		requiredJava = versionInfo.JavaVersion.MajorVersion
 	}
-	fmt.Printf("[Launcher] Minecraft %s requires Java >= %d\n", inst.Version, requiredJava)
+	logger.Info("Launcher", fmt.Sprintf("Minecraft %s requires Java >= %d", inst.Version, requiredJava))
 
 	var javaPath string
 
 	// Fast path: use already-managed JRE if present
 	if java.IsManagedJavaInstalled(requiredJava) {
 		javaPath = java.GetManagedJavaPath(requiredJava)
-		fmt.Printf("[Launcher] Using managed JRE: %s\n", javaPath)
+		logger.Info("Launcher", fmt.Sprintf("Using managed JRE: %s", javaPath))
 	} else {
 		// Try to find a compatible system Java
 		systemJava, err := java.FindJava(requiredJava)
 		if err == nil {
 			javaPath = systemJava
-			fmt.Printf("[Launcher] Using system Java: %s\n", javaPath)
+			logger.Info("Launcher", fmt.Sprintf("Using system Java: %s", javaPath))
 		} else {
 			// Download a managed JRE from Adoptium
-			fmt.Printf("[Launcher] No compatible Java found, downloading Java %d...\n", requiredJava)
+			logger.Info("Launcher", fmt.Sprintf("No compatible Java found, downloading Java %d...", requiredJava))
 			if dlErr := java.DownloadJava(ctx, requiredJava); dlErr != nil {
 				return fmt.Errorf("failed to download Java %d: %w", requiredJava, dlErr)
 			}
@@ -108,7 +109,7 @@ func launch(ctx context.Context, inst *Instance, extraGameArgs []string) error {
 		}
 	}
 
-	fmt.Printf("[Launcher] Using Java: %s\n", javaPath)
+	logger.Info("Launcher", fmt.Sprintf("Using Java: %s", javaPath))
 
 	// Build classpath — a missing library previously produced a broken classpath
 	// that only failed deep inside the JVM with no useful message. Fail fast now.
@@ -136,13 +137,13 @@ func launch(ctx context.Context, inst *Instance, extraGameArgs []string) error {
 			userType = "msa"
 			// Check if token is expired or close to expiration (within 5 minutes)
 			if activeAccount.ExpiresAt == 0 || time.Now().Unix() > (activeAccount.ExpiresAt-300) {
-				fmt.Println("[Launcher] Microsoft access token expired or expiring soon, refreshing...")
+				logger.Info("Launcher", "Microsoft access token expired or expiring soon, refreshing...")
 				refreshed, err := auth.RefreshMicrosoftToken(ctx, activeAccount)
 				if err == nil {
 					_ = auth.AddMicrosoftAccount(*refreshed)
 					activeAccount = refreshed
 				} else {
-					fmt.Printf("[Launcher] Failed to refresh token: %v\n", err)
+					logger.Warn("Launcher", fmt.Sprintf("Failed to refresh token: %v", err))
 				}
 			}
 			accessToken = activeAccount.AccessToken
@@ -351,7 +352,7 @@ func launch(ctx context.Context, inst *Instance, extraGameArgs []string) error {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			runtime.EventsEmit(ctx, "instance:log", scanner.Text())
-			fmt.Println("[MC]", scanner.Text())
+			logger.Info("MC", scanner.Text())
 		}
 	}()
 
@@ -359,7 +360,7 @@ func launch(ctx context.Context, inst *Instance, extraGameArgs []string) error {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			runtime.EventsEmit(ctx, "instance:log", scanner.Text())
-			fmt.Println("[MC]", scanner.Text())
+			logger.Info("MC", scanner.Text())
 		}
 	}()
 
@@ -369,7 +370,7 @@ func launch(ctx context.Context, inst *Instance, extraGameArgs []string) error {
 		state := "Stopped"
 		if err != nil {
 			state = "Crashed"
-			fmt.Printf("[Launcher] Minecraft exited with error: %v\n", err)
+			logger.Error("Launcher", fmt.Sprintf("Minecraft exited with error: %v", err))
 		}
 
 		if globalSettings.CloseOnLaunch {

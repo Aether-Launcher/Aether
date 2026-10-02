@@ -16,7 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"Aether/pkg/netutil"
+	"github.com/Aether-Launcher/Aether/pkg/logger"
+	"github.com/Aether-Launcher/Aether/pkg/netutil"
 	"github.com/pkg/browser"
 	"github.com/zalando/go-keyring"
 )
@@ -196,6 +197,9 @@ func StartPKCEAuthFlow(ctx context.Context) (*Account, error) {
 	}()
 
 	if err := browser.OpenURL(authURL); err != nil {
+		// Logger writes to origStdout so CLI users still see the URL;
+		// keep fmt for terminals without the log hook as well.
+		logger.Info("Auth", fmt.Sprintf("Please open this link in your browser: %s", authURL))
 		fmt.Printf("Please open this link in your browser: %s\n", authURL)
 	}
 

@@ -8,7 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/logger"
 )
 
 // Server handles serving extension UI files locally for iframes
@@ -80,9 +81,9 @@ func (s *Server) Start() (string, error) {
 	url := fmt.Sprintf("http://127.0.0.1:%d", s.port)
 
 	go func() {
-		fmt.Printf("[Extensions] UI Server listening at %s\n", url)
+		logger.Info("Extensions", fmt.Sprintf("UI Server listening at %s", url))
 		if err := http.Serve(listener, mux); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("[Extensions] Server error: %v\n", err)
+			logger.Error("Extensions", fmt.Sprintf("Server error: %v", err))
 		}
 	}()
 

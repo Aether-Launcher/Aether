@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 var idPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)

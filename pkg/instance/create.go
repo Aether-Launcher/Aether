@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 var validIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,64}$`)

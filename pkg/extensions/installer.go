@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 // InstallFromArchive extracts an extension archive (.aex/.zip) to a temporary location,

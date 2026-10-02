@@ -2,9 +2,7 @@ package extensions
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,10 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"Aether/pkg/discord"
-	"Aether/pkg/fs"
-	"Aether/pkg/netutil"
-	"Aether/pkg/servers"
+	"github.com/Aether-Launcher/Aether/pkg/discord"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/logger"
+	"github.com/Aether-Launcher/Aether/pkg/netutil"
+	"github.com/Aether-Launcher/Aether/pkg/servers"
 	"github.com/dop251/goja"
 )
 
@@ -41,58 +40,6 @@ type InstanceInfo struct {
 	Loader  string
 }
 
-const maxExtensionHTTPResponse = 10 * 1024 * 1024
-
-// httpGetWithRetry performs the request, retrying transient network failures
-// (e.g. temporary DNS resolution failures) a few times with short backoff.
-// Mod loader metadata endpoints are usually reachable again within seconds.
-func httpGetWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
-	var lastErr error
-	for attempt := 1; attempt <= 3; attempt++ {
-		if attempt > 1 {
-			time.Sleep(time.Duration(attempt-1) * 500 * time.Millisecond)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err == nil {
-			return resp, nil
-		}
-		lastErr = err
-		if !netutil.IsTransientNetworkError(err) {
-			break
-		}
-	}
-	return nil, lastErr
-}
-
-const httpCacheTTL = 24 * time.Hour
-
-func httpCachePath(target string) string {
-	h := sha256.Sum256([]byte(target))
-	name := hex.EncodeToString(h[:]) + ".cache"
-	return filepath.Join(fs.GetDataDir(), "libraries", ".cache", "http", name)
-}
-
-func writeHttpCache(target, body string) {
-	path := httpCachePath(target)
-	_ = os.MkdirAll(filepath.Dir(path), 0755)
-	_ = os.WriteFile(path, []byte(body), 0644)
-}
-
-func readHttpCache(target string) (string, bool) {
-	path := httpCachePath(target)
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", false
-	}
-	if time.Since(info.ModTime()) > httpCacheTTL {
-		return "", false
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", false
-	}
-	return string(data), true
-}
 
 type modLoaderCallbackKey struct {
 	extensionID string
@@ -224,7 +171,7 @@ func NewSandbox(
 			aetherObj.Set("ui", uiObj)
 		}
 		uiObj.(*goja.Object).Set("openDialog", func(call goja.FunctionCall) goja.Value {
-			fmt.Printf("[Sandbox:%s] Opened dialog\n", manifest.ID)
+			logger.Debug("Sandbox:"+manifest.ID, "Opened dialog")
 			return goja.Undefined()
 		})
 	}
@@ -280,7 +227,7 @@ func NewSandbox(
 			if lastErr != nil {
 				if netutil.IsTransientNetworkError(lastErr) {
 					if cached, ok := readHttpCache(targetURL); ok {
-						fmt.Printf("[Sandbox:%s] Serving cached meta for %s\n", manifest.ID, targetURL)
+						logger.Debug("Sandbox:"+manifest.ID, fmt.Sprintf("Serving cached meta for %s", targetURL))
 						return vm.ToValue(cached)
 					}
 				}
@@ -935,7 +882,7 @@ func NewSandbox(
 				if onModLoader != nil {
 					onModLoader(config)
 				}
-				fmt.Printf("[Sandbox:%s] Registered mod loader: %s\n", manifest.ID, config.ID)
+				logger.Info("Sandbox:"+manifest.ID, fmt.Sprintf("Registered mod loader: %s", config.ID))
 			}
 			return goja.Undefined()
 		})
@@ -1119,53 +1066,3 @@ func NewSandbox(
 	return sb
 }
 
-// Execute runs a JS script inside the sandbox
-func (s *Sandbox) Execute(script string) error {
-	_, err := s.vm.RunString(script)
-	if err != nil {
-		return fmt.Errorf("sandbox execution error: %w", err)
-	}
-	return nil
-}
-
-// InvokeMessage runs the registered onMessage handler for an IPC message.
-// goja runtimes are not thread-safe and extension callbacks may block for a
-// long time (mod downloads, confirmation dialogs), so invocations are
-// serialized per sandbox and panics are recovered so a broken extension can
-// never leave an iframe waiting on a response forever.
-func (s *Sandbox) InvokeMessage(payload map[string]interface{}) (result map[string]interface{}, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			result = nil
-			err = fmt.Errorf("sandbox %s panicked handling IPC message: %v", s.manifest.ID, r)
-		}
-	}()
-
-	s.callbackMu.Lock()
-	defer s.callbackMu.Unlock()
-
-	if s.onMessageCallback == nil {
-		return nil, fmt.Errorf("extension %s has no onMessage handler registered", s.manifest.ID)
-	}
-	return s.onMessageCallback(payload)
-}
-
-// EmitEvent dispatches a JS event to all handlers registered via Aether.events.on.
-// It is safe to call from any goroutine.
-func (s *Sandbox) EmitEvent(event string, payload map[string]interface{}) {
-	s.eventsMu.Lock()
-	handlers := append([]goja.Callable(nil), s.eventHandlers[event]...)
-	s.eventsMu.Unlock()
-	fmt.Printf("[Sandbox:%s] EmitEvent %q -> %d handlers payload=%v\n", s.manifest.ID, event, len(handlers), payload)
-	if len(handlers) == 0 {
-		return
-	}
-	s.callbackMu.Lock()
-	defer s.callbackMu.Unlock()
-	for _, h := range handlers {
-		func() {
-			defer func() { _ = recover() }()
-			_, _ = h(goja.Undefined(), s.vm.ToValue(payload))
-		}()
-	}
-}

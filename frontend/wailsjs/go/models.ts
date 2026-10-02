@@ -22,6 +22,42 @@ export namespace auth {
 	        this.expiresAt = source["expiresAt"];
 	    }
 	}
+	export class CapeEntry {
+	    id: string;
+	    state: string;
+	    url: string;
+	    alias: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CapeEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.state = source["state"];
+	        this.url = source["url"];
+	        this.alias = source["alias"];
+	    }
+	}
+	export class SkinEntry {
+	    id: string;
+	    state: string;
+	    url: string;
+	    variant: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SkinEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.state = source["state"];
+	        this.url = source["url"];
+	        this.variant = source["variant"];
+	    }
+	}
 
 }
 

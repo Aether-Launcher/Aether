@@ -96,6 +96,9 @@ Extensions operate under a principle of least privilege. You must explicitly req
 - `fs:download`: Download files to the shared `libraries` directory.
 - `launcher:modloader`: Register a launch-time mod-loader callback.
 - `skin:export`: Write base64 data below the shared `skins` directory.
+- `account:read`: Read the safe active-account subset (`signedIn`, `id`, `username`, `type`). Tokens are never exposed.
+- `skin:manage`: List owned Mojang skins (`Aether.skins.listMine`) and upload/apply skins (`upload`, `applyUrl`) after user confirmation.
+- `cape:manage`: List owned Mojang capes and equip/hide the active cape after user confirmation.
 - `discord:presence`: Update Discord Rich Presence via `Aether.discord.setActivity` / `clearActivity` and subscribe to `Aether.events.on('instance:state')`.
 - `servers:list`: Read `servers.dat` from instances and ping servers (`Aether.servers.list` / `Aether.servers.ping`).
 - `servers:manage`: Create, list, delete, and read/write files inside `servers/<id>/` directories. Deleting a server asks for user confirmation.

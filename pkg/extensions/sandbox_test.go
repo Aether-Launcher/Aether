@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"Aether/pkg/servers"
+	"github.com/Aether-Launcher/Aether/pkg/servers"
 )
 
 func TestSandboxCapabilities(t *testing.T) {

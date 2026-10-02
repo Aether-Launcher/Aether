@@ -15,8 +15,8 @@ import (
 	"runtime"
 	"strings"
 
-	"Aether/pkg/extensions"
-	"Aether/pkg/netutil"
+	"github.com/Aether-Launcher/Aether/pkg/extensions"
+	"github.com/Aether-Launcher/Aether/pkg/netutil"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )

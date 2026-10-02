@@ -1,0 +1,26 @@
+{
+  "id": "skin-selector",
+  "name": "Skin Selector",
+  "version": "0.3.3",
+  "author": "Aether",
+  "description": "Browse skins from public databases and manage skins and capes on the currently logged-in account",
+  "icon": "icon.png",
+  "main": "main.js",
+  "api": "1.0",
+  "permissions": [
+    "ui:sidebar",
+    "network:http",
+    "skin:export",
+    "account:read",
+    "skin:manage",
+    "cape:manage"
+  ],
+  "hosts": [
+    "api.mojang.com",
+    "sessionserver.mojang.com",
+    "textures.minecraft.net",
+    "api.minecraftservices.com",
+    "namemc.com",
+    "api.namemc.com"
+  ]
+}

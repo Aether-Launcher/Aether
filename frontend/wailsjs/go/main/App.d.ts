@@ -24,6 +24,8 @@ export function DownloadAndUpdate():Promise<void>;
 
 export function DownloadJavaRuntime(arg1:number):Promise<void>;
 
+export function EquipProfileCape(arg1:string):Promise<void>;
+
 export function GetAccounts():Promise<Array<auth.Account>>;
 
 export function GetActiveAccount():Promise<auth.Account>;
@@ -62,11 +64,17 @@ export function GetMinecraftNews():Promise<Array<main.MinecraftNewsItem>>;
 
 export function GetModLoaders():Promise<Array<main.ModLoaderInfo>>;
 
+export function GetProfileCapes():Promise<Array<auth.CapeEntry>>;
+
+export function GetProfileSkins():Promise<Array<auth.SkinEntry>>;
+
 export function GetRecentScreenshots(arg1:number):Promise<Array<main.ScreenshotItem>>;
 
 export function GetSettings():Promise<settings.GlobalSettings>;
 
 export function GetThemes():Promise<Array<theme.Info>>;
+
+export function HideProfileCape():Promise<void>;
 
 export function InstallInstance(arg1:string):Promise<void>;
 
@@ -119,5 +127,7 @@ export function UninstallTheme(arg1:string):Promise<void>;
 export function UpdateExtension(arg1:string):Promise<extensions.ExtensionUpdate>;
 
 export function UpdateInstance(arg1:instance.Instance):Promise<void>;
+
+export function UploadProfileSkin(arg1:string,arg2:string):Promise<auth.SkinEntry>;
 
 export function WindowChrome():Promise<string>;

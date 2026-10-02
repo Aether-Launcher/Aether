@@ -1,7 +1,8 @@
 package extensions
 
 import (
-	"Aether/pkg/netutil"
+	"github.com/Aether-Launcher/Aether/pkg/logger"
+	"github.com/Aether-Launcher/Aether/pkg/netutil"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -81,25 +82,25 @@ func fetchGalleryIndexLocked() ([]GalleryExtension, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(galleryIndexURL)
 	if err != nil {
-		fmt.Printf("[Gallery] Could not fetch registry (offline?): %v\n", err)
+		logger.Warn("Gallery", fmt.Sprintf("Could not fetch registry (offline?): %v", err))
 		return galleryCache, fmt.Errorf("could not reach the extension registry: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("[Gallery] Registry returned HTTP %d\n", resp.StatusCode)
+		logger.Warn("Gallery", fmt.Sprintf("Registry returned HTTP %d", resp.StatusCode))
 		return galleryCache, fmt.Errorf("extension registry returned HTTP %d", resp.StatusCode)
 	}
 
 	var entries []GalleryExtension
 	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
-		fmt.Printf("[Gallery] Failed to parse registry: %v\n", err)
+		logger.Warn("Gallery", fmt.Sprintf("Failed to parse registry: %v", err))
 		return galleryCache, fmt.Errorf("could not parse the extension registry: %w", err)
 	}
 
 	galleryCache = entries
 	galleryCacheAt = time.Now()
-	fmt.Printf("[Gallery] Fetched %d extensions from registry\n", len(entries))
+	logger.Info("Gallery", fmt.Sprintf("Fetched %d extensions from registry", len(entries)))
 	return galleryCache, nil
 }
 

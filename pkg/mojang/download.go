@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"Aether/pkg/netutil"
+	"github.com/Aether-Launcher/Aether/pkg/logger"
+	"github.com/Aether-Launcher/Aether/pkg/netutil"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -55,8 +56,8 @@ func NewDownloadEngine(ctx context.Context, instanceID, basePath string) *Downlo
 
 func (e *DownloadEngine) log(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	// Print to backend terminal
-	fmt.Printf("[Installer:%s] %s\n", e.instance, msg)
+	// Buffered + emitted to frontend dev logs via the structured logger.
+	logger.Info("Installer:"+e.instance, msg)
 	// Emit event to frontend console log panel
 	runtime.EventsEmit(e.ctx, "instance:log", fmt.Sprintf("[Installer] %s", msg))
 }
@@ -180,7 +181,6 @@ func (e *DownloadEngine) Install(info *VersionInfo, assetsDir string) error {
 		e.log("Downloading log4j configuration...")
 		if err := netutil.DownloadFile(e.ctx, info.Logging.Client.File.URL, logConfigPath, nil); err != nil {
 			e.log("Warning: failed to download log config: %v", err)
-			fmt.Printf("Warning: failed to download log config: %v\n", err)
 			// Non-fatal, continue
 		}
 	}

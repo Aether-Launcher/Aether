@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 // IconFileName is the conventional icon file stored inside an instance

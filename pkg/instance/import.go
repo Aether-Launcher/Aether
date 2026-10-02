@@ -9,7 +9,8 @@ import (
 	"regexp"
 	"strings"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/logger"
 )
 
 // Format identifies the launcher an instance folder came from.
@@ -870,17 +871,17 @@ func copySymlink(source, path, dest string) error {
 	}
 	eval, err := filepath.EvalSymlinks(resolved)
 	if err != nil {
-		fmt.Printf("[Import] skipping broken symlink %s\n", path)
+		logger.Warn("Import", fmt.Sprintf("skipping broken symlink %s", path))
 		return nil
 	}
 	rel, err := filepath.Rel(source, eval)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		fmt.Printf("[Import] skipping external symlink %s\n", path)
+		logger.Warn("Import", fmt.Sprintf("skipping external symlink %s", path))
 		return nil
 	}
 	info, err := os.Stat(eval)
 	if err != nil || info.IsDir() {
-		fmt.Printf("[Import] skipping directory/broken symlink %s\n", path)
+		logger.Warn("Import", fmt.Sprintf("skipping directory/broken symlink %s", path))
 		return nil
 	}
 	return copyFile(eval, dest)

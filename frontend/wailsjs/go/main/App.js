@@ -30,6 +30,10 @@ export function DownloadJavaRuntime(arg1) {
   return window['go']['main']['App']['DownloadJavaRuntime'](arg1);
 }
 
+export function EquipProfileCape(arg1) {
+  return window['go']['main']['App']['EquipProfileCape'](arg1);
+}
+
 export function GetAccounts() {
   return window['go']['main']['App']['GetAccounts']();
 }
@@ -106,6 +110,14 @@ export function GetModLoaders() {
   return window['go']['main']['App']['GetModLoaders']();
 }
 
+export function GetProfileCapes() {
+  return window['go']['main']['App']['GetProfileCapes']();
+}
+
+export function GetProfileSkins() {
+  return window['go']['main']['App']['GetProfileSkins']();
+}
+
 export function GetRecentScreenshots(arg1) {
   return window['go']['main']['App']['GetRecentScreenshots'](arg1);
 }
@@ -116,6 +128,10 @@ export function GetSettings() {
 
 export function GetThemes() {
   return window['go']['main']['App']['GetThemes']();
+}
+
+export function HideProfileCape() {
+  return window['go']['main']['App']['HideProfileCape']();
 }
 
 export function InstallInstance(arg1) {
@@ -220,6 +236,10 @@ export function UpdateExtension(arg1) {
 
 export function UpdateInstance(arg1) {
   return window['go']['main']['App']['UpdateInstance'](arg1);
+}
+
+export function UploadProfileSkin(arg1, arg2) {
+  return window['go']['main']['App']['UploadProfileSkin'](arg1, arg2);
 }
 
 export function WindowChrome() {

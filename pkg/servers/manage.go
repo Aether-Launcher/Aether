@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 // MaxServerFileBytes caps single file reads/writes inside a server dir.

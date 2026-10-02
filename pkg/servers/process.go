@@ -21,8 +21,8 @@ import (
 	"sync"
 	"time"
 
-	"Aether/pkg/fs"
-	"Aether/pkg/java"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/java"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

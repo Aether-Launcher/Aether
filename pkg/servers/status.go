@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 // ServerRow is one servers.dat entry with its live ping result attached.

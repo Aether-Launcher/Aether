@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 // GlobalServer is the singleton local file server used to expose installed

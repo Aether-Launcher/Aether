@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 type Instance struct {

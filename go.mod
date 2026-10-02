@@ -1,4 +1,4 @@
-module Aether
+module github.com/Aether-Launcher/Aether
 
 go 1.25.0
 

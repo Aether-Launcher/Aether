@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
 )
 
 // GlobalSettings holds launcher-wide configuration

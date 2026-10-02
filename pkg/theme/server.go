@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/Aether-Launcher/Aether/pkg/logger"
 )
 
 // Server serves the themes directory statically so <img> tags in the
@@ -44,9 +46,9 @@ func (s *Server) Start() (string, error) {
 	url := fmt.Sprintf("http://127.0.0.1:%d", s.port)
 
 	go func() {
-		fmt.Printf("[Theme] Asset server listening at %s\n", url)
+		logger.Info("Theme", fmt.Sprintf("Asset server listening at %s", url))
 		if err := http.Serve(listener, mux); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("[Theme] Server error: %v\n", err)
+			logger.Error("Theme", fmt.Sprintf("Server error: %v", err))
 		}
 	}()
 

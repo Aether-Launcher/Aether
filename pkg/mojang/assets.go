@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"Aether/pkg/netutil"
+	"github.com/Aether-Launcher/Aether/pkg/netutil"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"context"
 )

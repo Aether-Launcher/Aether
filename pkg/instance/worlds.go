@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"Aether/pkg/fs"
-	"Aether/pkg/servers"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/servers"
 )
 
 // WorldInfo describes one singleplayer world (a folder under saves/).

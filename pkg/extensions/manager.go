@@ -15,9 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"Aether/pkg/fs"
-	"Aether/pkg/instance"
-	"Aether/pkg/mojang"
+	"github.com/Aether-Launcher/Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/logger"
 )
 
 // Manager handles the lifecycle of all extensions
@@ -81,7 +80,7 @@ func (m *Manager) LoadAll() error {
 	// Ensure local extension server is running (reuses port if already started)
 	url, err := m.server.Start()
 	if err != nil {
-		fmt.Printf("[Extensions] Warning: Failed to start UI server: %v\n", err)
+		logger.Warn("Extensions", fmt.Sprintf("Failed to start UI server: %v", err))
 	}
 	m.serverURL = url
 
@@ -170,8 +169,7 @@ func (m *Manager) reloadSandboxes() {
 	}()
 
 	newSandboxes := make(map[string]*Sandbox)
-	newSidebarPages := make([]map[string]interface{}, 0)
-	newModLoaders := make(map[string]ModLoaderConfig)
+	host := newSandboxHost(m)
 	extDir := filepath.Join(fs.GetDataDir(), "extensions")
 
 	for id, ext := range m.LoadedExtensions {
@@ -196,260 +194,27 @@ func (m *Manager) reloadSandboxes() {
 
 		sandbox := NewSandbox(
 			m.ctx, manifest, m.serverURL,
-			func(payload map[string]interface{}) {
-				newSidebarPages = append(newSidebarPages, payload)
-			},
-			func(config ModLoaderConfig) {
-				newModLoaders[config.ID] = config
-			},
-			func() []InstanceInfo {
-				all := instance.GetInstances()
-				var out []InstanceInfo
-				for _, inst := range all {
-					out = append(out, InstanceInfo{
-						ID:      inst.ID,
-						Name:    inst.Name,
-						Version: inst.Version,
-						Loader:  inst.Loader,
-					})
-				}
-				return out
-			},
-			func(instanceID, jarName, downloadURL string) (string, error) {
-				jarName = filepath.Base(jarName)
-				if strings.ToLower(filepath.Ext(jarName)) != ".jar" {
-					return "", fmt.Errorf("mod file must have a .jar extension")
-				}
-				parsedURL, err := neturl.Parse(downloadURL)
-				if err != nil || parsedURL.Scheme != "https" || parsedURL.Hostname() == "" {
-					return "", fmt.Errorf("mod downloads require an HTTPS URL")
-				}
-				instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
-				if err != nil {
-					return "", err
-				}
-				modsDir := filepath.Join(instanceDir, "mods")
-				if err := os.MkdirAll(modsDir, 0755); err != nil {
-					return "", err
-				}
-				destPath := filepath.Join(modsDir, jarName)
-
-				doDownload := func(targetURL string) error {
-					req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, targetURL, nil)
-					if err != nil {
-						return err
-					}
-					req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-					resp, err := http.DefaultClient.Do(req)
-					if err != nil {
-						return err
-					}
-					defer resp.Body.Close()
-					if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-						return fmt.Errorf("mod download failed with status %s", resp.Status)
-					}
-					if resp.ContentLength > maxExtensionModSize {
-						return fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
-					}
-					out, err := os.Create(destPath)
-					if err != nil {
-						return err
-					}
-					defer out.Close()
-					written, err := io.Copy(out, io.LimitReader(resp.Body, maxExtensionModSize+1))
-					if err != nil {
-						_ = os.Remove(destPath)
-						return err
-					}
-					if written > maxExtensionModSize {
-						_ = os.Remove(destPath)
-						return fmt.Errorf("mod exceeds the %d MB size limit", maxExtensionModSize/(1024*1024))
-					}
-					return nil
-				}
-
-				dlErr := doDownload(downloadURL)
-				if dlErr != nil && (parsedURL.Hostname() == "edge.forgecdn.net" || parsedURL.Hostname() == "media.forgecdn.net") {
-					// Fallback to alternative CDN domain if DNS or connection fails
-					altHost := "media.forgecdn.net"
-					if parsedURL.Hostname() == "media.forgecdn.net" {
-						altHost = "edge.forgecdn.net"
-					}
-					altURL := strings.Replace(downloadURL, parsedURL.Hostname(), altHost, 1)
-					if altErr := doDownload(altURL); altErr == nil {
-						return destPath, nil
-					}
-				}
-				if dlErr != nil {
-					return "", dlErr
-				}
-				return destPath, nil
-			},
-			func(instanceID string) ([]string, error) {
-				instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
-				if err != nil {
-					return nil, err
-				}
-				modsDir := filepath.Join(instanceDir, "mods")
-				entries, err := os.ReadDir(modsDir)
-				if err != nil {
-					if os.IsNotExist(err) {
-						return []string{}, nil
-					}
-					return nil, err
-				}
-				var mods []string
-				for _, e := range entries {
-					if !e.IsDir() {
-						mods = append(mods, e.Name())
-					}
-				}
-				return mods, nil
-			},
-			func(instanceID, jarName string) error {
-				jarName = filepath.Base(jarName)
-				instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
-				if err != nil {
-					return err
-				}
-				modPath := filepath.Join(instanceDir, "mods", jarName)
-				return os.Remove(modPath)
-			},
-			func(instanceID, jarName string, enable bool) error {
-				jarName = filepath.Base(jarName)
-				instanceDir, err := fs.ContainedPath(filepath.Join(fs.GetDataDir(), "instances"), instanceID)
-				if err != nil {
-					return err
-				}
-				modsDir := filepath.Join(instanceDir, "mods")
-
-				currentPath := filepath.Join(modsDir, jarName)
-
-				if enable {
-					if strings.HasSuffix(jarName, ".disabled") {
-						newPath := filepath.Join(modsDir, strings.TrimSuffix(jarName, ".disabled"))
-						return os.Rename(currentPath, newPath)
-					}
-					return nil
-				} else {
-					if !strings.HasSuffix(jarName, ".disabled") {
-						newPath := filepath.Join(modsDir, jarName+".disabled")
-						return os.Rename(currentPath, newPath)
-					}
-					return nil
-				}
-			},
+			host.onSidebarPage,
+			host.onModLoader,
+			host.listInstances,
+			host.installMod,
+			host.listMods,
+			host.deleteMod,
+			host.toggleMod,
 			m.emit,
 			m.requestConfirmation,
-			func(packURL, packName, iconURL string) (string, error) {
-				parsedURL, err := neturl.Parse(packURL)
-				if err != nil || parsedURL.Scheme != "https" || parsedURL.Hostname() == "" {
-					return "", fmt.Errorf("modpack downloads require an HTTPS URL")
-				}
-				targetRoot := filepath.Join(fs.GetDataDir(), "instances")
-				inst, err := instance.InstallMrpack(context.Background(), packURL, packName, targetRoot, nil)
-				if err != nil {
-					return "", fmt.Errorf("modpack install failed: %w", err)
-				}
-
-				// Best-effort pack icon: the pack still installs if this fails.
-				if iconURL != "" {
-					if err := instance.SetIconFromURL(context.Background(), inst.ID, iconURL); err != nil {
-						fmt.Printf("[Mrpack] pack icon skipped for %s: %v\n", inst.ID, err)
-					}
-				}
-
-			// Option A: Auto-trigger Minecraft installation pipeline in background.
-			// Shares the per-instance claim with App.InstallInstance so a manual
-			// Install click can't start a second pipeline for the same instance.
-			go func() {
-				if !mojang.ClaimInstall(inst.ID) {
-					fmt.Printf("[Mrpack] install already in progress for %s, skipping duplicate pipeline\n", inst.ID)
-					return
-				}
-				defer mojang.ReleaseInstall(inst.ID)
-
-				info, err := mojang.GetVersionInfo(inst.Version)
-					if err != nil {
-						fmt.Printf("[Mrpack] auto-install failed to fetch version info: %v\n", err)
-						return
-					}
-					basePath := filepath.Join(targetRoot, inst.ID)
-					assetsDir := fs.GetAssetsDir()
-					engine := mojang.NewDownloadEngine(m.ctx, inst.ID, basePath)
-
-					if m.emit != nil {
-						m.emit(m.ctx, "instance:state", map[string]interface{}{
-							"id":    inst.ID,
-							"state": "Installing",
-						})
-					}
-
-					if err := engine.Install(info, assetsDir); err != nil {
-						fmt.Printf("[Mrpack] auto-install failed: %v\n", err)
-						if m.emit != nil {
-							m.emit(m.ctx, "instance:error", map[string]interface{}{
-								"id":      inst.ID,
-								"message": fmt.Sprintf("Installation failed: %v", err),
-							})
-							m.emit(m.ctx, "instance:state", map[string]interface{}{
-								"id":    inst.ID,
-								"state": "Error",
-							})
-						}
-					} else {
-						if m.emit != nil {
-							m.emit(m.ctx, "instance:state", map[string]interface{}{
-								"id":    inst.ID,
-								"state": "Idle",
-							})
-						}
-					}
-				}()
-
-				return inst.ID, nil
-			},
-			func(instanceID, fileName, downloadURL string) (string, error) {
-				return downloadInstanceAsset(instanceID, "resourcepacks", fileName, downloadURL, map[string]bool{".zip": true, ".jar": true})
-			},
-			func(instanceID, fileName, downloadURL string) (string, error) {
-				return downloadInstanceAsset(instanceID, "shaderpacks", fileName, downloadURL, map[string]bool{".zip": true})
-			},
-			func(instanceID string) ([]map[string]interface{}, error) {
-				return listInstanceScreenshots(m.serverURL, instanceID)
-			},
-			func(instanceID, fileName string) error {
-				return deleteInstanceScreenshot(instanceID, fileName)
-			},
-			func(instanceID, fileName string) error {
-				return openInstanceScreenshot(instanceID, fileName)
-			},
-			func(instanceID, fileName string) (string, error) {
-				return getInstanceScreenshotData(instanceID, fileName)
-			},
-			func(instanceID string) ([]map[string]interface{}, error) {
-				worlds, err := instance.ListWorlds(instanceID)
-				if err != nil {
-					return nil, err
-				}
-				out := make([]map[string]interface{}, 0, len(worlds))
-				for _, w := range worlds {
-					out = append(out, map[string]interface{}{
-						"id":         w.ID,
-						"name":       w.Name,
-						"lastPlayed": w.LastPlayed,
-						"gameMode":   w.GameMode,
-					})
-				}
-				return out, nil
-			},
-			func(instanceID, host string, port int) error {
-				return instance.LaunchToServer(m.ctx, instanceID, host, port)
-			},
-			func(instanceID, world string) error {
-				return instance.LaunchToWorld(m.ctx, instanceID, world)
-			},
+			host.installModpack,
+			host.installResourcePack,
+			host.installShaderPack,
+			host.listScreenshots,
+			host.deleteScreenshot,
+			host.openScreenshot,
+			host.getScreenshotData,
+			host.listWorlds,
+			host.launchToServer,
+			host.launchToWorld,
 		)
+		sandbox.InjectProfileAPIs(m.requestConfirmation)
 		newSandboxes[id] = sandbox
 
 		if manifest.Main != "" {
@@ -474,13 +239,13 @@ func (m *Manager) reloadSandboxes() {
 				cancel()
 				sandbox.vm.ClearInterrupt()
 				if execErr != nil {
-					fmt.Printf("[Manager] Failed to execute %s for %s: %v\n", manifest.Main, id, execErr)
+					logger.Error("Manager", fmt.Sprintf("Failed to execute %s for %s: %v", manifest.Main, id, execErr))
 					ext.Status = "Error"
 				} else {
-					fmt.Printf("[Manager] Successfully loaded extension isolate: %s\n", id)
+					logger.Info("Manager", fmt.Sprintf("Successfully loaded extension isolate: %s", id))
 				}
 			} else {
-				fmt.Printf("[Manager] Missing main script %s for %s\n", manifest.Main, id)
+				logger.Error("Manager", fmt.Sprintf("Missing main script %s for %s", manifest.Main, id))
 				ext.Status = "Error (Missing Main)"
 			}
 		}
@@ -490,8 +255,8 @@ func (m *Manager) reloadSandboxes() {
 	}
 
 	m.sandboxes = newSandboxes
-	m.SidebarPages = newSidebarPages
-	m.ModLoaders = newModLoaders
+	m.SidebarPages = host.sidebarPages
+	m.ModLoaders = host.modLoaders
 }
 
 // requestConfirmation pauses a sensitive extension operation until the UI
@@ -593,7 +358,7 @@ func (m *Manager) GetExtensions() []Extension {
 func (m *Manager) HandleIPCMessage(extID string, payload map[string]interface{}) {
 	sandbox, ok := m.sandboxes[extID]
 	if !ok {
-		fmt.Printf("[Manager] IPC message for unknown extension: %s\n", extID)
+		logger.Warn("Manager", fmt.Sprintf("IPC message for unknown extension: %s", extID))
 		return
 	}
 
@@ -601,7 +366,7 @@ func (m *Manager) HandleIPCMessage(extID string, payload map[string]interface{})
 	// a busy or broken extension cannot leave the UI hanging forever.
 	result, err := sandbox.InvokeMessage(payload)
 	if err != nil {
-		fmt.Printf("[Manager] IPC callback error for %s: %v\n", extID, err)
+		logger.Warn("Manager", fmt.Sprintf("IPC callback error for %s: %v", extID, err))
 		// Reply with an error carrying the requestId so the iframe's pending
 		// promise resolves instead of showing "Loading..." indefinitely.
 		response := map[string]interface{}{"error": err.Error()}

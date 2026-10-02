@@ -72,6 +72,24 @@ Allows the extension to write base64 encoded skins to the local filesystem.
   - **base64Data** (String): The skin image encoded as a base64 string.
   - **filename** (String): The name to save the skin as (e.g., `skin.png`). Returns the saved file path.
 
+### Account Skins & Capes (`account:read`, `skin:manage`, `cape:manage`)
+Used by the Skin Selector extension. Tokens never cross the bridge — Go calls
+`https://api.minecraftservices.com/minecraft/profile` with the active
+Microsoft account. Offline accounts yield `ERR_OFFLINE_ACCOUNT`; signed-out
+yields `ERR_NO_ACCOUNT`. Upload / equip / hide require launcher confirmation.
+
+- `Aether.account.getActive()` (requires `account:read`)
+  - Returns `{ signedIn, id, username, type }`. No tokens.
+- `Aether.skins.listMine()` (requires `skin:manage`)
+  - Returns `[{ id, state, url, variant }]` from the Mojang profile.
+- `Aether.skins.upload(base64Data, variant?)` (requires `skin:manage`)
+  - **base64Data** PNG (plain base64 or data URL, max 5 MiB). **variant** `classic`|`slim`.
+- `Aether.skins.applyUrl(httpsUrl, variant?)` (requires `skin:manage`)
+  - Downloads an `https://` gallery skin in Go, then uploads it.
+- `Aether.capes.listMine()` (requires `cape:manage`)
+  - Returns `[{ id, state, url, alias }]`.
+- `Aether.capes.equip(capeId)` / `Aether.capes.hide()` (requires `cape:manage`)
+
 ## Network Access
 By default, the backend Sandbox cannot access the network. To make requests, you must request `network:http` in your permissions and use the provided `Aether.http.get(url)` API. Backend extension requests require HTTPS, an allowed hostname, and are limited to 10 MiB responses.
 Direct browser `fetch()` is unavailable in the backend sandbox. The provided HTTP API applies host allow-listing; logging and rate limiting are not currently implemented.
@@ -267,6 +285,9 @@ Current permissions recognized by the runtime:
 - `fs:download`
 - `launcher:modloader`
 - `skin:export`
+- `account:read`
+- `skin:manage`
+- `cape:manage`
 - `discord:presence`
 - `servers:list`
 - `servers:manage`
