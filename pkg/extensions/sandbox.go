@@ -40,7 +40,6 @@ type InstanceInfo struct {
 	Loader  string
 }
 
-
 type modLoaderCallbackKey struct {
 	extensionID string
 	loaderID    string
@@ -145,11 +144,15 @@ func NewSandbox(
 				relURL := arg["url"].(string)
 				fullURL := fmt.Sprintf("%s/%s/%s", serverURL, manifest.ID, relURL)
 
+				pageID := fmt.Sprint(arg["id"])
 				payload := map[string]interface{}{
-					"extensionId": manifest.ID,
-					"id":          arg["id"],
-					"label":       arg["label"],
-					"url":         fullURL,
+					"extensionId":   manifest.ID,
+					"extensionName": manifest.Name,
+					"id":            pageID,
+					"routeId":       manifest.ID + ":" + pageID,
+					"label":         arg["label"],
+					"url":           fullURL,
+					"pinToSidebar":  manifest.PinToSidebar,
 				}
 
 				if onSidebarPage != nil {
@@ -1065,4 +1068,3 @@ func NewSandbox(
 
 	return sb
 }
-

@@ -218,6 +218,10 @@ export function SetActiveTheme(arg1) {
   return window['go']['main']['App']['SetActiveTheme'](arg1);
 }
 
+export function SetExtensionEnabled(arg1, arg2) {
+  return window['go']['main']['App']['SetExtensionEnabled'](arg1, arg2);
+}
+
 export function StartMicrosoftAuth() {
   return window['go']['main']['App']['StartMicrosoftAuth']();
 }

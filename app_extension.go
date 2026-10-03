@@ -110,6 +110,15 @@ func (a *App) UninstallExtension(id string) error {
 	return extensions.GlobalManager.Uninstall(id)
 }
 
+// SetExtensionEnabled pauses or resumes an installed extension and reloads the
+// extension registry so its pages and hooks match the selected state.
+func (a *App) SetExtensionEnabled(id string, enabled bool) error {
+	if extensions.GlobalManager == nil {
+		return fmt.Errorf("extensions are disabled")
+	}
+	return extensions.GlobalManager.SetEnabled(id, enabled)
+}
+
 // GetExtensionUpdates force-refreshes the registry and returns available
 // updates for installed extensions. An error is returned when the registry
 // cannot be reached, so the UI can tell the user the check actually failed
@@ -141,7 +150,5 @@ func (a *App) ReloadExtensions() error {
 	if extensions.GlobalManager == nil {
 		return fmt.Errorf("extensions are disabled")
 	}
-	// Clear the sidebar first so removed extensions don't leave stale tabs.
-	runtime.EventsEmit(a.ctx, "extension:sidebar:reset")
 	return extensions.GlobalManager.ReloadAsync()
 }

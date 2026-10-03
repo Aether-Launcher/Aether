@@ -75,6 +75,7 @@ export namespace extensions {
 	    trust: string;
 	    iconUrl?: string;
 	    reloading: boolean;
+	    disabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Extension(source);
@@ -93,6 +94,7 @@ export namespace extensions {
 	        this.trust = source["trust"];
 	        this.iconUrl = source["iconUrl"];
 	        this.reloading = source["reloading"];
+	        this.disabled = source["disabled"];
 	    }
 	}
 	export class ExtensionUpdate {

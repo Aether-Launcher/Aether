@@ -2,15 +2,16 @@ package extensions
 
 // Manifest represents the structure of an extension's manifest.json
 type Manifest struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	Author      string   `json:"author"`
-	Description string   `json:"description"`
-	Icon        string   `json:"icon,omitempty"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Version            string   `json:"version"`
+	Author             string   `json:"author"`
+	Description        string   `json:"description"`
+	Icon               string   `json:"icon,omitempty"`
 	Main               string   `json:"main"`
 	API                string   `json:"api"`
 	MinLauncherVersion string   `json:"minLauncherVersion,omitempty"`
+	PinToSidebar       bool     `json:"pinToSidebar,omitempty"`
 	Permissions        []string `json:"permissions"`
 	Hosts              []string `json:"hosts,omitempty"`
 }

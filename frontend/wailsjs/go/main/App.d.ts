@@ -118,6 +118,8 @@ export function SetActiveAccount(arg1:string):Promise<void>;
 
 export function SetActiveTheme(arg1:string):Promise<void>;
 
+export function SetExtensionEnabled(arg1:string,arg2:boolean):Promise<void>;
+
 export function StartMicrosoftAuth():Promise<auth.Account>;
 
 export function UninstallExtension(arg1:string):Promise<void>;

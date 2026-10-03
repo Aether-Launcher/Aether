@@ -34,6 +34,8 @@ type Manager struct {
 	reloadMu         sync.Mutex
 	reloading        bool
 	reloadDone       chan error
+	disabledMu       sync.RWMutex
+	disabledIDs      map[string]bool
 	emit             func(context.Context, string, ...interface{})
 }
 
@@ -61,6 +63,7 @@ func NewManager(ctx context.Context, emit func(context.Context, string, ...inter
 		sandboxes:        make(map[string]*Sandbox),
 		SidebarPages:     make([]map[string]interface{}, 0),
 		ModLoaders:       make(map[string]ModLoaderConfig),
+		disabledIDs:      make(map[string]bool),
 		pending:          make(map[string]chan bool),
 		emit:             emit,
 	}
@@ -76,6 +79,12 @@ func (m *Manager) LoadAll() error {
 	m.LoadedExtensions = make(map[string]Extension)
 	m.SidebarPages = make([]map[string]interface{}, 0)
 	m.ModLoaders = make(map[string]ModLoaderConfig)
+	if m.emit != nil {
+		m.emit(m.ctx, "extension:sidebar:reset")
+	}
+	if err := m.loadDisabledExtensions(); err != nil {
+		logger.Warn("Extensions", fmt.Sprintf("Could not load extension state: %v", err))
+	}
 
 	// Ensure local extension server is running (reuses port if already started)
 	url, err := m.server.Start()
@@ -132,6 +141,7 @@ func (m *Manager) LoadAll() error {
 				Trust:       trust,
 				IconURL:     iconUrl,
 				Reloading:   true, // Mark as loading until sandboxes complete
+				Disabled:    m.isDisabled(manifest.ID),
 			}
 		}
 	}
@@ -164,8 +174,8 @@ func (m *Manager) reloadSandboxes() {
 	defer func() {
 		m.reloading = false
 		if m.emit != nil {
-		m.emit(m.ctx, "extension:reload:complete", nil)
-	}
+			m.emit(m.ctx, "extension:reload:complete", nil)
+		}
 	}()
 
 	newSandboxes := make(map[string]*Sandbox)
@@ -173,6 +183,12 @@ func (m *Manager) reloadSandboxes() {
 	extDir := filepath.Join(fs.GetDataDir(), "extensions")
 
 	for id, ext := range m.LoadedExtensions {
+		if ext.Disabled {
+			ext.Status = "Disabled"
+			ext.Reloading = false
+			m.LoadedExtensions[id] = ext
+			continue
+		}
 		manifestPath := filepath.Join(extDir, id, "manifest.json")
 		data, err := os.ReadFile(manifestPath)
 		if err != nil {

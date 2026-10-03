@@ -2,7 +2,6 @@ package extensions
 
 // Package extensions handles the Aether extension lifecycle
 
-
 // Extension represents the UI representation of a Manifest
 type Extension struct {
 	ID          string `json:"id"`
@@ -16,6 +15,7 @@ type Extension struct {
 	Trust       string `json:"trust"`
 	IconURL     string `json:"iconUrl,omitempty"`
 	Reloading   bool   `json:"reloading"`
+	Disabled    bool   `json:"disabled"`
 }
 
 // GetExtensions returns all installed extensions
