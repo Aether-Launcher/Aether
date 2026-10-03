@@ -95,6 +95,15 @@
   function showExtensionConfirmation(request: any) {
     pendingConfirmation = request;
     const extensionName = request.extensionName || request.extensionId || 'An extension';
+    if (request.permission === 'ui:sidebar') {
+      confirmationDialog.open(
+        'Allow sidebar pin?',
+        `${extensionName} wants to pin its pages in your sidebar. If you decline, you can still find them under Active Extensions. You’ll be asked again if this extension is updated.`,
+        false,
+        'Allow'
+      );
+      return;
+    }
     const action = request.action || 'perform a sensitive action';
     const target = request.jarName
       ? `mod "${request.jarName}" in instance "${request.instanceId}"`

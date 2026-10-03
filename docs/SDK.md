@@ -11,7 +11,7 @@ The [CLI](https://github.com/Aether-Launcher/aether-cli) and [SDK](https://githu
 - **CLI** (`aether-cli`) is the terminal tool for scaffolding projects, running development mode, and packaging extensions.
 - **SDK** (`@aethermc/sdk`) is the package you import in extension code for type definitions and helper utilities.
 
-Choose sidebar placement in the extension manifest, not in the SDK call. Set `"pinToSidebar": true` to keep registered pages directly in the sidebar. Otherwise, Aether groups them under **Active Extensions**. See the [Extensions Guide](EXTENSIONS.md#manifest) for an example.
+Choose sidebar placement in the extension manifest, not in the SDK call. Set `"pinToSidebar": true` to request direct sidebar links for registered pages. Aether asks the user to approve that pin when the extension is installed or updated; without approval, its pages stay under **Active Extensions**. See the [Extensions Guide](EXTENSIONS.md#manifest) for an example.
 
 ## Why use the SDK?
 

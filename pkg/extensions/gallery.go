@@ -1,8 +1,6 @@
 package extensions
 
 import (
-	"github.com/Aether-Launcher/Aether/pkg/logger"
-	"github.com/Aether-Launcher/Aether/pkg/netutil"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +10,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Aether-Launcher/Aether/pkg/logger"
+	"github.com/Aether-Launcher/Aether/pkg/netutil"
 )
 
 const galleryIndexURL = "https://raw.githubusercontent.com/Aether-Launcher/Aether-Extensions/main/index.json"
@@ -19,11 +20,11 @@ const galleryIndexURL = "https://raw.githubusercontent.com/Aether-Launcher/Aethe
 // GalleryExtension represents an extension in the Aether Registry.
 // Trust tier is assigned by the Aether team in the registry — never by the extension itself.
 type GalleryExtension struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Author      string `json:"author"`
-	Version     string `json:"version"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Description        string `json:"description"`
+	Author             string `json:"author"`
+	Version            string `json:"version"`
 	Trust              string `json:"trust"`
 	URL                string `json:"url"`
 	MinLauncherVersion string `json:"minLauncherVersion,omitempty"`
@@ -123,7 +124,14 @@ func DownloadAndInstallExtension(url string) error {
 		return fmt.Errorf("failed to download extension: %w", err)
 	}
 
-	return InstallFromArchive(tmpName)
+	manifest, err := InstallFromArchiveWithManifest(tmpName)
+	if err != nil {
+		return err
+	}
+	if GlobalManager != nil {
+		return GlobalManager.RequestSidebarPinConsent(manifest)
+	}
+	return nil
 }
 
 // validateGalleryDownloadURL only permits packages explicitly published by an

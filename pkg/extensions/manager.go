@@ -36,6 +36,8 @@ type Manager struct {
 	reloadDone       chan error
 	disabledMu       sync.RWMutex
 	disabledIDs      map[string]bool
+	sidebarMu        sync.RWMutex
+	sidebarConsents  map[string]sidebarPinConsent
 	emit             func(context.Context, string, ...interface{})
 }
 
@@ -64,6 +66,7 @@ func NewManager(ctx context.Context, emit func(context.Context, string, ...inter
 		SidebarPages:     make([]map[string]interface{}, 0),
 		ModLoaders:       make(map[string]ModLoaderConfig),
 		disabledIDs:      make(map[string]bool),
+		sidebarConsents:  make(map[string]sidebarPinConsent),
 		pending:          make(map[string]chan bool),
 		emit:             emit,
 	}
@@ -84,6 +87,9 @@ func (m *Manager) LoadAll() error {
 	}
 	if err := m.loadDisabledExtensions(); err != nil {
 		logger.Warn("Extensions", fmt.Sprintf("Could not load extension state: %v", err))
+	}
+	if err := m.loadSidebarConsents(); err != nil {
+		logger.Warn("Extensions", fmt.Sprintf("Could not load sidebar permission state: %v", err))
 	}
 
 	// Ensure local extension server is running (reuses port if already started)
@@ -207,6 +213,7 @@ func (m *Manager) reloadSandboxes() {
 		if manifest.ID == "" {
 			manifest.ID = id
 		}
+		manifest.PinToSidebar = m.hasSidebarPinConsent(manifest)
 
 		sandbox := NewSandbox(
 			m.ctx, manifest, m.serverURL,

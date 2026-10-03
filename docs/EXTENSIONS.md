@@ -69,7 +69,7 @@ Each extension needs a `manifest.json` at its root. For example:
 }
 ```
 
-`pinToSidebar` is optional and defaults to `false`. By default, registered pages are grouped under **Active Extensions**. Set it to `true` when you want those pages to have permanent links in the sidebar. The extension must also request the `ui:sidebar` permission to register pages.
+`pinToSidebar` is optional and defaults to `false`. Registered pages without an approved pin stay under **Active Extensions**. Set it to `true` to ask for permanent links in the main sidebar; the extension must also request `ui:sidebar` to register pages. Aether asks the user when the extension is installed or updated. Approval or denial is remembered for that version, and a later version can ask again. Declining the pin does not remove the extension's page from **Active Extensions**.
 
 ### Optional Registry Metadata
 
@@ -90,7 +90,7 @@ The registry can store these fields for discovery and future tooling. The launch
 
 ## Permissions
 Extensions only receive the APIs they request in `manifest.json`. Ask for the permissions your extension needs, and avoid requesting unrelated access.
-- `ui:sidebar`: Register sidebar pages that render your `ui/index.html` in an iframe.
+- `ui:sidebar`: Register extension pages that render your `ui/index.html` in an iframe. If the manifest also sets `pinToSidebar` to `true`, Aether asks the user whether to pin those pages directly in the sidebar when the extension is installed or updated.
 - `ui:dialogs`: Exposes the current dialog stub; a functional dialog API is planned.
 - `instances:list`: List installed instances.
 - `mods:list`: List mods in an instance.

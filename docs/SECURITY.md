@@ -15,7 +15,7 @@ Backend extensions have no network access by default. To call an external API, a
 ```
 
 ## Capability Model
-An extension only receives the API objects associated with its declared permissions. Calls to unavailable APIs fail in the runtime. The current instance APIs cover listing instances and installing, listing, deleting, or toggling mods; they do not expose general instance JSON or logs. `saves:list` exposes singleplayer world names, while `instances:launch` can start the game and optionally connect to a server or world chosen by the user. These permissions are granted at install time and do not expose credentials or arbitrary files.
+An extension only receives the API objects associated with its declared permissions. Calls to unavailable APIs fail in the runtime. The `ui:sidebar` capability lets an extension register pages; `pinToSidebar` separately requests permanent sidebar links, which Aether confirms with the user on install or update. The current instance APIs cover listing instances and installing, listing, deleting, or toggling mods; they do not expose general instance JSON or logs. `saves:list` exposes singleplayer world names, while `instances:launch` can start the game and optionally connect to a server or world chosen by the user. These permissions are granted at install time and do not expose credentials or arbitrary files.
 
 ## Registry Trust
 The gallery can attach Official, Verified, Community, or Local labels to extensions. Aether displays these labels as registry metadata. The launcher does not currently analyze extension code, quarantine extensions, or enforce a maintainer review process, so a badge is not a security guarantee.

@@ -77,8 +77,14 @@ func (a *App) SelectAndInstallExtension() (bool, error) {
 		return false, nil
 	}
 
-	if err := extensions.InstallFromArchive(file); err != nil {
+	manifest, err := extensions.InstallFromArchiveWithManifest(file)
+	if err != nil {
 		return false, err
+	}
+	if extensions.GlobalManager != nil {
+		if err := extensions.GlobalManager.RequestSidebarPinConsent(manifest); err != nil {
+			return false, err
+		}
 	}
 
 	// Reload all extensions dynamically!

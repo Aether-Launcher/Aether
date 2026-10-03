@@ -16,20 +16,27 @@ import (
 // InstallFromArchive extracts an extension archive (.aex/.zip) to a temporary location,
 // validates the manifest, and moves it to the extensions directory under its ID.
 func InstallFromArchive(archivePath string) error {
+	_, err := InstallFromArchiveWithManifest(archivePath)
+	return err
+}
+
+// InstallFromArchiveWithManifest installs a validated package and returns its manifest.
+// Callers can use the manifest to ask for install-time permissions before reloading it.
+func InstallFromArchiveWithManifest(archivePath string) (Manifest, error) {
 	extDir := filepath.Join(fs.GetDataDir(), "extensions")
 	if err := os.MkdirAll(extDir, 0755); err != nil {
-		return err
+		return Manifest{}, err
 	}
 
 	tempDir, err := os.MkdirTemp(extDir, "installing-*")
 	if err != nil {
-		return err
+		return Manifest{}, err
 	}
 	defer os.RemoveAll(tempDir) // Clean up temp dir in case of failure
 
 	r, err := zip.OpenReader(archivePath)
 	if err != nil {
-		return fmt.Errorf("failed to open archive: %w", err)
+		return Manifest{}, fmt.Errorf("failed to open archive: %w", err)
 	}
 	defer r.Close()
 
@@ -49,39 +56,39 @@ func InstallFromArchive(archivePath string) error {
 
 		if f.FileInfo().IsDir() {
 			if err := os.MkdirAll(fpath, 0755); err != nil {
-				return err
+				return Manifest{}, err
 			}
 			continue
 		}
 
 		if err = os.MkdirAll(filepath.Dir(fpath), 0755); err != nil {
-			return err
+			return Manifest{}, err
 		}
 
 		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
-			return err
+			return Manifest{}, err
 		}
 
 		rc, err := f.Open()
 		if err != nil {
 			outFile.Close()
-			return err
+			return Manifest{}, err
 		}
 
 		n, err := io.Copy(outFile, io.LimitReader(rc, maxFileBytes+1))
 		outFile.Close()
 		rc.Close()
 		if err != nil {
-			return err
+			return Manifest{}, err
 		}
 		if n > maxFileBytes {
 			_ = os.Remove(fpath)
-			return fmt.Errorf("file %s exceeds maximum size", f.Name)
+			return Manifest{}, fmt.Errorf("file %s exceeds maximum size", f.Name)
 		}
 		totalExtracted += n
 		if totalExtracted > maxTotalBytes {
-			return fmt.Errorf("archive exceeds maximum total size")
+			return Manifest{}, fmt.Errorf("archive exceeds maximum total size")
 		}
 	}
 
@@ -103,45 +110,45 @@ func InstallFromArchive(archivePath string) error {
 	})
 
 	if err != nil {
-		return err
+		return Manifest{}, err
 	}
 
 	if manifestPath == "" {
-		return fmt.Errorf("invalid extension: manifest.json not found in zip")
+		return Manifest{}, fmt.Errorf("invalid extension: manifest.json not found in zip")
 	}
 
 	// Parse manifest
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return fmt.Errorf("failed to read manifest: %w", err)
+		return Manifest{}, fmt.Errorf("failed to read manifest: %w", err)
 	}
 
 	var manifest Manifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		return fmt.Errorf("failed to parse manifest: %w", err)
+		return Manifest{}, fmt.Errorf("failed to parse manifest: %w", err)
 	}
 
 	if manifest.ID == "" {
-		return fmt.Errorf("invalid manifest: missing 'id'")
+		return Manifest{}, fmt.Errorf("invalid manifest: missing 'id'")
 	}
 	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9._-]+$`, manifest.ID); !matched {
-		return fmt.Errorf("invalid manifest id %q", manifest.ID)
+		return Manifest{}, fmt.Errorf("invalid manifest id %q", manifest.ID)
 	}
 
 	// Target directory with containment check
 	targetDir, err := fs.ContainedPath(extDir, manifest.ID)
 	if err != nil {
-		return fmt.Errorf("invalid manifest id: %w", err)
+		return Manifest{}, fmt.Errorf("invalid manifest id: %w", err)
 	}
-	
+
 	// Remove old version if it exists
 	os.RemoveAll(targetDir)
 
 	// Move the rootDir to the targetDir
 	if err := os.Rename(rootDir, targetDir); err != nil {
 		// Fallback for cross-device rename issues if needed, though they are in the same folder here
-		return fmt.Errorf("failed to move extension to final directory: %w", err)
+		return Manifest{}, fmt.Errorf("failed to move extension to final directory: %w", err)
 	}
 
-	return nil
+	return manifest, nil
 }
