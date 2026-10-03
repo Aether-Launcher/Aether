@@ -1,5 +1,6 @@
 {
   "id": "quilt",
+  "pinToSidebar": true,
   "name": "Quilt",
   "version": "1.0.2",
   "author": "Aether",

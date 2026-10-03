@@ -1,5 +1,6 @@
 {
   "id": "aether.discord-presence",
+  "pinToSidebar": true,
   "name": "Discord Rich Presence",
   "version": "1.0.1",
   "author": "Aether",

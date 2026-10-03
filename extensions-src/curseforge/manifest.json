@@ -1,5 +1,6 @@
 {
   "id": "curseforge",
+  "pinToSidebar": true,
   "name": "Curseforge Browser",
   "version": "1.2.0",
   "author": "Aether & Cribest7890",

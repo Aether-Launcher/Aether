@@ -1,5 +1,6 @@
 {
   "id": "neoforge",
+  "pinToSidebar": true,
   "name": "NeoForge",
   "version": "1.0.1",
   "author": "Aether",

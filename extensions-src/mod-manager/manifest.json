@@ -1,5 +1,6 @@
 {
   "id": "mod-manager",
+  "pinToSidebar": true,
   "name": "Mod Manager",
   "version": "1.0.1",
   "author": "Aether",

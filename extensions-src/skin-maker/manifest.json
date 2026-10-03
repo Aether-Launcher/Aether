@@ -1,5 +1,6 @@
 {
   "id": "skin-maker",
+  "pinToSidebar": true,
   "name": "Skin Maker & Viewer",
   "version": "1.0.0",
   "author": "Aether",

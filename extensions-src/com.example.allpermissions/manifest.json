@@ -1,5 +1,6 @@
 {
   "id": "com.example.allpermissions",
+  "pinToSidebar": true,
   "name": "All Permissions Example",
   "version": "1.0.0",
   "author": "AI Assistant",

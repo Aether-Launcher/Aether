@@ -1,5 +1,6 @@
 {
   "id": "my-servers",
+  "pinToSidebar": true,
   "name": "My Servers",
   "version": "1.0.1",
   "author": "Aether",

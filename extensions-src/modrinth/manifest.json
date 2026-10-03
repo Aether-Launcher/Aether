@@ -1,5 +1,6 @@
 {
   "id": "modrinth",
+  "pinToSidebar": true,
   "name": "Modrinth Browser",
   "version": "1.4.0",
   "author": "Aether",
