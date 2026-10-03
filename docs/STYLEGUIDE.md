@@ -1,54 +1,20 @@
-# Visual Language & Styleguide
+# Visual Language and Style Guide
 
-## Visual Language
-Use generous spacing.
-Every page should breathe.
-Avoid clutter.
-Use one accent color.
-Avoid gradients unless subtle.
-Avoid shadows unless absolutely necessary.
-Use rounded corners between 6-10px.
-Animations should be quick (150-200ms).
-No flashy transitions.
-Dark mode first. Light mode later.
+Aether should feel like a focused desktop tool. Give each screen a clear hierarchy and enough breathing room to scan comfortably. Use the theme accent with restraint, and distinguish dark surfaces with subtle shifts in color and fine borders instead of bright outlines.
 
-## Typography
-Large page titles.
-Simple hierarchy.
-Never use more than four font sizes.
-Use semibold only where needed.
-Body text should be easy to read.
+## Shape and depth
+Use 6–8px corners for cards and other containers, and 10–12px for primary action buttons. A button can have a faint inner highlight and a short shadow to suggest depth. Avoid glow effects. Keep transitions around 150–200ms so feedback feels immediate without becoming distracting.
 
-## Buttons
-Primary: Accent Color
-Secondary: Outline
-Danger: Red
+## Type
+Use a clear hierarchy and keep the number of type sizes to four or fewer. Page titles can be prominent; body text should remain easy to read. Use semibold weight when it helps distinguish a label or action, not as a default.
 
-Never use more than three button styles.
+## Actions and cards
+Primary actions should use the theme accent and show a clear pressed state. Secondary actions should stay quiet until hovered or focused; destructive actions should use the danger color. Keep these patterns consistent across screens.
 
-## Cards
-Cards are used everywhere (Instances, Extensions, Downloads, Mods, Worlds).
-Cards should be flat.
-Minimal borders.
-No excessive shadows.
+Cards should sit just above the window background with a subtle border and compact corners. Their job is to group related information, not compete with it. Avoid bright outlines and heavy shadows.
 
-## Icons
-Lucide Icons.
-No emojis.
-No mixed icon sets.
+## Icons and motion
+Use the Lucide icon set consistently. Avoid emoji and mixing icon families. Favor simple fades, slides, and restrained opacity or scale changes. Don't bounce elements or spin icons without a clear purpose.
 
 ## Accessibility
-Keyboard Navigation
-Tab Navigation
-Screen Reader Labels
-High Contrast
-Scalable Fonts
-
-## Animation
-Fade
-Slide
-Opacity
-Scale
-
-Never bounce.
-Never spin unnecessarily.
+Make every screen usable with a keyboard, provide visible focus and screen-reader labels, maintain readable contrast, and respect scalable text settings.

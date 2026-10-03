@@ -1,12 +1,12 @@
 # Server Manager UI Spec
 
-Implementation spec for a full server-manager extension (Paper / Purpur /
-Vanilla / Fabric local hosting). The panel lives in the **extension's
-iframe** — this document is the complete contract: every bridge method,
-event, error string, and UX rule needed to build it from scratch.
+This guide describes how to build an extension for managing local Paper,
+Purpur, Vanilla, or Fabric servers. The panel runs in the extension's iframe.
+Use the bridge methods, events, error handling, and interface guidance below
+as the implementation contract.
 
-Related: `docs/API.md` (Multiplayer Servers, Server Processes),
-`docs/EXTENSIONS.md` (permissions), `docs/THEMES.md` is unrelated.
+For the available APIs, see [API](API.md). For manifest fields and
+permissions, see [Extensions](EXTENSIONS.md).
 
 ## 1. Architecture
 
@@ -20,9 +20,10 @@ Related: `docs/API.md` (Multiplayer Servers, Server Processes),
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-The UI **never** touches Go directly. Every call goes UI → `main.js` →
-`Aether.servers.*` → response. Follow the `server-list` / `server-host`
-test extensions in `dist-extensions/` for working examples of this pattern.
+The UI does not call Go directly. Each request travels from the UI through
+`main.js` to `Aether.servers.*`, and the response returns through the bridge.
+The `server-list` and `server-host` examples in `dist-extensions/` show this
+pattern in practice.
 
 ## 2. Manifest
 
@@ -45,29 +46,29 @@ test extensions in `dist-extensions/` for working examples of this pattern.
 }
 ```
 
-- `servers:list` — read `servers.dat`, ping servers.
-- `servers:manage` — create/delete `servers/<id>/`, read/write files.
-- `servers:process` — start/stop/status/console/EULA. The security-sensitive one.
-- Request **only** what the panel uses. The registry review flags
-  `servers:process` for extra scrutiny.
+- `servers:list`: read `servers.dat` and ping servers.
+- `servers:manage`: create or delete `servers/<id>/` directories and read or write files.
+- `servers:process`: start, stop, inspect status, send console commands, and
+  manage EULA acceptance. This permission can control running processes.
+- Request only the permissions the panel needs. Avoid `servers:process`
+  unless the extension actually hosts servers.
 
 ## 3. IPC protocol (UI ↔ main.js)
 
-Copy this verbatim. Every request carries an incrementing `requestId`;
-responses echo `requestId` and carry either a result or `error`. Two
-hard-won rules (both learned from real timeout bugs — do not "improve"
-them):
+Every request should carry an incrementing `requestId`, which the response
+echoes along with either a result or an `error`. Keep these two bridge details
+in mind:
 
 1. **`targetOrigin` MUST be `"*"`.** Inside the iframe, `window.location`
    is the *iframe's own* origin (`http://127.0.0.1:port`) while
    `window.parent` is the Wails webview (`wails://…`). A computed origin
    never matches, so `postMessage` silently drops every request and all
-   you see is `Request timed out`. Correlation via `requestId` is the
-   actual security boundary (same pattern as the shipped Modrinth UI).
-2. **Do NOT require a marker on inbound messages.** `ExtensionView`
-   forwards backend payloads as-is — responses carry NO `__aether`
-   marker. Filtering on one drops every reply (same timeout symptom).
-   Only the `requestId` correlation applies.
+   you see is `Request timed out`. Use `requestId` to match each response
+   with its request, as the shipped Modrinth UI does.
+2. **Do not require a marker on inbound messages.** `ExtensionView`
+   forwards backend payloads as-is. Responses carry no `__aether`
+   marker. Filtering on one drops every reply. Match responses by
+   `requestId` instead.
 
 ```javascript
 const pending = {};
@@ -79,7 +80,7 @@ function sendMessage(payload, timeoutMs) {
     const id = ++reqCounter;
     payload.requestId = id;
     pending[id] = { resolve, reject };
-    // "*" is correct here — see rule 1 above.
+    // Use "*" here, as described in rule 1 above.
     window.parent.postMessage(payload, "*");
     setTimeout(() => {
       if (pending[id]) {
@@ -92,7 +93,7 @@ function sendMessage(payload, timeoutMs) {
 
 window.addEventListener('message', (e) => {
   const msg = e.data;
-  // No marker check — see rule 2 above.
+  // No marker check; see rule 2 above.
   if (!msg || msg.requestId == null) return;
   const p = pending[msg.requestId];
   if (!p) return;
@@ -102,8 +103,8 @@ window.addEventListener('message', (e) => {
 });
 ```
 
-Backend (`main.js`) shape per message — always reply, always include
-`requestId`, never let an exception escape uncaught:
+In `main.js`, handle each message and send a reply with its `requestId`.
+Catch exceptions and return them as errors rather than letting them escape:
 
 ```javascript
 Aether.ui.onMessage(function (msg) {
@@ -128,12 +129,13 @@ Aether.ui.onMessage(function (msg) {
 - Load: `host_list` → `Aether.servers.listServers()` → `[{ id, name }]`.
 - Per server, call `status` (see 4.2) to render the state dot:
   green running / gray stopped.
-- **Poll `status()` every 3 s, but only while at least one server reports
-  `running`.** Stop polling when all are stopped — no background churn.
+- **Poll `status()` every 3 seconds, but only while at least one server is
+  running.** Stop polling when all servers are stopped to avoid unnecessary work.
 - Actions per row: **Open console**, **Start**/**Stop** (toggle by state),
   **Delete** (backend fires the launcher confirmation dialog; on denial the
-  bridge throws `user denied server deletion` — show it as info, not error).
-- Empty state: "No servers yet — create one below." plus the create form.
+  bridge throws `user denied server deletion`; show this as information, not
+  an error).
+- Empty state: "No servers yet. Create one below." Include the create form.
 
 ### 4.2 Start flow (with options + EULA gate)
 
@@ -143,13 +145,13 @@ Start form fields (all optional except the server itself):
 |---|---|---|
 | MC version | `mcVersion` | `"1.21.1"` style. **Required** when the jar filename carries no version (notably `fabric-server-launch.jar`). Otherwise auto-detected from `paper-<mc>-*` / `purpur-<mc>-*` names. |
 | Memory (MB) | `memoryMB` | Default 2048, clamped server-side to 512–16384. Prefill 2048. |
-| Jar file | `jarName` | Optional. Defaults to auto-detect: `paper-*.jar` → `purpur-*.jar` → `server.jar` (`fabric-server-launch.jar` recognized). Show the resolved jar name back to the user after start (from `status().mcVersion` is version only — display the jar choice in the form itself). |
+| Jar file | `jarName` | Optional. Defaults to auto-detecting `paper-*.jar`, then `purpur-*.jar`, then `server.jar`. `fabric-server-launch.jar` is also recognized. Keep the selected jar visible in the form; `status().mcVersion` reports only the game version. |
 | Extra JVM args | `extraArgs[]` | Optional list, max 32 entries, 500 chars each (server rejects the rest). One per line in a textarea. |
 
 Sequence:
 
 1. Call `eulaStatus` first.
-2. If `false` → show inline banner: *"This server needs the Mojang EULA accepted before its first start"* + **Review & Accept** button → `acceptEula` (the launcher shows its own confirmation dialog listing your extension name) → on success, proceed. On denial (`user denied EULA acceptance`), stay on the form — this is expected, not an error.
+2. If `false`, show an inline message that the Mojang EULA must be accepted before the first start, with a **Review & Accept** button. Call `acceptEula`; Aether shows a confirmation dialog with your extension's name. If the user declines (`user denied EULA acceptance`), keep them on the form and do not show an error.
 3. Call `start`. Disable the Start button and show spinner until it resolves.
 4. On success → navigate to the console view for that server.
 
@@ -158,17 +160,17 @@ Sequence:
 - On open: call `recentLogs(id, 100)` and render top-to-bottom, oldest first.
 - Subscribe live: `window.addEventListener('message')` handler for
   `server:log` events. **Payload shape:** `{ id, line }` (note: these arrive
-  as *pushed* events from the backend — they carry no `requestId`, so route
+  as pushed events from the backend. They carry no `requestId`, so route
   them by `msg.id`, not through the `pending` map).
 - Also listen for `server:state` `{ id, state }` (`"running"` / `"stopped"`)
   to flip the header dot and enable/disable the input.
-- **Cap the DOM at ~300 lines** (drop from the top) — a busy modded server
+- **Cap the DOM at about 300 lines**, dropping older lines from the top. A busy modded server
   will otherwise grow the iframe without bound.
 - **Auto-scroll**: stick to bottom only while already at bottom; if the user
   scrolled up, show a "Jump to latest" pill instead of yanking.
 - Command input + Send button → `send(id, command)` (4 KB cap server-side;
   enforce `maxlength="4000"` client-side too). Disable while stopped.
-- Header: server name, state dot, `players` are NOT available here — console
+- Header: show the server name and state dot. Player counts are not available here; console
   parsing for player lists is out of scope for v1.
 
 ### 4.4 Stop flow
@@ -188,7 +190,7 @@ Sequence:
 ### 4.6 File editor (server.properties and friends)
 
 - `readFile(id, "server.properties")` returns UTF-8 text (5 MiB cap).
-- `writeFile(id, path, base64)` — encode with a UTF-8-safe base64 helper
+- `writeFile(id, path, base64)` needs a UTF-8-safe base64 helper
   (`TextEncoder` → bytes → `btoa`), **not** raw `btoa()` (breaks on unicode
   MOTDs):
 
@@ -203,7 +205,7 @@ function toB64(str) {
 
 - After saving `server.properties`, note in the UI that changes apply on
   next start (or offer Restart = stop + start).
-- Paths stay inside `servers/<id>/` — traversal is rejected server-side;
+- Keep paths inside `servers/<id>/`. The backend rejects traversal;
   mirror that client-side by disallowing `..` in any path input.
 
 ## 5. Backend message catalog (main.js reference)
@@ -249,7 +251,7 @@ function toB64(str) {
 | `file exceeds the 5 MB limit` / `invalid base64 data` | Editor abuse/edge | Error toast. |
 | `instance.json`-style: any `not found` / `does not exist` on read | Missing file | Empty editor with "new file" hint, not an error. |
 
-## 8. Security rules (registry review checks these)
+## 8. Security and input handling
 
 1. **Escape every interpolated string.** Use an `esc()` helper for `&<>"'` on
    *all* server names, MOTDs, log lines, and file contents rendered via
@@ -257,8 +259,10 @@ function toB64(str) {
    attacker-influenced (any player can print into a server log via chat).
 2. **CSP meta** on every `ui/*.html`:
    `default-src 'none'; img-src https: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'`.
-3. **IPC hygiene**: computed `targetOrigin` (never `"*"`); reject inbound
-   messages unless `e.source === window.parent && msg.__aether === true`.
+3. **IPC hygiene**: use `"*"` as `postMessage`'s `targetOrigin` because the
+   iframe and Wails webview use different origins. Do not require a marker on
+   replies; the bridge forwards payloads as-is. Correlate replies by
+   `requestId`, as described in §3.
 4. **No `eval`/`Function`/`innerHTML` with unescaped data** anywhere.
 5. **15 s default IPC timeout** (3–5 min only for bulk downloads); always
    re-enable buttons in `finally`.
@@ -268,8 +272,8 @@ function toB64(str) {
 
 ## 9. UX requirements
 
-- Every async action disables its button + shows progress text; re-enable in
-  `finally` (a stuck disabled button is a P0 bug in review).
+- While an action is running, disable its button and show progress. Re-enable
+  it in `finally`, including when the request fails.
 - Status polling: 3 s cadence **only while ≥1 server reports running**.
 - Log DOM cap ~300 lines; auto-scroll stickiness per §4.3.
 - Denied confirmations are *information*, never red errors.
@@ -279,9 +283,9 @@ function toB64(str) {
 
 ## 10. Out of scope for v1 (do not build)
 
-Player lists (no API surface — would need log parsing or RCON), scheduled
-restarts/backups, multi-user permissions, remote (non-localhost) process
-management, log search/filter (nice follow-up once console is solid).
+Player lists (there is no API for them; they would require log parsing or
+RCON), scheduled restarts and backups, multi-user permissions, remote
+process management, and log search or filtering.
 
 ## 11. Acceptance checklist (what "done" means)
 
@@ -292,5 +296,5 @@ management, log search/filter (nice follow-up once console is solid).
 - [ ] Delete fires the launcher confirm; denial is silent.
 - [ ] `server.properties` round-trips unicode MOTDs byte-identical.
 - [ ] `npm run check`-equivalent: no console errors; buttons never stick disabled.
-- [ ] Passes `Aether-Extensions` automated review (manifest, permissions,
-      ZipSlip, sizes) with `community` trust.
+- [ ] Meets the Aether Extensions registry's package and permission
+      requirements, including archive-path and file-size checks.

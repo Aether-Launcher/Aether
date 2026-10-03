@@ -1,181 +1,37 @@
 # UI Layout and Components
 
+Aether is a desktop launcher, so launching Minecraft and managing instances should always be easy to find. Extensions add optional features without crowding the core experience.
+
 ## Sidebar
-The sidebar is permanent.
-It never collapses automatically.
-Width: 240px
 
-Contains:
-- Logo
-- Navigation
-- Extensions
-- Settings
-- Account
-
-Example:
---------------------------------
-LOGO
-
-Home
-Instances
-Extensions
--------------
-(Settings icon)
-(User)
---------------------------------
-
-Extensions appear dynamically.
-The launcher itself never contains built-in feature pages.
+The 220px sidebar links to Home, Instances, Marketplace, and Settings, with connection status and the signed-in account below. Extension pages share one **Active Extensions** group by default. An extension can opt to pin its pages to the sidebar. A slim accent bar marks the current page.
 
 ## Home
-Purpose: Launch Minecraft. Nothing else.
 
-Contains:
-- Current Instance
-- Play Button
-- Minecraft Version
-- Loader
-- RAM Allocation
-- Recent Activity
-- Account
-
-No news.
-No changelog.
-No advertisements.
-No promotions.
-No banners.
-No Discord widgets.
-
-Layout:
----------------------------------
-Home
-
-Current Instance
-Play
-Version
-Loader
-Memory
----------------------------------
-Large whitespace below.
+Home puts the selected instance and its Play button first. It also shows the Minecraft version, mod loader, and launch state, with a link to instance settings. Depending on their preferences, users may also see recent instances, screenshots, service status, news, and extension updates. Optional Home sections can be changed in Settings.
 
 ## Instances
-Purpose: Manage Minecraft instances.
 
-Actions:
-- Create
-- Duplicate
-- Rename
-- Delete
-- Import
-- Export
+On the Instances page, users can create or import an instance. Each card shows its name, Minecraft version, mod loader, last-played time, avatar, and Play button. The gear button opens instance details and settings.
 
-Each instance card shows:
-- Name
-- Minecraft Version
-- Loader
-- Last Played
-- Play Button
+## Instance details
 
-No statistics.
-No graphs.
-No unnecessary metadata.
-
-Instance Details Tabs:
-- Play
-- Settings
-- Extensions
-## Extension UI Rules
-
-Extensions MAY:
-- Register sidebar pages (rendered in an iframe)
-- Register dialogs (planned)
-- Register notifications (planned)
-
-Extensions MAY NOT:
-- Modify launcher chrome (sidebar, window controls, titlebar)
-- Replace navigation
-- Inject arbitrary HTML outside their iframe
-- Overlay the entire application
-- Modify other extensions
-
-By enforcing these constraints, Aether guarantees a stable, predictable user experience regardless of how many extensions are installed.
+Instance details collect the selected instance's settings, game files, and launch options. Group related controls together and make the main action easy to spot.
 
 ## Extensions
-Purpose: Manage installed extensions.
 
-Contains:
-- Installed Extensions
-- Updates
-- Permissions
-- Enable
-- Disable
-- Remove
-- Restart Extension
-- Resource Usage
-- Health
+The Extensions page has **Installed** and **Gallery** views. Users can install a local `.aex` package or browse the gallery, check for updates, reload extensions, update them, and uninstall them. Cards show an extension's name, version, author, status, trust label, and description. Developer mode adds runtime details.
 
-Every extension card shows:
-- Icon
-- Name
-- Version
-- Author
-- Status
-- Memory Usage
-- CPU Usage
-- Permissions
-- Restart Button
+Extensions can register pages that Aether displays in an iframe. Pages appear under **Active Extensions** unless the extension asks to pin them. An extension cannot replace launcher navigation or window controls, display content outside its frame, or modify another extension.
 
 ## Settings
-Categories:
-- Launcher
-- Appearance
-- Java
-- Updates
-- Advanced
-- Extensions
 
-Each category is simple. Avoid overwhelming users.
+Settings are grouped by topic, such as launcher behavior, appearance, Java, updates, and advanced options. Keep related choices together and describe them in plain language.
 
-## Non-Existent Built-in Pages
-The following pages DO NOT EXIST in the core launcher and are created by extensions:
-- Downloads (Created by the official Minecraft extension)
-- Modrinth (Created by Modrinth extension)
-- CurseForge (Created by CurseForge extension)
-- Logs (Created by Log Viewer extension)
-- Server Browser (Created by Server Browser extension)
-- Worlds (Created by World Manager extension)
-- Skin Manager (Created by Skin extension)
+## Empty states, dialogs, and feedback
 
-## Empty States
-Every page should have beautiful empty states.
+An empty page should explain what belongs there and offer a useful next step. Keep each dialog focused on one decision, with a clear way to cancel. Use notifications sparingly, and show progress during downloads, installs, and launches.
 
-Example:
-No Extensions Installed
-Install your first extension to add new functionality.
-[Browse Extensions]
+## Desktop layout
 
-Never leave blank pages.
-
-## Dialogs
-Centered. Simple. One action. One cancel.
-Never overload dialogs.
-
-## Notifications
-Bottom Right. Disappear automatically. Used sparingly.
-
-## Progress
-Downloads, Launching, Installing should always show progress.
-Never leave users guessing.
-
-## Responsive Behaviour
-Minimum Width: 1100px.
-Never become mobile. Desktop first.
-
-## UI Consistency Rules
-Every page title appears in the same location.
-Every toolbar behaves the same.
-Every search bar behaves the same.
-Every table behaves the same.
-Every settings page behaves the same.
-Every dialog behaves the same.
-No extension may violate these rules.
+The window's minimum width is 1100px. The layout should remain comfortable at that size. Let content areas scroll while the sidebar and title bar stay in place.

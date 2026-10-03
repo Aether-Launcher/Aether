@@ -1,31 +1,33 @@
 # Aether SDK
 
-> The CLI and `@aethermc/sdk` package are maintained outside this core launcher repository. The Go runtime in this repository remains the source of truth for which APIs are actually injected into extension sandboxes.
+> The CLI and `@aethermc/sdk` live in separate repositories. This launcher repository defines the runtime API: the Go code determines which capabilities are available in an extension sandbox.
 
-The Aether SDK (`@aethermc/sdk`) is the development companion for building Aether extensions. It is intended as a development-time package and does not ship inside an extension at runtime.
+The Aether SDK (`@aethermc/sdk`) provides editor support while you build an extension. It is a development dependency and is not bundled into the extension at runtime.
 
 ## CLI vs SDK
 
-These are two separate but connected tools:
+The [CLI](https://github.com/Aether-Launcher/aether-cli) and [SDK](https://github.com/Aether-Launcher/Aether-SDK) serve different purposes:
 
-- **CLI** (`aether-cli`) — what you run in your terminal. Scaffolds projects, runs dev mode, packages extensions.
-- **SDK** (`@aethermc/sdk`) — what you import inside your extension's code. Provides types and helper utilities.
+- **CLI** (`aether-cli`) is the terminal tool for scaffolding projects, running development mode, and packaging extensions.
+- **SDK** (`@aethermc/sdk`) is the package you import in extension code for type definitions and helper utilities.
 
-## The Problem It Solves
+Choose sidebar placement in the extension manifest, not in the SDK call. Set `"pinToSidebar": true` to keep registered pages directly in the sidebar. Otherwise, Aether groups them under **Active Extensions**. See the [Extensions Guide](EXTENSIONS.md#manifest) for an example.
 
-The `Aether` global object is injected directly into every extension's sandbox by the Go runtime. Without the SDK, the developer experience is rough:
+## Why use the SDK?
 
-- No autocompletion — editors don't know what `Aether.ui` or `Aether.instances` contains.
-- No type safety — a typo like `Aether.instances.patcH()` is only caught at runtime.
-- No friendly error messages — raw sandbox errors are cryptic.
+The Go runtime adds an `Aether` object to each extension sandbox. You can use it without the SDK, but your editor will not know its API types. That means:
 
-The SDK fixes all of this without changing the runtime.
+- Editors cannot autocomplete `Aether.ui` or `Aether.instances`.
+- Typos such as `Aether.instances.patcH()` are only caught at runtime.
+- Sandbox errors can be difficult to interpret.
+
+The SDK supplies those editor aids without changing the runtime itself.
 
 ## What the SDK Contains
 
 ### 1. TypeScript Definitions
 
-The most important part. A `.d.ts` file that tells your editor exactly what every Aether API accepts and returns. No code from this runs at runtime — it is purely for your editor:
+The SDK's TypeScript declarations tell your editor what the Aether APIs accept and return. They are used for type checking and autocomplete; they do not run in the extension:
 
 ```typescript
 declare global {
@@ -56,7 +58,7 @@ declare global {
 
 ### 2. Helper Utilities
 
-Thin wrappers that make common patterns cleaner and catch mistakes earlier:
+The SDK also includes small helpers for common tasks:
 
 ```javascript
 import { onReady, createLogger } from '@aethermc/sdk';
@@ -82,11 +84,11 @@ Available helpers:
 | `createLogger(name)` | Returns a namespaced logger (`log.info`, `log.warn`, `log.error`) |
 | `defineProvider(spec)` | Registers a typed Loader Provider with validation |
 | `assertPermission(perm)` | Throws a clear error if a required permission was not declared |
-| `createIframeBridge(timeoutMs?)` | Request/response IPC for sidebar iframes: `requestId` correlation, timeouts, and the correct `postMessage` rules baked in |
+| `createIframeBridge(timeoutMs?)` | Handles sidebar iframe requests and responses, including `requestId` matching, timeouts, and `postMessage` details |
 
-## Versioning
+## API compatibility
 
-The `"api"` field in `manifest.json` ties directly to the SDK version:
+The `"api"` field in `manifest.json` describes the extension API version:
 
 ```json
 {
@@ -94,19 +96,15 @@ The `"api"` field in `manifest.json` ties directly to the SDK version:
 }
 ```
 
-When you install `@aethermc/sdk@1.0`, you get types and helpers that match Aether's runtime API at that version exactly. When Aether ships a new API version, `aether-cli migrate` updates your manifest and you run:
+The SDK package has its own version number, separate from the manifest's `api` value. This launcher does not currently negotiate API versions or enforce compatibility ranges. Check the SDK release notes and this launcher's API documentation when choosing a version.
 
-```
-npm install @aethermc/sdk@2.0
-```
-
-## What the SDK Does NOT Do
+## What the SDK does not do
 
 - It does not ship any JavaScript into your packaged extension.
-- It does not replace the `Aether` global — that is always injected by the Go runtime.
+- It does not replace the `Aether` global. The Go runtime injects that object.
 - It does not add a runtime dependency to your `.aex` file.
 
-The Go runtime is the single source of truth for what APIs actually exist. The SDK is a development-time mirror of that truth.
+The Go runtime remains the source of truth for available APIs. The SDK mirrors that API for development; if the two disagree, follow the runtime.
 
 ## Full Developer Flow
 
@@ -117,14 +115,14 @@ aether-cli init
 Edit main.js
   └─ full autocomplete and type checking via SDK
 
-aether dev
+aether-cli dev
   └─ connects to a running Aether instance, hot-reloads on save
 
 aether-cli validate
-  └─ checks your manifest against the declared SDK/API version
+  └─ checks the manifest and required project files
 
 aether-cli build
-  └─ bundles into a .aex file, SDK types stripped automatically
+  └─ packages the project into a .aex file without node_modules
 ```
 
 ## Installation
@@ -133,4 +131,4 @@ aether-cli build
 npm install --save-dev @aethermc/sdk
 ```
 
-Use the SDK package from the SDK repository for local development. The TypeScript definitions in that repository should mirror the Go runtime APIs exposed by this launcher.
+Install the SDK from its [repository](https://github.com/Aether-Launcher/Aether-SDK) when developing an extension. Its TypeScript definitions are intended to mirror the APIs exposed by this launcher's Go runtime.

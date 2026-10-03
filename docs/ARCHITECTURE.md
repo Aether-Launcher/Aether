@@ -1,29 +1,30 @@
 # Architecture
 
-## Backend
-The launcher backend is written in Go to ensure high performance, memory safety, and native compilation across Windows, macOS, and Linux. The backend operates completely headlessly and serves the frontend via Wails bindings. The frontend is a lightweight web view rendering the UI.
+## Application structure
+Aether runs a Svelte interface in a Wails desktop window, backed by Go. Go handles game files, accounts, Java, extensions, and managed processes. The frontend calls those services through generated Wails bindings, and backend events keep the interface up to date with progress and state changes.
 
 ## Go Packages
-- `main.go`: The main entry point.
-- `pkg/instance`: Logic for managing Minecraft instances, resolving dependencies, and constructing launch arguments.
-- `pkg/java`: Discovery, installation, and management of Java Runtimes (JRE/JDK).
-- `pkg/auth`: Offline account storage and deterministic offline UUID generation.
-- `pkg/extensions`: The extension manager and sandbox environment.
+- `main.go` and `app_*.go`: Wails startup and frontend-facing application methods, split by feature.
+- `pkg/instance`: Instance management, dependency resolution, imports, and Minecraft launch arguments.
+- `pkg/java`: Java discovery, installation, and process support.
+- `pkg/auth`: Account storage and Microsoft and offline authentication.
+- `pkg/extensions`: Extension discovery, installation, APIs, and sandbox runtime.
+- `pkg/theme`: Theme installation, validation, and asset serving.
+- `frontend/src`: Svelte pages, shared components, stores, and styles.
 
 ## Extension Manager
-The Extension Manager (`pkg/extensions`) is responsible for discovering, installing, and executing extensions. Manifest parsing and install-time ID checks are implemented; a broader extension validator is planned.
-Extensions are executed in an isolated JavaScript runtime (Goja). They do not have direct access to the host OS. Any action an extension wants to perform must be requested through the launcher's API, which enforces the capability-based permission model.
+The Extension Manager (`pkg/extensions`) discovers, installs, and runs extensions. Each backend script gets its own Goja runtime and only the launcher APIs granted by its manifest permissions. The launcher can ask the user before sensitive actions. Extensions do not get unrestricted access to the host operating system; see [Security](SECURITY.md) for the limits of this protection.
 
-## Planned Features
-An updater is described in the longer-term architecture but is not implemented in the current codebase. Launcher and extension updates are currently manual.
+## Updates
+The launcher checks for releases and can offer an update in the interface. Users can enable an automatic check after startup in Settings, or check manually. Extension updates are managed from the Extensions page. Release handling and platform-specific installation live in `pkg/update` and the frontend bindings.
 
 ## Launcher Pipeline
-1. **Resolution**: Determine the Minecraft version, loader (Fabric, Forge, etc.), and required libraries.
-2. **Verification**: Check if all assets, libraries, and the Java runtime are present. Download missing files.
-3. **Authentication**: Load the selected offline account and deterministic UUID.
-4. **Extension Load**: `LoadAll()` performs fast metadata scan; sandbox creation deferred via `reloadSandboxes()` background goroutine. `UpdateExtension`/`ReloadExtensions` calls `ReloadAsync()` which returns immediately, triggers sandbox script reload with 10s timeout.
-5. **Execution**: Construct the massive Java command line and spawn the child process.
-6. **Monitoring**: Emit process state and log events to the Wails frontend.
+1. **Resolve** the selected instance version, mod loader, libraries, and assets.
+2. **Prepare** missing game files and locate or install a compatible Java runtime.
+3. **Authenticate** with the selected account and build the launch session.
+4. **Run extension hooks** where a loader extension supplies launch configuration.
+5. **Launch Minecraft** with the resolved Java command and instance settings.
+6. **Report state** by sending process status and log events to the frontend.
 
 ## Diagrams
 
@@ -41,16 +42,17 @@ sequenceDiagram
     Core->>UI: Start Wails Webview
     Core->>ExtManager: Initialize()
     
-    loop For each Extension
-        ExtManager->>ExtManager: Read manifest.json
-        ExtManager->>Sandbox: Create new isolated runtime
-        ExtManager->>Sandbox: Inject permitted Aether APIs
-        ExtManager->>Sandbox: Execute main.js
-        Sandbox->>ExtManager: Aether.ui.registerSidebarPage()
-        ExtManager->>UI: Emit 'extension:sidebar:add' event
+    Core->>ExtManager: LoadAll() scans extension metadata
+    Core->>UI: Show launcher interface
+    par Extension initialization
+        ExtManager->>Sandbox: Create isolated runtime
+        ExtManager->>Sandbox: Add permitted launcher APIs
+        ExtManager->>Sandbox: Run extension entry script
+        Sandbox->>ExtManager: Register extension UI or hooks
+        ExtManager->>UI: Emit extension events
+    and User interface
+        UI-->>User: Render launcher and registered extension pages
     end
-    
-    UI-->>User: Render fully loaded UI
 ```
 
 ### Permission Validation
@@ -63,11 +65,13 @@ sequenceDiagram
     Sandbox->>API: Aether.instances.installMod(id, file, url)
     API->>API: Check Extension Manifest
     
-    alt Has granular mod permission
-        API-->>UI: Request user confirmation
-        UI-->>API: Approve or reject
-        API-->>Sandbox: Continue or throw error
+    alt Has required permission
+        opt Action requires confirmation
+            API-->>UI: Ask user to approve the action
+            UI-->>API: Approve or reject
+        end
+        API-->>Sandbox: Return result or report rejection
     else Missing permission
-        API-->>Sandbox: Throw Error ("Permission Denied")
+        API-->>Sandbox: Return permission error
     end
 ```

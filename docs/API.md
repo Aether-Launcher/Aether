@@ -1,9 +1,9 @@
 # Extension API & Sandbox
 
-Aether executes extension backend scripts inside an isolated **Goja JavaScript runtime**. 
+Aether runs each extension backend script in a separate **Goja JavaScript runtime**. This keeps extension code away from browser and Node.js APIs, but it is not an operating-system security boundary. See [Security](SECURITY.md) for what the sandbox does and does not protect.
 
 > [!WARNING]
-> This backend environment is **NOT** a browser or a Node.js environment. The following APIs are unavailable:
+> The backend runtime is not a browser or Node.js. These APIs are unavailable there:
 > - `window`
 > - `document`
 > - `fetch` (unless explicitly provided via `Aether.http.get`)
@@ -11,23 +11,24 @@ Aether executes extension backend scripts inside an isolated **Goja JavaScript r
 > - `require()`
 > - `process`, `fs`, `child_process` (and all other Node.js modules)
 
-Instead, your script interacts with the launcher core via the injected `Aether` global object.
+Use the injected `Aether` object to call the launcher APIs your manifest permissions allow.
 
 ## The `Aether` Global Object
 
-When your extension's `main.js` is executed, the `Aether` object is injected into the global scope. The capabilities attached to this object depend strictly on the permissions requested in your `manifest.json`.
+When Aether runs your extension's `main.js`, it adds an `Aether` object to the global scope. The APIs available on that object depend on the permissions in `manifest.json`.
 
 ### UI Registration (`ui:sidebar`)
 Allows the extension to register a frontend UI tab.
 
 - `Aether.ui.registerSidebarPage(options)`
   - **options** (Object):
-    - `id` (String): A unique identifier for the tab.
-    - `label` (String): The text displayed on the tab.
-    - `url` (String): The path to your UI HTML file, relative to your extension's root directory (e.g., `"ui/index.html"`).
+    - `id` (String): A page identifier unique within the extension.
+    - `label` (String): The page name shown in navigation.
+    - `url` (String): The path to your UI HTML file, relative to the extension root (for example, `"ui/index.html"`).
+  - Pages appear under **Active Extensions** by default. Set `"pinToSidebar": true` in the extension manifest to give its pages permanent sidebar links. Duplicate labels are qualified with the extension name.
 
 ### Dialogs (`ui:dialogs`)
-The capability is present for compatibility, but `Aether.ui.openDialog()` is currently a stub and does not open a launcher dialog yet.
+This permission is kept for compatibility, but `Aether.ui.openDialog()` is currently a stub. It does not open a launcher dialog.
 
 ### Instance and Mod Management
 `instances:list` allows the extension to query instances. The separate `mods:list`, `mods:install`, `mods:delete`, and `mods:toggle` permissions control access to files in their `mods` directories. Sensitive mod operations require confirmation in the launcher UI.
@@ -73,7 +74,7 @@ Allows the extension to write base64 encoded skins to the local filesystem.
   - **filename** (String): The name to save the skin as (e.g., `skin.png`). Returns the saved file path.
 
 ### Account Skins & Capes (`account:read`, `skin:manage`, `cape:manage`)
-Used by the Skin Selector extension. Tokens never cross the bridge — Go calls
+Used by the Skin Selector extension. Tokens never cross the bridge. Go calls
 `https://api.minecraftservices.com/minecraft/profile` with the active
 Microsoft account. Offline accounts yield `ERR_OFFLINE_ACCOUNT`; signed-out
 yields `ERR_NO_ACCOUNT`. Upload / equip / hide require launcher confirmation.
@@ -91,13 +92,13 @@ yields `ERR_NO_ACCOUNT`. Upload / equip / hide require launcher confirmation.
 - `Aether.capes.equip(capeId)` / `Aether.capes.hide()` (requires `cape:manage`)
 
 ## Network Access
-By default, the backend Sandbox cannot access the network. To make requests, you must request `network:http` in your permissions and use the provided `Aether.http.get(url)` API. Backend extension requests require HTTPS, an allowed hostname, and are limited to 10 MiB responses.
-Direct browser `fetch()` is unavailable in the backend sandbox. The provided HTTP API applies host allow-listing; logging and rate limiting are not currently implemented.
+The backend runtime has no network access by default. To make a request, declare the `network:http` permission and call `Aether.http.get(url)`. Requests must use HTTPS, target a hostname allowed by `hosts`, and return no more than 10 MiB.
+The backend cannot call browser `fetch()`. The launcher checks requested hosts, but does not currently log or rate-limit these requests.
 
-*Note: An extension's frontend iframe can use the browser's normal `fetch()` behavior. That request is separate from the backend sandbox API and is not covered by the backend host allow-list.*
+*An extension's frontend iframe can use the browser's normal `fetch()` behavior. Those requests do not pass through the backend API or its host allow-list.*
 
 ## File System Access
-By default, the backend Sandbox cannot download arbitrary files.
+The backend cannot download files by default.
 - `Aether.fs.download(url, dest)` (requires `fs:download` permission)
   - Downloads a file from the given URL (must be allowed in `hosts`) into Aether's shared `libraries` directory. This capability also requires HTTPS; mod installation additionally requires a `.jar` file of at most 100 MiB.
 
@@ -138,12 +139,12 @@ window.parent.postMessage({
     url: 'https://example.com/mod.jar',
     // targetOrigin is "*" on purpose: window.location is the iframe's own
     // origin while window.parent is the Wails webview, so a computed
-    // origin never matches and messages are silently dropped.
+    // origin never matches, so messages are silently dropped.
     // requestId correlation is the actual boundary.
 }, '*');
 
 // Listen for responses or pushed messages from the backend script.
-// Backend payloads are forwarded as-is (no marker) — match ONLY on
+// Backend payloads are forwarded as-is (no marker). Match only on
 // requestId, or every reply is dropped.
 window.addEventListener('message', (event) => {
     const msg = event.data;
@@ -179,7 +180,7 @@ Future API versions will introduce explicit lifecycle callbacks so your extensio
 Extensions can subscribe to core launcher events (requires `discord:presence` or `instances:list`):
 
 - `Aether.events.on('instance:state', (evt) => { ... })`
-  - `evt` is `{ id: string, state: "Running" | "Stopped" | "Crashed" }` – fired when a game process starts/stops.
+  - `evt` is `{ id: string, state: "Running" | "Stopped" | "Crashed" }`. Aether fires it when a game process starts or stops.
   - Example for Rich Presence:
     ```js
     Aether.events.on('instance:state', (e) => {
@@ -205,7 +206,7 @@ Requires `discord:presence` permission. Works only if Discord desktop is running
 - `Aether.discord.setActivity(opts)`
   - `opts`: `{ details, state, largeImageKey, largeText, smallImageKey, smallText, startTimestamp }`
   - `startTimestamp` is milliseconds since epoch (`Date.now()`).
-- `Aether.discord.clearActivity()` – back to Idle.
+- `Aether.discord.clearActivity()` clears the activity and returns Discord to Idle.
 
 Legacy planned names `instance:launch`/`instance:stop` remain supported as aliases for `instance:state` with `Running`/`Stopped`.
 
@@ -223,14 +224,14 @@ Requires `servers:list` and/or `servers:manage`.
   - Pings a server (`"mc.example.com"` or `"mc.example.com:25566"`, default port 25565) using the status protocol.
   - Returns `{ online, host, port, motd, playersOnline, playersMax, version, protocol, latencyMs }`.
   - Unreachable servers yield `{ online: false }`, not an error. Only malformed input throws.
-  - Gated on `servers:list` because targets are user-entered — the `network:http` host allow-list cannot apply.
+  - Requires `servers:list` because the user supplies the target host, so the `network:http` host allow-list cannot be used.
 - `Aether.servers.listWithStatus(instanceId, timeoutMs?)`
-  - Bulk list: `servers.dat` entries with live status attached — `[{ name, ip, hidden, online, host, port, motd, playersOnline, playersMax, version, latencyMs }]`.
+  - Returns `servers.dat` entries with live status attached: `[{ name, ip, hidden, online, host, port, motd, playersOnline, playersMax, version, latencyMs }]`.
   - Pings run concurrently in Go (max 6) with a per-server budget (`timeoutMs`, default 3000, clamped 500–10000), so one dead server can't stall the list.
-  - Results are cached per `servers.dat` content (mtime+size, 45 s TTL): revisits are instant, in-game edits invalidate immediately.
-  - Prefer this over `list()`+`ping()` loops — the sandbox is single-threaded and sequential pings take seconds per dead server.
+  - Results are cached by `servers.dat` content (mtime and size) for 45 seconds. Revisited lists return quickly, and in-game edits invalidate the cache immediately.
+  - Prefer this to looping over `list()` and `ping()`. The sandbox is single-threaded, so sequential pings can take several seconds for each unreachable server.
 
-All struct shapes crossing the bridge expose lowercase `json` names (`row.name`, never `row.Name`) — guaranteed by the sandbox field mapper and pinned by `TestSandboxStructKeysUseJSONTags`.
+Structs sent across the bridge use their lowercase JSON field names, such as `row.name`. The sandbox field mapper guarantees this behavior, covered by `TestSandboxStructKeysUseJSONTags`.
 - `Aether.servers.create(id, name?)`
   - Creates `servers/<id>/` with a starter `server.properties`. Returns `{ id, name }`.
 - `Aether.servers.listServers()`
@@ -256,17 +257,17 @@ streams into `server:log` events; transitions emit `server:state`.
     to 2048, clamped to 512–16384. `jarName` defaults to auto-detect
     (`paper-*.jar`, `purpur-*.jar`, then `server.jar`). `mcVersion` defaults
     to detection from the jar filename.
-  - Fails with an EULA error when `eula.txt` is not accepted — show a
+  - Fails with an EULA error when `eula.txt` is not accepted. Show a
     confirmation dialog, then call `acceptEula` and retry. Never accept silently.
   - Fails when the server is already running, when 2 servers already run, or
     when the configured port is in use. Requires a compatible Java, which the
     launcher resolves (managed → system → download).
-- `Aether.servers.stop(id)` — sends `stop` for graceful shutdown, kills after 10 s.
-- `Aether.servers.status(id)` — `{ id, running, pid?, startedAt?, port?, mcVersion? }`.
-- `Aether.servers.send(id, command)` — writes a console line to stdin (4 KB cap).
-- `Aether.servers.acceptEula(id)` — writes `eula=true`. Call only after explicit user confirmation.
-- `Aether.servers.eulaStatus(id)` — `true` when `eula.txt` accepts the EULA.
-- `Aether.servers.recentLogs(id, n?)` — last buffered log lines, newest last.
+- `Aether.servers.stop(id)`: sends `stop` for graceful shutdown, then kills the process after 10 seconds if needed.
+- `Aether.servers.status(id)`: `{ id, running, pid?, startedAt?, port?, mcVersion? }`.
+- `Aether.servers.send(id, command)`: writes a console line to stdin (4 KB cap).
+- `Aether.servers.acceptEula(id)`: writes `eula=true`. Call only after explicit user confirmation.
+- `Aether.servers.eulaStatus(id)`: `true` when `eula.txt` accepts the EULA.
+- `Aether.servers.recentLogs(id, n?)`: returns buffered log lines, oldest first.
 
 ## API Version Negotiation
 Extensions may declare an `api` version in their manifest. The current launcher does not negotiate API versions or enforce `minApi` and `maxApi` ranges; those fields are planned compatibility metadata.

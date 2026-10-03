@@ -1,13 +1,12 @@
 # Security
 
-## Sandbox
-Extension backend scripts run in a Goja JavaScript runtime. They do not receive Node.js modules, Go APIs, shell access, or direct access to the host filesystem. The supported integration surface is the injected `Aether` object, whose capabilities are added according to the permissions in the manifest.
+## Extension sandbox
+Each extension backend runs in a Goja JavaScript runtime. It does not receive Node.js modules, Go APIs, shell access, or direct access to the host filesystem. Instead, it can use the APIs exposed through `Aether`, based on the permissions in its manifest.
 
-This is a capability boundary, not a complete OS-level security boundary. Extensions with instance or download permissions can change shared launcher data through those APIs.
+This limits what an extension can ask Aether to do; it is not a complete operating-system security boundary. For example, an extension with instance or download permissions can change shared launcher data through those APIs.
 
-## Whitelisted Networking
-By default, extensions cannot make outbound network requests. 
-If an extension needs to communicate with an external API, it must declare allowed hostnames in its `manifest.json` under `hosts`. Requests are limited to HTTP(S) URLs whose hostname matches an allowed host or one of its subdomains. The launcher does not currently show a separate host approval screen during installation.
+## Network access
+Backend extensions have no network access by default. To call an external API, an extension must request `network:http` and list allowed hostnames under `hosts` in `manifest.json`. Requests must use HTTPS, and the hostname must match an allowed host or one of its subdomains. Aether does not currently show a separate host approval prompt during installation.
 
 ```json
 "hosts": [
@@ -16,40 +15,26 @@ If an extension needs to communicate with an external API, it must declare allow
 ```
 
 ## Capability Model
-The runtime uses a capability-based model. An extension only receives the API objects associated with its declared permissions. Calls to unavailable capabilities fail in the JavaScript runtime. The current instance capability is limited to listing instances and installing, listing, deleting, or toggling mods; it does not provide general instance JSON or log access. The separate `saves:list` permission exposes singleplayer world names only, and `instances:launch` can start the game (optionally quick-connecting to a user-chosen server or world) — both are install-time grants with no access to credentials or arbitrary files.
+An extension only receives the API objects associated with its declared permissions. Calls to unavailable APIs fail in the runtime. The current instance APIs cover listing instances and installing, listing, deleting, or toggling mods; they do not expose general instance JSON or logs. `saves:list` exposes singleplayer world names, while `instances:launch` can start the game and optionally connect to a server or world chosen by the user. These permissions are granted at install time and do not expose credentials or arbitrary files.
 
 ## Registry Trust
-The extension gallery can assign trust labels such as Official, Verified, Community, or Local. These labels are registry metadata displayed by the launcher; the current application does not perform automated code analysis, quarantine extensions, or enforce a maintainer review workflow.
+The gallery can attach Official, Verified, Community, or Local labels to extensions. Aether displays these labels as registry metadata. The launcher does not currently analyze extension code, quarantine extensions, or enforce a maintainer review process, so a badge is not a security guarantee.
 
-## Threat Model
-**Expected Threats:**
-- Malicious extensions attempting to steal Minecraft session tokens.
-- Extensions attempting to download and execute arbitrary binaries (malware).
-- Extensions attempting to read arbitrary files on the user's system (e.g., SSH keys, browser cookies).
-- Extensions attempting to execute arbitrary shell commands.
-- Extensions attempting to escape the Goja Sandbox.
-- Malicious Modrinth mods injecting XSS via `title`, `author`, `description`, or `icon_url` fields (now sanitized via `createElement` + allowlisted URLs).
-- Frontend iframe messages arriving from unexpected sources (mitigated by `requestId` correlation: replies without a pending id are dropped, and the backend only acts on explicit `onMessage` handlers).
+## What the protections cover
+The launcher mediates privileged operations. Backend extensions cannot run arbitrary shell commands, access the filesystem directly, read launcher memory, or call Go APIs. They can use only the scoped APIs exposed through `Aether`.
 
-**Mitigation:**
-Every privileged operation is strictly mediated by the launcher. Extensions explicitly **CANNOT**:
-- Execute arbitrary shell commands (e.g., via `os/exec`).
-- Access the filesystem directly (they can only use scoped `Aether.fs` APIs).
-- Read launcher memory.
-- Escape the Goja runtime through Node.js or Go bindings.
-- Access Go APIs directly.
+Those APIs still affect shared data. Depending on its permissions, an extension may change files in shared locations such as instance `mods`, `libraries`, and `skins`. Extensions are not isolated from one another at the data-directory level.
 
-- Authentication supports offline accounts and Microsoft account sign-in. Extensions are not given account credentials, access tokens, or refresh tokens through the `Aether` API.
-- File access is abstracted through scoped APIs, but the permitted locations are shared launcher directories such as instance `mods`, `libraries`, and `skins`; they are not isolated per extension.
-- Network access is HTTPS-only and host-allow-listed. Requests are not currently rate-limited or security-logged, but backend responses and mod downloads have size limits. Modrinth icon URLs are validated to only allow `https://cdn.modrinth.com` and subdomains; all user-controlled text is rendered via `textContent` (no `innerHTML` with attacker-controlled data).
-- Extension UI ↔ backend IPC correlates on `requestId` only. The UI posts to `window.parent` with target origin `"*"` (required: the iframe origin never matches the Wails webview origin, so a computed origin silently drops every message), and inbound replies carry no marker — the launcher forwards backend payloads as-is. See `SERVER_MANAGER_UI.md` §3 and `createIframeBridge()` in the SDK.
+Authentication supports offline and Microsoft accounts. The `Aether` API does not expose account credentials or access and refresh tokens. HTTPS requests are host-allow-listed, but are not currently rate-limited or written to a security log. Backend responses and mod downloads have size limits. Modrinth icon URLs are restricted to `https://cdn.modrinth.com` and its subdomains, and user-controlled text is rendered as text rather than inserted as HTML.
+
+The extension UI and backend communicate through an iframe bridge. Requests and replies are correlated by `requestId`; the UI must use `"*"` as `postMessage`'s target origin because the iframe and Wails webview have different origins. Replies are forwarded as-is and do not carry a special marker. See the IPC guidance in [API](API.md) and [Server Manager UI](SERVER_MANAGER_UI.md).
 
 Sensitive extension confirmation requests and their decisions are recorded as JSON lines in `logs/extension-security.log`.
 
 ## Security Boundary and Commitments
 
-Aether can promise that backend extension code executes inside a Goja JavaScript runtime without Node.js, Go, shell, or direct host-filesystem APIs. Manifest permissions control which launcher bridge objects are injected, HTTPS requests are host-allow-listed, and privileged mod/file operations can require user confirmation.
+Aether can provide a Goja runtime without Node.js, Go, shell, or direct host-filesystem APIs. Manifest permissions control which launcher APIs are available. HTTPS requests are host-allow-listed, and some sensitive mod and file operations require user confirmation.
 
-Aether cannot promise that an installed extension is trustworthy, that shared launcher data is isolated per extension, or that the Goja runtime is an operating-system security boundary. Extensions granted install, delete, toggle, download, or mod-loader permissions can affect shared launcher or instance state. Frontend extension iframes are a separate browser surface and may have browser networking behavior outside the backend sandbox policy.
+Aether cannot guarantee that an installed extension is trustworthy, that each extension's data is isolated, or that Goja acts as an operating-system security boundary. Extensions with install, delete, toggle, download, or mod-loader permissions can affect shared launcher or instance state. An extension's iframe is a separate browser surface and may make browser requests outside the backend sandbox's network policy.
 
-Treat extensions as code with the permissions shown in their manifest. Review Local and Community extensions, keep permissions minimal, and do not describe the sandbox as malware-proof or equivalent to a separate process/container. The current implementation does not provide automated code analysis, quarantine, network rate limiting, or a host approval prompt.
+Treat an extension as code with the permissions listed in its manifest. Review its source when possible and prefer the smallest set of permissions it needs. The sandbox is not malware-proof and is not equivalent to a separate process or container. Aether does not currently provide automated code analysis, quarantine, network rate limiting, or a host approval prompt.
