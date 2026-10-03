@@ -42,7 +42,7 @@
 
   function artGradient(name: string): string {
     const gradients = [
-      'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+      'linear-gradient(135deg, #5268e0 0%, #293da9 100%)',
       'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
       'linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)',
       'linear-gradient(135deg, #10b981 0%, #047857 100%)',
@@ -173,6 +173,9 @@
     <div class="grid">
       {#each instances as instance}
         <div class="card instance-card">
+          <button class="instance-settings" aria-label={`Settings for ${instance.name}`} title="Instance settings" on:click={() => dispatch('navigate', `instance-details:${instance.id}`)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path d="m19.4 13.5 1.1.85-1.1 1.9-1.35-.5a7.8 7.8 0 0 1-1.45.85l-.2 1.45h-2.2l-.3-1.4a7.8 7.8 0 0 1-1.65-.1l-.85 1.2-1.9-1.1.5-1.35a7.8 7.8 0 0 1-.85-1.45l-1.45-.2v-2.2l1.4-.3a7.8 7.8 0 0 1 .1-1.65l-1.2-.85 1.1-1.9 1.35.5a7.8 7.8 0 0 1 1.45-.85l.2-1.45h2.2l.3 1.4a7.8 7.8 0 0 1 1.65.1l.85-1.2 1.9 1.1-.5 1.35a7.8 7.8 0 0 1 .85 1.45l1.45.2v2.2l-1.4.3a7.8 7.8 0 0 1-.1 1.65Z"/></svg>
+          </button>
           <div class="card-top">
             <div class="card-content">
               <div class="instance-title">{instance.name}</div>
@@ -193,7 +196,6 @@
           </div>
           <div class="card-actions">
             <button class="btn btn-primary" on:click={() => dispatch('navigate', `home:instance:${instance.id}`)}>Play</button>
-            <button class="btn btn-secondary" on:click={() => dispatch('navigate', `instance-details:${instance.id}`)}>Settings</button>
           </div>
         </div>
       {/each}
@@ -321,10 +323,33 @@
   }
 
   .instance-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
   }
+
+  .instance-settings {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 7px;
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.035);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+  }
+
+  .instance-settings:hover { color: var(--text-primary); background: rgba(255,255,255,0.09); }
+  .instance-settings svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .instance-card .card-top { padding-right: 34px; }
+  .instance-card .card-art { order: -1; }
 
   .card-top {
     display: flex;

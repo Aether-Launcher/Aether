@@ -22,8 +22,62 @@
     { id: 'settings', label: 'Settings', icon: 'settings' },
   ];
 
-  type ExtensionTab = { id: string; label: string; url: string; icon?: string; extensionId: string };
+  type ExtensionTab = {
+    id: string;
+    routeId: string;
+    label: string;
+    displayLabel: string;
+    url: string;
+    icon?: string;
+    extensionId: string;
+    extensionName?: string;
+    pinToSidebar?: boolean;
+  };
   let extensionTabs: ExtensionTab[] = [];
+  let activeExtensionsOpen = false;
+  $: pinnedExtensionTabs = extensionTabs.filter((tab) => tab.pinToSidebar);
+  $: activeExtensionTabs = extensionTabs.filter((tab) => !tab.pinToSidebar);
+  $: activeExtensionPage = activeExtensionTabs.some((tab) => tab.routeId === activePage);
+
+  function syncExtensionTabs(tabs: any[]) {
+    const seenRoutes = new Set<string>();
+    const unique = tabs.map((tab) => ({
+      ...tab,
+      routeId: tab.routeId || `${tab.extensionId}:${tab.id}`,
+      displayLabel: tab.label || tab.id,
+    })).filter((tab) => {
+      if (!tab.extensionId || !tab.id || seenRoutes.has(tab.routeId)) return false;
+      seenRoutes.add(tab.routeId);
+      return true;
+    });
+
+    const labelCounts = new Map<string, number>();
+    for (const tab of unique) {
+      const key = String(tab.label || tab.id).trim().toLocaleLowerCase();
+      labelCounts.set(key, (labelCounts.get(key) || 0) + 1);
+    }
+    const usedLabels = new Set(['home', 'instances', 'marketplace', 'settings']);
+    extensionTabs = unique.map((tab) => {
+      const label = String(tab.label || tab.id).trim();
+      const key = label.toLocaleLowerCase();
+      let displayLabel = label;
+      if ((labelCounts.get(key) || 0) > 1 || usedLabels.has(key)) {
+        displayLabel = `${label} / ${tab.extensionName || tab.extensionId}`;
+      }
+      const baseLabel = displayLabel;
+      let suffix = 2;
+      while (usedLabels.has(displayLabel.toLocaleLowerCase())) {
+        displayLabel = `${baseLabel} (${tab.id}${suffix > 2 ? ` ${suffix}` : ''})`;
+        suffix++;
+      }
+      usedLabels.add(displayLabel.toLocaleLowerCase());
+      return { ...tab, displayLabel };
+    });
+
+    for (const tab of extensionTabs) {
+      dispatch('registerExtensionRoute', tab);
+    }
+  }
 
   let connectivity: any = null;
   let checkingConnectivity = false;
@@ -60,26 +114,14 @@
     // Fetch extension UI tabs registered during backend startup
     try {
       const cachedTabs = await GetExtensionSidebarPages();
-      if (cachedTabs) {
-        for (const tab of cachedTabs) {
-          const t = tab as ExtensionTab;
-          if (!extensionTabs.find((e) => e.id === t.id)) {
-            extensionTabs = [...extensionTabs, t];
-            dispatch('registerExtensionRoute', t);
-          }
-        }
-      }
+      if (cachedTabs) syncExtensionTabs(cachedTabs);
     } catch (e) {
       console.error('Failed to load cached extension tabs', e);
     }
 
     // Listen for extension UI tabs registered dynamically at runtime
     EventsOn('extension:sidebar:add', (payload: unknown) => {
-      const tab = payload as ExtensionTab;
-      if (!extensionTabs.find((t) => t.id === tab.id)) {
-        extensionTabs = [...extensionTabs, tab];
-        dispatch('registerExtensionRoute', tab);
-      }
+      syncExtensionTabs([...extensionTabs, payload as ExtensionTab]);
     });
 
     // Extensions were reloaded — clear tabs and refetch so removed/updated
@@ -88,15 +130,7 @@
       extensionTabs = [];
       try {
         const tabs = await GetExtensionSidebarPages();
-        if (tabs) {
-          for (const tab of tabs) {
-            const t = tab as ExtensionTab;
-            if (!extensionTabs.find((e) => e.id === t.id)) {
-              extensionTabs = [...extensionTabs, t];
-              dispatch('registerExtensionRoute', t);
-            }
-          }
-        }
+        if (tabs) syncExtensionTabs(tabs);
       } catch (e) {
         console.error('Failed to reload extension tabs', e);
       }
@@ -143,14 +177,14 @@
       </button>
     {/each}
 
-    {#if extensionTabs.length > 0}
+    {#if pinnedExtensionTabs.length > 0}
       <div class="nav-divider"></div>
-      <div class="nav-section-title">Extensions</div>
-      {#each extensionTabs as tab}
+      <div class="nav-section-title">Pinned</div>
+      {#each pinnedExtensionTabs as tab}
         <button
-          class="nav-item extension {activePage === tab.id ? 'active' : ''}"
-          on:click={() => navigate(tab.id)}
-          title={tab.label}
+          class="nav-item extension {activePage === tab.routeId ? 'active' : ''}"
+          on:click={() => navigate(tab.routeId)}
+          title={tab.displayLabel}
         >
           <span class="nav-icon ext-icon-wrap">
             {#if tab.icon}
@@ -161,9 +195,40 @@
               <span class="monogram">{monogram(tab.label)}</span>
             {/if}
           </span>
-          <span class="nav-label">{tab.label}</span>
+          <span class="nav-label">{tab.displayLabel}</span>
         </button>
       {/each}
+    {/if}
+
+    {#if activeExtensionTabs.length > 0}
+      <button
+        class="nav-item active-extensions-toggle"
+        class:active={activeExtensionPage}
+        aria-expanded={activeExtensionsOpen}
+        aria-controls="active-extensions-menu"
+        on:click={() => (activeExtensionsOpen = !activeExtensionsOpen)}
+        title="Active Extensions"
+      >
+        <span class="nav-icon"><Icon name="package" size={16} /></span>
+        <span class="nav-label">Active Extensions</span>
+        <span class="extension-count">{activeExtensionTabs.length}</span>
+      </button>
+      {#if activeExtensionsOpen}
+        <div class="active-extensions-menu" id="active-extensions-menu" role="group" aria-label="Active Extensions">
+          {#each activeExtensionTabs as tab}
+            <button
+              class="nav-item extension active-extension-link {activePage === tab.routeId ? 'active' : ''}"
+              on:click={() => { navigate(tab.routeId); activeExtensionsOpen = false; }}
+              title={`${tab.displayLabel} / ${tab.extensionName || tab.extensionId}`}
+            >
+              <span class="nav-icon ext-icon-wrap">
+                {#if tab.icon}<Icon name={tab.icon} size={14} />{:else}<span class="monogram">{monogram(tab.displayLabel)}</span>{/if}
+              </span>
+              <span class="nav-label">{tab.displayLabel}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </nav>
 
@@ -271,6 +336,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    overflow-y: auto;
   }
 
   .bottom-nav {
@@ -323,6 +389,7 @@
 
   /* Nav item — icon + label layout */
   .nav-item {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -346,9 +413,20 @@
   }
 
   .nav-item.active {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
+    background-color: rgba(255, 255, 255, 0.035);
+    color: #f4f5fa;
     font-weight: 600;
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 7px;
+    bottom: 7px;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--accent-color, #3b52d4);
   }
 
   /* Icon cell */
@@ -394,6 +472,29 @@
     padding: 4px 12px;
     font-weight: 600;
     margin-top: 2px;
+  }
+
+  .extension-count {
+    min-width: 18px;
+    padding: 2px 5px;
+    border-radius: 9px;
+    background: rgba(255,255,255,0.07);
+    color: var(--text-secondary);
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .active-extensions-menu {
+    max-height: 190px;
+    overflow-y: auto;
+    padding-left: 10px;
+    border-left: 1px solid rgba(255,255,255,0.07);
+    margin-left: 12px;
+  }
+
+  .active-extension-link {
+    padding: 7px 8px;
+    font-size: 13px;
   }
 
   .dev-logs-btn {

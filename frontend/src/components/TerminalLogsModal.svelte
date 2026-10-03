@@ -244,7 +244,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent-color, #3b82f6);
+    color: var(--accent-color, #3b52d4);
     background: rgba(59, 130, 246, 0.12);
     border: 1px solid rgba(59, 130, 246, 0.25);
     padding: 4px 6px;
@@ -293,8 +293,8 @@
   }
 
   .action-btn.active {
-    border-color: var(--accent-color, #3b82f6);
-    color: var(--accent-color, #3b82f6);
+    border-color: var(--accent-color, #3b52d4);
+    color: var(--accent-color, #3b52d4);
     background: rgba(59, 130, 246, 0.12);
   }
 
@@ -346,7 +346,7 @@
   }
 
   .search-input:focus {
-    border-color: var(--accent-color, #3b82f6);
+    border-color: var(--accent-color, #3b52d4);
   }
 
   .search-input::placeholder {
@@ -378,7 +378,7 @@
 
   .lvl-btn.selected {
     background: rgba(59, 130, 246, 0.15);
-    color: var(--accent-color, #3b82f6);
+    color: var(--accent-color, #3b52d4);
     border-color: rgba(59, 130, 246, 0.35);
   }
 
@@ -423,7 +423,7 @@
     text-transform: uppercase;
   }
 
-  .level-badge.info { background: rgba(59, 130, 246, 0.15); color: var(--accent-color, #3b82f6); }
+  .level-badge.info { background: rgba(59, 82, 212, 0.12); color: var(--accent-color, #3b52d4); }
   .level-badge.warn { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
   .level-badge.error { background: rgba(239, 68, 68, 0.15); color: var(--danger-color, #ef4444); }
   .level-badge.sandbox { background: rgba(168, 85, 247, 0.15); color: #c084fc; }

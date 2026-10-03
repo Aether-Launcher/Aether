@@ -47,10 +47,11 @@
     }
   }
 
-  function handleRegisterExtensionRoute(event: CustomEvent<{ id: string; url: string; extensionId: string }>) {
+  function handleRegisterExtensionRoute(event: CustomEvent<{ id: string; routeId?: string; url: string; extensionId: string }>) {
+    const routeId = event.detail.routeId || `${event.detail.extensionId}:${event.detail.id}`;
     extensionRoutes = {
       ...extensionRoutes,
-      [event.detail.id]: { url: event.detail.url, extensionId: event.detail.extensionId }
+      [routeId]: { url: event.detail.url, extensionId: event.detail.extensionId }
     };
   }
 
@@ -132,6 +133,7 @@
     applyActiveTheme();
     const unsubscribe = EventsOn('extension:confirmation', showExtensionConfirmation);
     const resetUnsubscribe = EventsOn('extension:sidebar:reset', () => {
+      if (extensionRoutes[activePage]) activePage = 'extensions';
       extensionRoutes = {};
     });
     return () => {

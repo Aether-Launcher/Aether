@@ -238,7 +238,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
   function instanceGradient(name: string): string {
     const gradients = [
-      'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+      'linear-gradient(135deg, #5268e0 0%, #293da9 100%)',
       'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
       'linear-gradient(135deg, #06b6d4 0%, #0284c7 100%)',
       'linear-gradient(135deg, #10b981 0%, #047857 100%)',

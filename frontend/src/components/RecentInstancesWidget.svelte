@@ -20,7 +20,7 @@
 
   function instanceGradient(name: string): string {
     const gradients = [
-      'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+      'linear-gradient(135deg, #5268e0, #293da9)',
       'linear-gradient(135deg, #8b5cf6, #6d28d9)',
       'linear-gradient(135deg, #06b6d4, #0284c7)',
       'linear-gradient(135deg, #10b981, #047857)',
