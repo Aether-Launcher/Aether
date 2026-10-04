@@ -35,6 +35,88 @@ Every feature that is not essential to launching the game—like downloading mod
 - **Capability-Based Extensions**: Extension backend code runs in a restricted Goja runtime and can only use the launcher APIs granted by its manifest permissions.
 - **Version Compatibility**: Extensions declare a `minLauncherVersion` — the Gallery automatically blocks installation on incompatible launcher versions with a clear warning.
 
+## Screenshots
+
+<details>
+<summary>Sign In</summary>
+
+Sign in with Microsoft, or use an offline username.
+
+<p align="center">
+  <img src="docs/screenshots/sign-in.png" alt="Sign In" />
+</p>
+</details>
+
+<details>
+<summary>Home</summary>
+
+Launch your current instance and see install progress and extension updates.
+
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="Home" />
+</p>
+</details>
+
+<details>
+<summary>Create Instance</summary>
+
+Pick a name, Minecraft version (with a snapshots toggle) and mod loader.
+
+<p align="center">
+  <img src="docs/screenshots/create-instance.png" alt="Create Instance" />
+</p>
+</details>
+
+<details>
+<summary>Instance Settings</summary>
+
+Rename an instance, set memory allocation and icon, or open its folder.
+
+<p align="center">
+  <img src="docs/screenshots/instance-settings.png" alt="Instance Settings" />
+</p>
+</details>
+
+<details>
+<summary>Extensions Gallery</summary>
+
+Browse official and community extensions, or install from a <code>.aex</code> file.
+
+<p align="center">
+  <img src="docs/screenshots/extensions-gallery.png" alt="Extensions Gallery" />
+</p>
+</details>
+
+<details>
+<summary>Extension Permission Prompt</summary>
+
+Extensions ask before pinning their pages to your sidebar.
+
+<p align="center">
+  <img src="docs/screenshots/extension-sidebar-pin.png" alt="Extension Permission Prompt" />
+</p>
+</details>
+
+<details>
+<summary>Modrinth Browser Extension</summary>
+
+Search Modrinth for mods, modpacks, resource packs and shaders.
+
+<p align="center">
+  <img src="docs/screenshots/modrinth-browser.png" alt="Modrinth Browser Extension" />
+</p>
+</details>
+
+<details>
+<summary>Installing a Mod</summary>
+
+Choose a version and the instance to install it into.
+
+<p align="center">
+  <img src="docs/screenshots/install-mod.png" alt="Installing a Mod" />
+</p>
+</details>
+
 ## Documentation
 
 All project documentation is located in the `docs/` directory. If you are looking to contribute, build an extension, or just understand how Aether works, start here:
