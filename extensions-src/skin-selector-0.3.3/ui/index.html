@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skins</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="notice" class="notice hidden" role="status"></div>
+
+<header class="page-head">
+  <h1>Skins</h1> 
+  <div class="acct" id="acct-bar">
+    <span id="acct-text">Checking account…</span>
+    <button id="acct-refresh" class="btn-ghost" title="Reload account skins and capes">Reload</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Left: big preview like Modrinth -->
+  <aside class="preview-pane">
+    <div class="preview-name" id="preview-name">_w4yback</div>
+    <div class="preview-stage" id="main-3d"></div>
+    <p class="hint">Drag to rotate</p>
+    <button id="change-cape-btn" class="btn-secondary">⇄ Change cape</button>
+    <div class="preview-actions">
+      <button id="apply-btn" class="btn-accent" disabled>Apply skin</button>
+      <button id="download-btn" class="btn-ghost" disabled>Download PNG</button>
+    </div>
+    <div class="variant-row">
+      <label><input type="radio" name="model" value="classic" checked> Classic</label>
+      <label><input type="radio" name="model" value="slim"> Slim</label>
+      <button id="rotate-btn" class="btn-ghost active">Auto-rotate</button>
+    </div>
+    <p class="status" id="status-line">Search for a player skin below, or pick a saved skin.</p>
+  </aside>
+
+  <!-- Right: search + grids -->
+  <section class="content">
+    <div class="search-bar">
+      <input type="text" id="username-input" placeholder="Search player skins (username)…" autocomplete="off" />
+      <button id="search-btn">Search</button>
+    </div>
+
+    <h2>Saved skins</h2>
+    <div id="saved-grid" class="skin-grid"></div>
+  </section>
+</div>
+
+<!-- Change cape dialog -->
+<div id="cape-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-label="Change cape">
+    <div class="modal-head">
+      <h3>Change cape</h3>
+      <button id="cape-close" class="btn-ghost" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-stage" id="cape-3d"></div>
+      <p class="hint">Drag to rotate</p>
+      <div class="cape-options">
+        <button class="cape-opt" data-cape="none">
+          <span class="cape-none">✕</span><span>None</span>
+        </button>
+        <div id="cape-list" class="cape-list"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button id="cape-select" class="btn-accent">✓ Select</button>
+      <button id="cape-cancel" class="btn-ghost">✕ Cancel</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="skin-file" accept="image/png" hidden>
+<script src="vendor/skin3d.bundle.js"></script>
+<script src="viewer.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
