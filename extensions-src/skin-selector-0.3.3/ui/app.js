@@ -218,6 +218,10 @@
   // lag behind an upload, and a thin refresh must never drop a skin from
   // the grid: once a skin is known, it stays listed until the page reloads.
   var knownSkins = {};
+  // Id of the most recently uploaded/applied skin this session. Only one
+  // skin can be ACTIVE at a time: while the server list is catching up, the
+  // just-added skin is authoritative and every other known skin is INACTIVE.
+  var lastAddedId = null;
   function rememberSkins(list) {
     (list || []).forEach(function (s) { if (s && s.id) knownSkins[s.id] = s; });
   }
@@ -234,6 +238,39 @@
       seen[s.id] = true;
       mySkins.push(s);
     });
+    // Collapse same-texture duplicates: one upload can surface under two
+    // ids while the server settles. Keep the ACTIVE copy, else the first
+    // (server order wins over session memory).
+    var byUrl = {};
+    mySkins.forEach(function (s) {
+      var key = s.url || ("id:" + s.id);
+      var cur = byUrl[key];
+      if (!cur) { byUrl[key] = s; return; }
+      if (String(s.state).toUpperCase() === "ACTIVE" && String(cur.state).toUpperCase() !== "ACTIVE") byUrl[key] = s;
+    });
+    mySkins = [];
+    Object.keys(byUrl).forEach(function (k) { mySkins.push(byUrl[k]); });
+    // Enforce exactly one ACTIVE badge. The server can lag behind an upload
+    // or even report several ACTIVE skins at once: the just-added skin wins
+    // while it is missing from the server list, otherwise the first ACTIVE
+    // skin in server order wins (server truth also clears the lag window,
+    // covering skins changed elsewhere mid-session, e.g. on minecraft.net).
+    var freshActive = null;
+    var freshHasAdded = false;
+    (msg.skins || []).forEach(function (s) {
+      if (!s || !s.id) return;
+      if (lastAddedId && s.id === lastAddedId) freshHasAdded = true;
+      if (!freshActive && String(s.state).toUpperCase() === "ACTIVE") freshActive = s;
+    });
+    var activeId = null;
+    if (lastAddedId && !freshHasAdded) activeId = lastAddedId;
+    else if (freshActive) { activeId = freshActive.id; lastAddedId = null; }
+    else if (lastAddedId) activeId = lastAddedId;
+    if (activeId) {
+      mySkins.forEach(function (s) {
+        s.state = (s.id === activeId) ? "ACTIVE" : "INACTIVE";
+      });
+    }
     renderSavedGrid();
     var active = mySkins.filter(function (s) { return String(s.state).toUpperCase() === "ACTIVE"; })[0] || mySkins[0];
     if (active && !selected) {
@@ -282,6 +319,10 @@
     });
   }
 
+  // File pick only STAGES a skin (preview). The single upload path is the
+  // Apply button below: auto-uploading here AND applying there uploaded
+  // every skin twice. Uploading also equips on Mojang's side, so staging
+  // gives the preview-before-commit step back.
   $("skin-file").addEventListener("change", function () {
     var f = this.files[0];
     if (!f) return;
@@ -289,9 +330,8 @@
     fr.onload = function () {
       selected = { kind: "upload", name: f.name.replace(/\.png$/i, ""), url: fr.result, dataUrl: fr.result, variant: modelVariant() };
       previewSelected();
-      $("status-line").textContent = "Uploading… (confirm in launcher)";
-      send("upload_skin", { data: String(fr.result).split(",")[1], variant: modelVariant() }).then(handlePush)
-        .catch(function (err) { notice(err.message); });
+      renderSavedGrid();
+      $("status-line").textContent = "Preview ready — click Apply skin to upload & wear it.";
     };
     fr.readAsDataURL(f);
     this.value = "";
@@ -301,21 +341,38 @@
     if (msg.error) { notice(msg.error); $("status-line").textContent = msg.error; return; }
     notice("Skin applied to your account", true);
     $("status-line").textContent = "Skin applied ✓";
-    if (msg.skin) rememberSkins([msg.skin]);
+    if (msg.skin) {
+      rememberSkins([msg.skin]);
+      if (msg.skin.id) {
+        // Adopt the new account entry as the selection so the preview,
+        // the Apply button and the grid badge all point at the same skin.
+        lastAddedId = msg.skin.id;
+        selected = { kind: "account", id: msg.skin.id, name: (account && account.username) || "My skin", url: msg.skin.url || (selected && (selected.dataUrl || selected.url)), variant: msg.skin.variant || modelVariant(), active: true };
+        syncRadio(selected.variant);
+        previewSelected();
+      }
+    }
     send("my_skins", {}).then(handlePush).catch(function () {});
   }
 
+  // In-flight guard: double-clicking Apply must never fire a second upload.
+  var applying = false;
   $("apply-btn").addEventListener("click", function () {
-    if (!selected) return;
+    if (!selected || applying) return;
     if (!account || !account.signedIn || account.type !== "microsoft") { notice("Sign in with Microsoft to apply skins."); return; }
+    applying = true;
+    $("apply-btn").disabled = true;
     $("status-line").textContent = "Applying skin… (confirm in launcher)";
+    function done() { applying = false; refreshApplyRow(); }
     if (selected.kind === "gallery" || selected.kind === "account") {
-      send("apply_url", { url: selected.url, variant: modelVariant() }).then(handlePush)
-        .catch(function (err) { notice(err.message); });
+      send("apply_url", { url: selected.url, variant: modelVariant() })
+        .then(function (m) { done(); handlePush(m); })
+        .catch(function (err) { done(); notice(err.message); });
     } else {
       var b64 = String(selected.dataUrl).split(",")[1];
-      send("upload_skin", { data: b64, variant: modelVariant() }).then(handlePush)
-        .catch(function (err) { notice(err.message); });
+      send("upload_skin", { data: b64, variant: modelVariant() })
+        .then(function (m) { done(); handlePush(m); })
+        .catch(function (err) { done(); notice(err.message); });
     }
   });
 

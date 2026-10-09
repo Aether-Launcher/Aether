@@ -1,7 +1,7 @@
 {
   "id": "skin-selector",
   "name": "Skin Selector",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "author": "Aether",
   "description": "Browse skins from public databases and manage skins and capes on the currently logged-in account",
   "icon": "icon.png",
