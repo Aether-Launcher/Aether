@@ -136,7 +136,7 @@ All project documentation is located in the `docs/` directory. If you are lookin
 The following tools are available for building Aether extensions. They are maintained outside this core launcher repository:
 
 - [Aether SDK](https://github.com/Aether-Launcher/Aether-SDK) (`@aethermc/sdk`) — TypeScript type definitions and helper utilities for extension development, published to [npm](https://www.npmjs.com/package/@aethermc/sdk). Install with `npm install --save-dev @aethermc/sdk`. Licensed under the [Aether Extension API License](https://github.com/Aether-Launcher/Aether-SDK/blob/main/LICENSE) — closed-source extensions are permitted, subject to Gallery review.
-- [Aether CLI](https://github.com/Aether-Launcher/Aether-Cli) (`aether-cli`) — Scaffold, validate, and package extensions into `.aex` format. Install with `go install github.com/Aether-Launcher/aether-cli@latest`.
+- [Aether CLI](https://github.com/Aether-Launcher/Aether-Cli) (`aether-cli`) — Scaffold, validate, and package extensions into `.aex` format. Install with `go install github.com/Aether-Launcher/aether-cli@latest`. The CLI is a separate Go module and currently declares Go 1.26.2; the launcher itself builds with Go 1.25+.
 
 ## Getting Started
 

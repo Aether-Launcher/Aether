@@ -208,13 +208,15 @@ Requires `discord:presence` permission. Works only if Discord desktop is running
   - `startTimestamp` is milliseconds since epoch (`Date.now()`).
 - `Aether.discord.clearActivity()` clears the activity and returns Discord to Idle.
 
-Legacy planned names `instance:launch`/`instance:stop` remain supported as aliases for `instance:state` with `Running`/`Stopped`.
+Legacy names `instance:launch`/`instance:stop` remain supported as aliases for `instance:state` with `Running`/`Stopped`.
 
 ## Multiplayer Servers (`servers:list`, `servers:manage`)
 
-Extensions can read the multiplayer server list and manage extension-owned
-server directories. Server hosting processes (`start`/`stop`) are a planned
-v2 addition and are not available yet.
+Extensions can read the multiplayer server list, manage directories under
+`servers/<id>/`, and start or stop supervised server processes. These server
+directories are shared across extensions; `servers:manage` can list or delete
+any valid directory under `servers/`, not only ones created by the same
+extension. See [Security](SECURITY.md) for the shared-data model.
 
 Requires `servers:list` and/or `servers:manage`.
 
@@ -247,7 +249,8 @@ Paths stay inside `servers/<id>/` (traversal rejected), and single files are
 capped at 5 MiB.
 
 ### Server Processes (`servers:process`)
-Supervised game-server processes (Paper/Purpur/vanilla jars). The launcher
+Supervised game-server processes (Paper, Purpur, Vanilla, Fabric, and other
+runnable server jars). The launcher
 owns the child process: extensions can start, stop, query, and send console
 input, but never receive handles, PIDs for reuse, or shell access. Output
 streams into `server:log` events; transitions emit `server:state`.
@@ -255,8 +258,8 @@ streams into `server:log` events; transitions emit `server:state`.
 - `Aether.servers.start(id, opts?)`
   - `opts`: `{ mcVersion?, memoryMB?, jarName?, extraArgs?[] }`. Memory defaults
     to 2048, clamped to 512–16384. `jarName` defaults to auto-detect
-    (`paper-*.jar`, `purpur-*.jar`, then `server.jar`). `mcVersion` defaults
-    to detection from the jar filename.
+    (`paper-*.jar` or `purpur-*.jar`, then `server.jar`, then any other `.jar`
+    as a fallback). `mcVersion` defaults to detection from the jar filename.
   - Fails with an EULA error when `eula.txt` is not accepted. Show a
     confirmation dialog, then call `acceptEula` and retry. Never accept silently.
   - Fails when the server is already running, when 2 servers already run, or
@@ -282,6 +285,11 @@ Current permissions recognized by the runtime:
 - `mods:install`
 - `mods:delete`
 - `mods:toggle`
+- `modpacks:install`
+- `resourcepacks:install`
+- `shaderpacks:install`
+- `screenshots:read`
+- `screenshots:write`
 - `network:http`
 - `fs:download`
 - `launcher:modloader`
