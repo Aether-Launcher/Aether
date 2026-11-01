@@ -8,7 +8,7 @@ A theme changes Aether's appearance with CSS and, optionally, replacement PNGs. 
 
 When you activate a theme, Aether loads its sanitized stylesheet after the base styles, so theme values can override colors, corner shapes, and spacing. It also reads `overwrite.json` and replaces only the supported images.
 
-Theme CSS is treated as text. Aether removes disallowed rules before serving it. See [What a Theme Cannot Do](#what-a-theme-cannot-do) for the restrictions.
+Theme CSS is treated as text. Aether sanitizes it at install time and reports any rules it removes. See [What a Theme Cannot Do](#what-a-theme-cannot-do) for the restrictions.
 
 ## Package Structure
 
@@ -81,9 +81,16 @@ Before installation, Aether sanitizes the theme CSS and reports any rules it rem
 - **Rules targeting the window controls** (the close/minimize/maximize buttons) are dropped outright. A theme cannot hide, disable, or hijack the buttons that close the app.
 - **`content:` declarations on logo or title selectors** are stripped. This property could visually replace text and make the app appear to have a different name. See [Locked Assets](#locked-assets).
 - **`pointer-events: none` on `html`, `body`, `#app`, or `:root`** is stripped, so a theme can't make the entire app un-clickable.
+- **`url()` values** are removed. This blocks remote images, fonts, and other assets.
+- **`@font-face` rules** do not survive sanitization; only `@media` and `@supports` at-rules are preserved.
+- **Quoted strings** are stripped during normalization. Write `font-family: Inter, sans-serif`, not `font-family: "Inter", sans-serif`.
+- **Full-window overlays** that combine `position: fixed`/`absolute`, an inset or `top`/`left`, and `z-index` are stripped.
 - Stylesheets over **256 KB** are truncated.
 
-Themes can still change colors, spacing, corner shapes, fonts, shadows, animations, and layout.
+Themes can still change colors, spacing, corner shapes, fonts, shadows, animations, and layout. Fonts must already be installed on the user's system; a `.theme` package cannot bundle font files. Use unquoted family names and include fallbacks.
+
+Sanitization runs when the theme is installed. Editing the installed `theme.css`
+directly bypasses these checks; reinstall the theme to run them again.
 
 ## Asset Overrides (`overwrite.json`)
 

@@ -27,7 +27,7 @@ The SDK supplies those editor aids without changing the runtime itself.
 
 ### 1. TypeScript Definitions
 
-The SDK's TypeScript declarations tell your editor what the Aether APIs accept and return. They are used for type checking and autocomplete; they do not run in the extension:
+The SDK's TypeScript declarations tell your editor what the Aether APIs accept and return. They are used for type checking and autocomplete; they do not run in the extension. A trimmed example:
 
 ```typescript
 declare global {
@@ -55,6 +55,8 @@ declare global {
   };
 }
 ```
+
+This is a trimmed example. The current SDK also declares `Aether.servers`, modpack, resource-pack, and shader-pack installation, screenshot methods, account and cape methods, world listing, and launch helpers. See `@aethermc/sdk/dist/global.d.ts` for the full surface.
 
 ### 2. Helper Utilities
 

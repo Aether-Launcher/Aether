@@ -97,6 +97,11 @@ Extensions only receive the APIs they request in `manifest.json`. Ask for the pe
 - `mods:install`: Install a mod after launcher confirmation.
 - `mods:delete`: Delete a mod after launcher confirmation.
 - `mods:toggle`: Enable or disable a mod after launcher confirmation.
+- `modpacks:install`: Install a `.mrpack` modpack as a new instance after launcher confirmation.
+- `resourcepacks:install`: Download a resource pack into an instance's `resourcepacks` directory after launcher confirmation.
+- `shaderpacks:install`: Download a shader pack into an instance's `shaderpacks` directory after launcher confirmation.
+- `screenshots:read`: List, open, and read screenshots for an instance.
+- `screenshots:write`: Delete a screenshot after launcher confirmation.
 - `network:http`: Make backend HTTP GET requests to allowed hosts.
 - `fs:download`: Download files to the shared `libraries` directory.
 - `launcher:modloader`: Register a launch-time mod-loader callback.
@@ -106,7 +111,9 @@ Extensions only receive the APIs they request in `manifest.json`. Ask for the pe
 - `cape:manage`: List owned Mojang capes and equip/hide the active cape after user confirmation.
 - `discord:presence`: Update Discord Rich Presence via `Aether.discord.setActivity` / `clearActivity` and subscribe to `Aether.events.on('instance:state')`.
 - `servers:list`: Read `servers.dat` from instances and ping servers (`Aether.servers.list` / `Aether.servers.ping`).
-- `servers:manage`: Create, list, delete, and read/write files inside `servers/<id>/` directories. Deleting a server asks for user confirmation.
+- `servers:manage`: Create, list, delete, and read/write files inside `servers/<id>/` directories.
+  These directories are shared across extensions; this permission is not scoped to servers
+  created by the same extension. Deleting a server asks for user confirmation.
 - `servers:process`: Start, stop, query, and send console input to supervised server processes (`Aether.servers.start` / `stop` / `status` / `send`), with log streaming via `server:log`. EULA acceptance requires explicit user confirmation (`Aether.servers.acceptEula`). Max 2 concurrent servers.
 - `saves:list`: List singleplayer worlds of an instance (`Aether.instances.listWorlds`). Read-only world metadata (names, last played, game mode).
 - `instances:launch`: Launch the game, optionally quick-connecting to a server or world (`Aether.instances.launchToServer` / `launchToWorld`). Granted at install time; launching is a visible user action so no per-click confirmation is shown.
@@ -144,8 +151,12 @@ npm install -g @aethermc/cli
 Or install it with Go:
 
 ```bash
-go install github.com/Aether-Launcher/aether-cli/...@latest
+go install github.com/Aether-Launcher/aether-cli@latest
 ```
+
+The CLI is a separate Go module and currently declares Go 1.26.2. If your
+toolchain does not download newer Go versions automatically, install Go 1.26.2
+or newer before using the Go install command.
 
 ### Start a project
 

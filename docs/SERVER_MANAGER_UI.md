@@ -1,7 +1,8 @@
 # Server Manager UI Spec
 
 This guide describes how to build an extension for managing local Paper,
-Purpur, Vanilla, or Fabric servers. The panel runs in the extension's iframe.
+Purpur, Vanilla, Fabric, or other runnable server jars. The panel runs in the
+extension's iframe.
 Use the bridge methods, events, error handling, and interface guidance below
 as the implementation contract.
 
@@ -22,8 +23,8 @@ permissions, see [Extensions](EXTENSIONS.md).
 
 The UI does not call Go directly. Each request travels from the UI through
 `main.js` to `Aether.servers.*`, and the response returns through the bridge.
-The `server-list` and `server-host` examples in `dist-extensions/` show this
-pattern in practice.
+The official extensions in `extensions-src/` show the iframe bridge pattern in
+practice; this spec defines the server-manager flow.
 
 ## 2. Manifest
 
@@ -48,6 +49,8 @@ pattern in practice.
 
 - `servers:list`: read `servers.dat` and ping servers.
 - `servers:manage`: create or delete `servers/<id>/` directories and read or write files.
+  Directories under `servers/` are shared; this permission is not scoped to servers
+  created by your extension.
 - `servers:process`: start, stop, inspect status, send console commands, and
   manage EULA acceptance. This permission can control running processes.
 - Request only the permissions the panel needs. Avoid `servers:process`
@@ -145,7 +148,7 @@ Start form fields (all optional except the server itself):
 |---|---|---|
 | MC version | `mcVersion` | `"1.21.1"` style. **Required** when the jar filename carries no version (notably `fabric-server-launch.jar`). Otherwise auto-detected from `paper-<mc>-*` / `purpur-<mc>-*` names. |
 | Memory (MB) | `memoryMB` | Default 2048, clamped server-side to 512–16384. Prefill 2048. |
-| Jar file | `jarName` | Optional. Defaults to auto-detecting `paper-*.jar`, then `purpur-*.jar`, then `server.jar`. `fabric-server-launch.jar` is also recognized. Keep the selected jar visible in the form; `status().mcVersion` reports only the game version. |
+| Jar file | `jarName` | Optional. Defaults to auto-detecting `paper-*.jar` or `purpur-*.jar`, then `server.jar`, then any other `.jar` as a fallback (including `fabric-server-launch.jar`). Keep the selected jar visible in the form; `status().mcVersion` reports only the game version. |
 | Extra JVM args | `extraArgs[]` | Optional list, max 32 entries, 500 chars each (server rejects the rest). One per line in a textarea. |
 
 Sequence:
@@ -243,7 +246,7 @@ function toB64(str) {
 | `server "x" is already running` | Double start | Refresh status; info level. |
 | `server limit reached (2 concurrent max)` | Cap hit | Error toast, suggest stopping another server. |
 | `port NNNN is already in use` | Conflict | Error toast naming the port; suggest editing `server-port`. |
-| `no server jar found in …` | Empty/misnamed dir | Error + hint listing expected names (`paper-*.jar`, `purpur-*.jar`, `fabric-server-launch.jar`, `server.jar`). |
+| `no server jar found in …` | Empty/misnamed dir | Error + hint listing expected names (`paper-*.jar`, `purpur-*.jar`, `server.jar`); any other `.jar` is accepted as a fallback. |
 | `could not determine Minecraft version` | Unversioned jar, no `mcVersion` passed | Error + focus the MC version field. |
 | `server "x" is not running` | Stop/send/status race | Refresh status; info level. |
 | `server "x" does not exist` | Deleted elsewhere | Reload list. |
@@ -279,7 +282,7 @@ function toB64(str) {
 - Denied confirmations are *information*, never red errors.
 - Empty states everywhere (no servers / no logs yet / file missing).
 - Dark-first styling matching the launcher (`--bg-color` family); reuse the
-  `.card/.btn/.badge` vocabulary from `dist-extensions/server-list`.
+  `.card/.btn/.badge` vocabulary used by the official extensions in `extensions-src/`.
 
 ## 10. Out of scope for v1 (do not build)
 

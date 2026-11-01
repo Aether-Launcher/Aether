@@ -55,7 +55,7 @@ func List(activeID string) ([]Info, error) {
 	return infos, nil
 }
 
-// GetCSS returns the sanitized CSS of the theme with the given ID, or "" if
+// GetCSS returns the CSS of the theme with the given ID, or "" if
 // the theme doesn't exist / no theme is active.
 func GetCSS(id string) string {
 	if id == "" {
