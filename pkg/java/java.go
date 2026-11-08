@@ -11,9 +11,24 @@ import (
 )
 
 // RequiredJavaVersion returns the minimum Java major version needed
-// for a given Minecraft version string.
+// for a given Minecraft version string. It handles both the legacy 1.x
+// scheme and the year-based scheme (for example, 26.1).
 func RequiredJavaVersion(mcVersion string) int {
 	parts := strings.Split(mcVersion, ".")
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 8
+	}
+
+	// Year-based versions (26.1+) require Java 25.
+	if major >= 26 {
+		return 25
+	}
+	// 21.x and other year-based versions up to 25.x use Java 21.
+	if major >= 21 {
+		return 21
+	}
+
 	if len(parts) < 2 {
 		return 8
 	}
@@ -22,11 +37,14 @@ func RequiredJavaVersion(mcVersion string) int {
 		return 8
 	}
 
-	// 1.20.5+ requires Java 21
+	// 1.20.5+ and 1.21+ require Java 21
 	if minor >= 20 {
+		if minor > 20 {
+			return 21
+		}
 		if len(parts) >= 3 {
 			patch, _ := strconv.Atoi(parts[2])
-			if minor > 20 || patch >= 5 {
+			if patch >= 5 {
 				return 21
 			}
 		}
