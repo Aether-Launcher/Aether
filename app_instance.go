@@ -96,7 +96,9 @@ func (a *App) LaunchInstanceToWorld(id string, world string) error {
 	return instance.LaunchToWorld(a.ctx, id, world)
 }
 
-// InstallInstance triggers the Mojang download pipeline
+// InstallInstance triggers the Mojang download pipeline. It is idempotent:
+// calling it while an install is already running returns nil and leaves the
+// existing pipeline in charge.
 func (a *App) InstallInstance(id string) error {
 	instances := instance.GetInstances()
 	var target *instance.Instance
@@ -125,9 +127,12 @@ func (a *App) InstallInstance(id string) error {
 
 	// Refuse to start a second pipeline for the same instance: concurrent
 	// pipelines write the same library files and corrupt each other's
-	// downloads (rename collisions, checksum mismatches).
+	// downloads (rename collisions, checksum mismatches). Returning nil keeps
+	// duplicate UI requests (for example, remounting Home) from surfacing a
+	// false error while the original pipeline continues.
 	if !mojang.ClaimInstall(target.ID) {
-		return fmt.Errorf("installation already in progress for %s", target.ID)
+		logger.Info("Install", fmt.Sprintf("installation already in progress for %s; reusing existing pipeline", target.ID))
+		return nil
 	}
 
 	go func() {

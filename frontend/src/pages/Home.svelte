@@ -3,6 +3,7 @@
 import { GetActiveInstance, GetInstances, LaunchInstance, InstallInstance, GetExtensions, GetConnectivityStatus, GetSettings, GetInstanceIcons } from '../../wailsjs/go/main/App.js';
 import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   import { gameStore } from '../stores/gameStore.js';
+  import { installStore, getInstallState, EMPTY_INSTALL_STATE } from '../stores/installStore.js';
   import { toast } from '../stores/toast';
   import EmptyState from '../components/EmptyState.svelte';
   import RecentInstancesWidget from '../components/RecentInstancesWidget.svelte';
@@ -20,12 +21,10 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   $: currentIconUrl = currentInstance ? (instanceIcons[currentInstance.id] || '') : '';
   let recentInstances: any[] = [];
   let extensions: any[] = [];
-  let installProgress = 0;
-  let installStatusText = '';
   let javaStatus: { phase: string; message: string; progress?: number } | null = null;
   let connectivity: any = null;
   let checkingConnectivity = false;
-  let installError = '';
+  let actionError = '';
 
   let launcherSettings: any = {
     showRecentInstances: false,
@@ -52,9 +51,15 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     launcherSettings.showNewsFeed
   );
 
-  // Derive from global store — survives navigation
+  // Derive from global stores — survives navigation
   $: launchState = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.state : 'Idle';
   $: logs = ($gameStore.instanceId === currentInstance?.id) ? $gameStore.logs.slice(-10) : [];
+  $: installState = currentInstance ? ($installStore[currentInstance.id] || EMPTY_INSTALL_STATE) : EMPTY_INSTALL_STATE;
+  $: installProgress = installState.progress;
+  $: installStatusText = installState.status === 'installing' ? 'Installing...' : installState.status === 'error' ? 'Error' : '';
+  $: installError = installState.error;
+  $: errorMessage = installError || actionError;
+  $: isInstanceInstalled = Boolean(currentInstance && (currentInstance.installed || installState.status === 'complete'));
 
   onMount(async () => {
     await loadHome();
@@ -64,27 +69,8 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     const onSettingsUpdate = () => { loadSettings(); };
     window.addEventListener('aether:settings-updated', onSettingsUpdate);
 
-    // instance:state and instance:log are handled globally in gameStore.
-    // Install progress is page-local — only relevant while Home is mounted.
-    const u1 = EventsOn("instance:progress", (data: any) => {
-      if (currentInstance && data.id === currentInstance.id) {
-        installProgress = data.progress;
-        installStatusText = data.status;
-        if (data.progress >= 100) {
-          currentInstance = { ...currentInstance, installed: true };
-          installStatusText = '';
-          installError = '';
-        }
-      }
-    });
-
-    const u2 = EventsOn("instance:error", (data: any) => {
-      if (currentInstance && data.id === currentInstance.id) {
-        installError = data.message || 'Installation failed.';
-        installStatusText = 'Error';
-      }
-    });
-
+    // instance:state, instance:log, install progress, and install errors are
+    // handled globally so they survive navigating away from Home.
     const u3 = EventsOn("java:status", (data: any) => {
       if (data.phase === 'done') {
         javaStatus = null;
@@ -94,15 +80,13 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     });
 
     return () => {
-      u1();
-      u2();
       u3();
       window.removeEventListener('aether:settings-updated', onSettingsUpdate);
     };
   });
 
   onDestroy(() => {
-    EventsOff('instance:progress', 'instance:error', 'java:status');
+    EventsOff('java:status');
     if (loadDebounce) clearTimeout(loadDebounce);
   });
 
@@ -126,6 +110,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     } else {
       currentInstance = await GetActiveInstance();
     }
+    actionError = '';
 
     recentInstances = all
       .filter((i: any) => !currentInstance || i.id !== currentInstance.id)
@@ -151,10 +136,17 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     const inst = all.find((i: any) => i.id === id);
     if (!inst) return;
     currentInstance = inst;
+    actionError = '';
     recentInstances = all.filter((i: any) => i.id !== id).slice(0, 5);
-    // Begin installation immediately if not already installed
+    // Begin installation immediately if not already installed. If another
+    // Home mount already started it, reuse the running pipeline instead of
+    // asking the backend to start a duplicate.
     if (!inst.installed) {
-      await handleInstall();
+      // Only auto-start a fresh install. A running install is reused, and a
+      // previous failure stays visible until the user presses Install again.
+      if (getInstallState(id).status === 'idle') {
+        await handleInstall();
+      }
     }
   }
 
@@ -179,16 +171,18 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
 
   async function handleInstall() {
     if (!currentInstance) return;
-    installError = '';
-    installStatusText = 'Installing...';
-    installProgress = 0;
+    const id = currentInstance.id;
+    // A remount or double click must not start a second pipeline.
+    if (getInstallState(id).status === 'installing') return;
+
+    actionError = '';
+    installStore.start(id);
     // Set gameStore context so the log panel binds to this instance's installation logs
-    gameStore.update(s => ({ ...s, instanceId: currentInstance.id, state: 'Installing...', logs: [] }));
+    gameStore.update(s => ({ ...s, instanceId: id, state: 'Installing...', logs: [] }));
     try {
-      await InstallInstance(currentInstance.id);
+      await InstallInstance(id);
     } catch (err) {
-      installStatusText = 'Error';
-      installError = String(err);
+      installStore.fail(id, String(err));
       gameStore.update(s => ({ ...s, state: 'Error' }));
       console.error(err);
     }
@@ -208,7 +202,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
   async function handleQuickPlay(inst: any) {
     if (!inst) return;
     currentInstance = inst;
-    installError = '';
+    actionError = '';
 
     const all = await GetInstances();
     recentInstances = all
@@ -221,7 +215,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
       })
       .slice(0, 5);
 
-    if (!inst.installed) {
+    if (!inst.installed && getInstallState(inst.id).status !== 'complete') {
       await handleInstall();
       return;
     }
@@ -230,7 +224,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
     try {
       await LaunchInstance(inst.id);
     } catch (err: any) {
-      installError = err?.message || String(err);
+      actionError = err?.message || String(err);
       gameStore.update(s => ({ ...s, state: 'Error' }));
       console.error('Quick play failed:', err);
     }
@@ -340,7 +334,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
               </div>
             </div>
 
-            {#if !currentInstance.installed}
+            {#if !isInstanceInstalled}
               <div class="conn-row">
                 <div class="conn-status" class:conn-offline={connectivity?.overall === 'offline'} class:conn-degraded={connectivity?.overall === 'degraded'}>
                   <span class="conn-dot"></span>
@@ -366,7 +360,7 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
             {/if}
 
             <div class="actions-row">
-              {#if currentInstance.installed}
+              {#if isInstanceInstalled}
                 <button
                   class="btn btn-primary play-btn"
                   on:click={handlePlay}
@@ -410,8 +404,8 @@ import { EventsOff, EventsOn } from '../../wailsjs/runtime/runtime.js';
               {/if}
             </div>
 
-            {#if installError}
-              <div class="install-error">{installError}</div>
+            {#if errorMessage}
+              <div class="install-error">{errorMessage}</div>
             {/if}
 
             {#if logs.length > 0}
