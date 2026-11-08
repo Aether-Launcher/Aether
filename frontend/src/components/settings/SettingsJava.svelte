@@ -28,7 +28,7 @@
           <div class="java-item-info">
             <span class="java-name">Java {js.version}</span>
             <span class="java-target">
-              {js.version === 8 ? '(Minecraft < 1.17)' : js.version === 17 ? '(Minecraft 1.17 – 1.20.4)' : '(Minecraft 1.20.5+)'}
+              {js.version === 8 ? '(Minecraft < 1.17)' : js.version === 17 ? '(Minecraft 1.17 – 1.20.4)' : js.version === 21 ? '(Minecraft 1.20.5 – 1.21.x)' : js.version === 25 ? '(Minecraft 26.1+)' : '(Required by an installed instance)'}
             </span>
           </div>
           <div class="java-item-status">

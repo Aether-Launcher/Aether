@@ -98,11 +98,6 @@ var jarVersionRe = regexp.MustCompile(`(\d{1,3}\.\d{1,3}(?:\.\d{1,3})?)`)
 // requiredJavaVersion maps an MC version to a Java major, handling both the
 // legacy 1.x scheme and the newer year-based scheme (e.g. "26.1").
 func requiredJavaVersion(mc string) int {
-	if parts := strings.Split(mc, "."); len(parts) >= 1 {
-		if major, err := strconv.Atoi(parts[0]); err == nil && major >= 21 {
-			return 21
-		}
-	}
 	return java.RequiredJavaVersion(mc)
 }
 

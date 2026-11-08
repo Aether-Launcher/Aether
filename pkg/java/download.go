@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Aether-Launcher/Aether/pkg/fs"
@@ -50,6 +52,29 @@ func IsManagedJavaInstalled(majorVersion int) bool {
 	path := GetManagedJavaPath(majorVersion)
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// ManagedJavaVersions returns the major versions of every managed JRE that is
+// currently installed on disk.
+func ManagedJavaVersions() []int {
+	entries, err := os.ReadDir(filepath.Join(fs.GetDataDir(), "runtimes"))
+	if err != nil {
+		return nil
+	}
+
+	var versions []int
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "java-") {
+			continue
+		}
+		major, err := strconv.Atoi(strings.TrimPrefix(entry.Name(), "java-"))
+		if err != nil || !IsManagedJavaInstalled(major) {
+			continue
+		}
+		versions = append(versions, major)
+	}
+	sort.Ints(versions)
+	return versions
 }
 
 // getManagedJavaDir returns the directory where the managed JRE is stored.
@@ -110,7 +135,7 @@ func DownloadJava(ctx context.Context, majorVersion int) error {
 
 	// Download Java with resume support and progress reporting
 	destPath := filepath.Join(os.TempDir(), fmt.Sprintf("aether-java-%d.zip", majorVersion))
-	
+
 	// Create progress callback
 	var lastReport int64 = 0
 	onProgress := func(downloaded, total int64) {
@@ -156,7 +181,6 @@ func DownloadJava(ctx context.Context, majorVersion int) error {
 
 	return nil
 }
-
 
 // extractZip extracts a zip archive into destDir, stripping the top-level
 // directory that Adoptium bundles include (e.g. jdk-21.0.1-jre/).

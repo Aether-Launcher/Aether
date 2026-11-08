@@ -3,6 +3,13 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sort"
+
+	"github.com/Aether-Launcher/Aether/pkg/fs"
+	"github.com/Aether-Launcher/Aether/pkg/instance"
 	"github.com/Aether-Launcher/Aether/pkg/java"
 )
 
@@ -14,11 +21,48 @@ type JavaRuntimeStatus struct {
 	IsSystem  bool   `json:"isSystem"`
 }
 
+// javaStatusVersions returns the Java majors the settings page should show:
+// the base majors Aether knows about, every managed runtime on disk, and every
+// major required by an installed instance. The instance version.json value is
+// authoritative because modded versions can override it.
+func javaStatusVersions() []int {
+	seen := map[int]bool{8: true, 17: true, 21: true}
+
+	for _, v := range java.ManagedJavaVersions() {
+		seen[v] = true
+	}
+
+	for _, inst := range instance.GetInstances() {
+		seen[java.RequiredJavaVersion(inst.Version)] = true
+
+		versionPath := filepath.Join(fs.GetDataDir(), "instances", inst.ID, "version.json")
+		data, err := os.ReadFile(versionPath)
+		if err != nil {
+			continue
+		}
+
+		var info struct {
+			JavaVersion struct {
+				MajorVersion int `json:"majorVersion"`
+			} `json:"javaVersion"`
+		}
+		if err := json.Unmarshal(data, &info); err == nil && info.JavaVersion.MajorVersion > 0 {
+			seen[info.JavaVersion.MajorVersion] = true
+		}
+	}
+
+	versions := make([]int, 0, len(seen))
+	for v := range seen {
+		versions = append(versions, v)
+	}
+	sort.Ints(versions)
+	return versions
+}
+
 // GetJavaStatus returns the installation status for each required Java version.
 func (a *App) GetJavaStatus() []JavaRuntimeStatus {
-	versions := []int{8, 17, 21}
 	var statuses []JavaRuntimeStatus
-	for _, v := range versions {
+	for _, v := range javaStatusVersions() {
 		installed := java.IsManagedJavaInstalled(v)
 		path := ""
 		isSystem := false
