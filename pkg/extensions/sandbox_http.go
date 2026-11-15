@@ -14,6 +14,7 @@ import (
 	"github.com/Aether-Launcher/Aether/pkg/fs"
 	"github.com/Aether-Launcher/Aether/pkg/netutil"
 )
+
 const maxExtensionHTTPResponse = 10 * 1024 * 1024
 
 // httpGetWithRetry performs the request, retrying transient network failures
@@ -37,8 +38,6 @@ func httpGetWithRetry(ctx context.Context, req *http.Request) (*http.Response, e
 	return nil, lastErr
 }
 
-const httpCacheTTL = 24 * time.Hour
-
 func httpCachePath(target string) string {
 	h := sha256.Sum256([]byte(target))
 	name := hex.EncodeToString(h[:]) + ".cache"
@@ -51,17 +50,13 @@ func writeHttpCache(target, body string) {
 	_ = os.WriteFile(path, []byte(body), 0644)
 }
 
+// readHttpCache returns the last cached response for target. It intentionally
+// ignores age: callers only use it after a network failure, where a stale
+// response is more useful than blocking an offline launch.
 func readHttpCache(target string) (string, bool) {
 	path := httpCachePath(target)
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", false
-	}
-	if time.Since(info.ModTime()) > httpCacheTTL {
-		return "", false
-	}
 	data, err := os.ReadFile(path)
-	if err != nil {
+	if err != nil || len(data) == 0 {
 		return "", false
 	}
 	return string(data), true
