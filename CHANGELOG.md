@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **macOS Clipping**: Fixed the sidebar and instance settings cards getting clipped or cutting off absolute-positioned dropdowns during scroll (#7, #11).
 - **Extension Tooltips**: Removed the stray native browser tooltip from the Extension iframe view (#13).
 - **Modrinth Extension (Registry)**: Modrinth extension now correctly filters compatible instances based on mod loaders and auto-selects the appropriate mod version (#12).
+- **Instance Details**: Show the actual mod loader (Fabric, Forge, NeoForge, Quilt) instead of always showing Vanilla for non-Fabric instances.
 - **Offline Modded Launch**: Reuse cached mod-loader metadata when the network is unavailable, so Fabric, Forge, NeoForge, and Quilt instances can launch offline after one successful online launch.
 - **CI**: Replaced the retired `macos-14` runner with `macos-15` so macOS arm64 builds and automated releases can run.
 

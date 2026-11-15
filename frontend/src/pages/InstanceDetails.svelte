@@ -160,10 +160,10 @@
           <h1>{instance.name}</h1>
           <p class="meta">
             <span class="badge badge-version">{instance.version}</span>
-            {#if instance.loader === 'Fabric'}
-              <span class="badge badge-community">Fabric</span>
-            {:else}
+            {#if instance.loader === 'Vanilla'}
               <span class="badge badge-official">Vanilla</span>
+            {:else}
+              <span class="badge badge-community">{instance.loader}</span>
             {/if}
             <span class="last-played">{instance.lastPlayed ? `Last played ${instance.lastPlayed.split('T')[0]}` : 'Never played'}</span>
           </p>

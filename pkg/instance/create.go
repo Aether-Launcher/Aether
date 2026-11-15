@@ -83,7 +83,7 @@ func Create(name, version, loader string) (*Instance, error) {
 		ID:         id,
 		Name:       name,
 		Version:    version,
-		Loader:     loader,
+		Loader:     canonicalLoaderName(loader),
 		Memory:     memory,
 		LastPlayed: "Never",
 		Installed:  false,
