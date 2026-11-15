@@ -56,20 +56,21 @@ func GetInstances() []Instance {
 			if inst.ID == "" {
 				inst.ID = entry.Name()
 			}
-		// An instance counts as installed only when a previous Install run
-		// completed: the client jar exists AND version.json was written
-		// (Install writes version.json last, so its presence proves
-		// completion). Checking the jar alone mislabels freshly imported
-		// instances whose shared game files were reused without a
-		// completed install — the UI would offer Play instead of Install
-		// and Launch would fail.
-		jarPath := filepath.Join(instancesDir, entry.Name(), "bin", inst.Version+".jar")
-		versionPath := filepath.Join(instancesDir, entry.Name(), "version.json")
-		if _, err := os.Stat(jarPath); err == nil {
-			if _, err := os.Stat(versionPath); err == nil {
-				inst.Installed = true
+			inst.Loader = canonicalLoaderName(inst.Loader)
+			// An instance counts as installed only when a previous Install run
+			// completed: the client jar exists AND version.json was written
+			// (Install writes version.json last, so its presence proves
+			// completion). Checking the jar alone mislabels freshly imported
+			// instances whose shared game files were reused without a
+			// completed install — the UI would offer Play instead of Install
+			// and Launch would fail.
+			jarPath := filepath.Join(instancesDir, entry.Name(), "bin", inst.Version+".jar")
+			versionPath := filepath.Join(instancesDir, entry.Name(), "version.json")
+			if _, err := os.Stat(jarPath); err == nil {
+				if _, err := os.Stat(versionPath); err == nil {
+					inst.Installed = true
+				}
 			}
-		}
 
 			mu.Lock()
 			instances = append(instances, inst)
@@ -96,6 +97,7 @@ func UpdateInstance(inst *Instance) error {
 	if err != nil {
 		return err
 	}
+	inst.Loader = canonicalLoaderName(inst.Loader)
 	manifestPath := filepath.Join(instanceDir, "instance.json")
 	data, err := json.MarshalIndent(inst, "", "  ")
 	if err != nil {

@@ -24,8 +24,8 @@ const (
 	// FormatGeneric is a plain Minecraft game directory (mods + saves/config/
 	// options) with no launcher metadata at all, e.g. Theseus forks that keep
 	// profile state in an app database instead of profile.json.
-	FormatGeneric    Format = "generic"
-	FormatUnknown    Format = ""
+	FormatGeneric Format = "generic"
+	FormatUnknown Format = ""
 )
 
 // ImportProgress is called with the number of files copied so far, the total
@@ -71,20 +71,14 @@ type cfInstance struct {
 }
 
 // normalizeLoaderID maps any launcher-specific loader spelling to Aether's
-// canonical display IDs. Unknown or empty values fall back to "Vanilla".
+// canonical display IDs. Unknown or empty values fall back to "Vanilla" for
+// imports, where an unrecognized loader means the metadata is incomplete.
 // Canonical case matters: the launcher passes strings.ToLower to the mod
 // loader hook, but the UI compares exact case (e.g. loader === 'Fabric').
 func normalizeLoaderID(raw string) string {
-	l := strings.ToLower(strings.TrimSpace(raw))
-	switch {
-	case strings.Contains(l, "neoforge") || strings.Contains(l, "neoforged"):
-		return "NeoForge"
-	case strings.Contains(l, "quilt"):
-		return "Quilt"
-	case strings.Contains(l, "fabric"):
-		return "Fabric"
-	case strings.Contains(l, "forge"):
-		return "Forge"
+	switch name := canonicalLoaderName(raw); name {
+	case "Vanilla", "Fabric", "Forge", "NeoForge", "Quilt":
+		return name
 	default:
 		return "Vanilla"
 	}
